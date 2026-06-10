@@ -1,0 +1,9 @@
+-- ============================================================================
+-- RLS Staff — owner + staff activo: lectura tokens y perfiles solicitantes
+-- Migración aplicada: supabase/migrations/20260527_rls_staff_flujo_validacion.sql
+-- ============================================================================
+-- Políticas nuevas:
+--   tokens_asistencia_select_local_o_staff  → soy_local_o_staff_de_evento(id_evento)
+--   tokens_promociones_select_local_o_staff → is_local_or_staff_of_promocion(id_promocion)
+--   perfiles_usuarios_select_solicitantes_local → is_solicitante_de_local_o_staff(id)
+-- Escrituras siguen solo por edge functions (service_role).

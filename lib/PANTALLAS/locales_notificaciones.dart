@@ -1,0 +1,506 @@
+library;
+
+import 'package:flutter/cupertino.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:google_fonts/google_fonts.dart';
+
+import '../core/constants.dart';
+import '../widgets/tema_locales_scope.dart';
+import '../core/servicio_notificaciones_locales.dart';
+import '../core/navegacion_locales.dart';
+import '../models/notificacion.dart';
+
+// ─── Pantalla principal ───────────────────────────────────────────────────────
+
+class LocalesNotificaciones extends StatefulWidget {
+  const LocalesNotificaciones({super.key});
+
+  @override
+  State<LocalesNotificaciones> createState() => _LocalesNotificacionesState();
+}
+
+class _LocalesNotificacionesState extends State<LocalesNotificaciones> {
+  final _servicio = ServicioNotificacionesLocales();
+  List<Notificacion> _notifs = const [];
+  bool _cargando = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _cargar();
+  }
+
+  Future<void> _cargar() async {
+    if (!mounted) return;
+    setState(() {
+      _cargando = true;
+      _error = null;
+    });
+    try {
+      final lista = await _servicio.listar();
+      await _servicio.refrescarContador();
+      if (!mounted) return;
+      setState(() {
+        _notifs = lista;
+        _cargando = false;
+      });
+      _servicio.sincronizarDesdeLista(lista);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = 'No se pudieron cargar las notificaciones.';
+        _cargando = false;
+      });
+    }
+  }
+
+  Future<void> _recargar() async {
+    await _cargar();
+  }
+
+  Future<void> _marcarLeida(Notificacion n) async {
+    if (n.leida) return;
+    // Optimista: actualizamos UI primero
+    setState(() {
+      final idx = _notifs.indexWhere((x) => x.id == n.id);
+      if (idx >= 0) _notifs[idx] = n.copyWith(leida: true, fechaLectura: DateTime.now().toUtc());
+    });
+    _servicio.sincronizarDesdeLista(_notifs);
+    final ok = await _servicio.marcarLeida(n.id);
+    if (!ok && mounted) {
+      // Revertir si falló
+      setState(() {
+        final idx = _notifs.indexWhere((x) => x.id == n.id);
+        if (idx >= 0) _notifs[idx] = n;
+      });
+      _servicio.sincronizarDesdeLista(_notifs);
+    }
+  }
+
+  Future<void> _marcarTodas() async {
+    if (_notifs.every((n) => n.leida)) return;
+    HapticFeedback.lightImpact();
+    setState(() {
+      _notifs = _notifs.map((n) => n.copyWith(leida: true)).toList();
+    });
+    _servicio.contadorNoLeidas.value = 0;
+    await _servicio.marcarTodasLeidas();
+  }
+
+  void _navegar(Notificacion n) {
+    _marcarLeida(n);
+    final destino = _destinoNotificacion(n);
+    if (destino.ruta.isEmpty) return;
+    try {
+      NavegacionLocales.pushNamed(
+        destino.ruta,
+        arguments: destino.pestana,
+      );
+    } catch (e) {
+      debugPrint('⚠️ pushNamed ${destino.ruta}: $e');
+    }
+  }
+
+  /// Resuelve CTA de notificaciones legacy (/mi_cuenta, rutas typo) y pagos.
+  ({String ruta, int? pestana}) _destinoNotificacion(Notificacion n) {
+    const rutaSubs = '/administrar_subscripciones';
+
+    int? pestanaPorTipo(String tipo) => switch (tipo) {
+      'pago_aprobado' || 'pago_agendado' || 'plan_renovado' => 1,
+      'plan_vencido' => 0,
+      _ => null,
+    };
+
+    final pestanaTipo = pestanaPorTipo(n.tipo);
+    if (pestanaTipo != null) {
+      return (ruta: rutaSubs, pestana: pestanaTipo);
+    }
+
+    final ruta = (n.ctaRuta ?? '').trim();
+    if (ruta.isEmpty) return (ruta: '', pestana: null);
+
+    if (ruta == rutaSubs ||
+        ruta == '/administrar_suscripciones' ||
+        ruta == '/mi_cuenta') {
+      return (ruta: rutaSubs, pestana: pestanaTipo ?? 1);
+    }
+
+    return (ruta: ruta, pestana: null);
+  }
+
+  int get _sinLeer => _notifs.where((n) => !n.leida).length;
+
+  @override
+  Widget build(BuildContext context) {
+    TemaLocalesScope.of(context);
+    TemaLocalesScope.of(context);
+    return SafeArea(
+      bottom: false,
+      child: RefreshIndicator(
+        color: ColoresLocales.acentoVioleta,
+        onRefresh: _recargar,
+        child: CustomScrollView(
+          physics: AlwaysScrollableScrollPhysics(),
+          slivers: [
+            SliverToBoxAdapter(child: _buildHeader()),
+            if (_cargando)
+              SliverFillRemaining(
+                hasScrollBody: false,
+                child: Center(
+                  child: CircularProgressIndicator(
+                    color: ColoresLocales.acentoVioleta,
+                  ),
+                ),
+              )
+            else if (_error != null)
+              SliverFillRemaining(
+                hasScrollBody: false,
+                child: _buildErrorState(),
+              )
+            else if (_notifs.isEmpty)
+              SliverFillRemaining(
+                hasScrollBody: false,
+                child: _buildEmptyState(),
+              )
+            else
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
+                sliver: SliverList(
+                  delegate: SliverChildBuilderDelegate(
+                    (ctx, i) => Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: _CardNotif(
+                        notif: _notifs[i],
+                        onTap: () => _navegar(_notifs[i]),
+                        onBoton: () => _navegar(_notifs[i]),
+                      ),
+                    ),
+                    childCount: _notifs.length,
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHeader() {
+    return Padding(
+      padding: EdgeInsets.fromLTRB(20, 24, 20, 10),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              SizedBox(width: 44),
+              Expanded(
+                child: Center(
+                  child: Text(
+                    'Notificaciones',
+                    style: GoogleFonts.baloo2(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w900,
+                      color: ColoresLocales.acentoVioleta,
+                    ),
+                  ),
+                ),
+              ),
+              // Acción "marcar todas" (visible si hay >0 sin leer)
+              SizedBox(
+                width: 44,
+                child: _sinLeer > 0
+                    ? CupertinoButton(
+                        padding: EdgeInsets.zero,
+                        minimumSize: Size(36, 36),
+                        onPressed: _marcarTodas,
+                        child: Icon(
+                          CupertinoIcons.checkmark_alt_circle,
+                          color: ColoresLocales.acentoVioleta,
+                          size: 22,
+                        ),
+                      )
+                    : SizedBox.shrink(),
+              ),
+            ],
+          ),
+          if (_sinLeer > 0) ...[
+            SizedBox(height: 6),
+            Container(
+              padding: EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              decoration: BoxDecoration(
+                color: ColoresLocales.acentoVioleta.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(50),
+              ),
+              child: Text(
+                '$_sinLeer sin leer',
+                style: GoogleFonts.baloo2(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: ColoresLocales.acentoVioleta,
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return Center(
+      child: Padding(
+        padding: EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              CupertinoIcons.bell,
+              size: 56,
+              color: ColoresLocales.acentoVioleta.withOpacity(0.35),
+            ),
+            SizedBox(height: 14),
+            Text(
+              'No tenés notificaciones',
+              textAlign: TextAlign.center,
+              style: GoogleFonts.baloo2(
+                fontSize: 16,
+                fontWeight: FontWeight.w800,
+                color: ColoresLocales.textoOnFondoClaro,
+              ),
+            ),
+            SizedBox(height: 6),
+            Text(
+              'Acá vas a ver alertas sobre tus eventos, listas, pagos y reseñas.',
+              textAlign: TextAlign.center,
+              style: GoogleFonts.baloo2(
+                fontSize: 13,
+                color: ColoresLocales.textoSecundarioOnFondoClaro,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildErrorState() {
+    return Center(
+      child: Padding(
+        padding: EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              CupertinoIcons.exclamationmark_circle,
+              size: 56,
+              color: Colors.red.shade300,
+            ),
+            SizedBox(height: 14),
+            Text(
+              _error ?? 'Error al cargar',
+              textAlign: TextAlign.center,
+              style: GoogleFonts.baloo2(
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+                color: ColoresLocales.textoOnFondoClaro,
+              ),
+            ),
+            SizedBox(height: 14),
+            CupertinoButton(
+              color: ColoresLocales.acentoVioleta,
+              borderRadius: BorderRadius.circular(50),
+              onPressed: _cargar,
+              child: Text(
+                'Reintentar',
+                style: GoogleFonts.baloo2(fontWeight: FontWeight.w800),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Card de notificación ─────────────────────────────────────────────────────
+
+class _CardNotif extends StatelessWidget {
+  final Notificacion notif;
+  final VoidCallback onTap;
+  final VoidCallback onBoton;
+
+  const _CardNotif({
+    required this.notif,
+    required this.onTap,
+    required this.onBoton,
+  });
+
+  Color _colorPrioridad() {
+    switch (notif.prioridad) {
+      case 'alta':
+        return Colors.red.shade400;
+      case 'baja':
+        return ColoresLocales.textoSecundarioOnFondoClaro;
+      default:
+        return ColoresLocales.acentoVioleta;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    TemaLocalesScope.of(context);
+    final leida = notif.leida;
+    final colorAccent = _colorPrioridad();
+
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: Duration(milliseconds: 300),
+        decoration: BoxDecoration(
+          color: ColoresLocales.superficie,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: leida
+                ? colorAccent.withOpacity(0.1)
+                : colorAccent.withOpacity(0.35),
+            width: leida ? 1 : 1.5,
+          ),
+          boxShadow: leida
+              ? [
+                  BoxShadow(
+                    color: ColoresLocales.sombraCard,
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ]
+              : [
+                  BoxShadow(
+                    color: colorAccent.withOpacity(0.18),
+                    blurRadius: 18,
+                    spreadRadius: 0,
+                    offset: Offset(0, 4),
+                  ),
+                ],
+        ),
+        child: Padding(
+          padding: EdgeInsets.all(16),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Indicador circular: relleno si no leída, contorno si leída
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: leida
+                      ? colorAccent.withOpacity(0.08)
+                      : colorAccent.withOpacity(0.16),
+                ),
+                child: Icon(
+                  notif.icono,
+                  color: leida
+                      ? ColoresLocales.textoSecundarioOnFondoClaro
+                      : colorAccent,
+                  size: 18,
+                ),
+              ),
+              SizedBox(width: 12),
+
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            notif.titulo,
+                            style: GoogleFonts.baloo2(
+                              fontSize: 14,
+                              fontWeight: leida ? FontWeight.w600 : FontWeight.w900,
+                              color: leida
+                                  ? ColoresLocales.textoSecundarioOnFondoClaro
+                                  : ColoresLocales.textoOnFondoClaro,
+                              height: 1.3,
+                            ),
+                          ),
+                        ),
+                        if (!leida) ...[
+                          SizedBox(width: 6),
+                          Container(
+                            width: 8,
+                            height: 8,
+                            margin: const EdgeInsets.only(top: 5),
+                            decoration: BoxDecoration(
+                              color: colorAccent,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                    SizedBox(height: 4),
+
+                    Text(
+                      notif.descripcion,
+                      style: GoogleFonts.baloo2(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                        color: ColoresLocales.textoSecundarioOnFondoClaro,
+                        height: 1.4,
+                      ),
+                    ),
+                    SizedBox(height: 8),
+
+                    Row(
+                      children: [
+                        Text(
+                          notif.fechaRelativa,
+                          style: GoogleFonts.baloo2(
+                            fontSize: 11,
+                            color: ColoresLocales.textoSecundarioOnFondoClaro.withOpacity(0.6),
+                          ),
+                        ),
+                        Spacer(),
+                        if (notif.ctaTexto != null && notif.ctaTexto!.isNotEmpty)
+                          CupertinoButton(
+                            padding: EdgeInsets.zero,
+                            onPressed: onBoton,
+                            minimumSize: Size(0, 0),
+                            child: Container(
+                              padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                              decoration: BoxDecoration(
+                                color: leida ? Colors.transparent : colorAccent,
+                                borderRadius: BorderRadius.circular(50),
+                                border: leida
+                                    ? Border.all(color: colorAccent.withOpacity(0.4))
+                                    : null,
+                              ),
+                              child: Text(
+                                notif.ctaTexto!,
+                                style: GoogleFonts.baloo2(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                  color: leida
+                                      ? ColoresLocales.textoSecundarioOnFondoClaro
+                                      : ColoresLocales.textoEnBoton,
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
