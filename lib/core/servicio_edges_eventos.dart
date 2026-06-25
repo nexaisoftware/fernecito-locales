@@ -3,9 +3,9 @@ library;
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart' show debugPrint;
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../config/supabase_config.dart';
 import 'supabase_client.dart';
 
 /// Excepción tipada para errores de edges. Permite al UI distinguir códigos
@@ -34,11 +34,13 @@ class EdgeException implements Exception {
       code == 'stale_pending_state';
 
   @override
-  String toString() => 'EdgeException($funcion → $status $code: $mensaje${detail != null ? " — $detail" : ""})';
+  String toString() =>
+      'EdgeException($funcion → $status $code: $mensaje${detail != null ? " — $detail" : ""})';
 }
 
 class ServicioEdgesEventos {
-  static final ServicioEdgesEventos _instancia = ServicioEdgesEventos._interno();
+  static final ServicioEdgesEventos _instancia =
+      ServicioEdgesEventos._interno();
   factory ServicioEdgesEventos() => _instancia;
   ServicioEdgesEventos._interno();
 
@@ -70,7 +72,7 @@ class ServicioEdgesEventos {
   }
 
   String _urlFunctionsBase() {
-    final base = (dotenv.env['URL_SUPABASE'] ?? '').trim();
+    final base = (ConfiguracionSupabase.obtenerUrl() ?? '').trim();
     if (base.isEmpty) {
       throw Exception('Falta URL_SUPABASE en .env');
     }
@@ -78,7 +80,7 @@ class ServicioEdgesEventos {
   }
 
   String _apiKeyPublica() {
-    final key = (dotenv.env['CLAVE_PUBLICA_SUPABASE'] ?? '').trim();
+    final key = (ConfiguracionSupabase.obtenerClavePublica() ?? '').trim();
     if (key.isEmpty) {
       throw Exception('Falta CLAVE_PUBLICA_SUPABASE en .env');
     }
@@ -113,10 +115,14 @@ class ServicioEdgesEventos {
   }) {
     final payload = _jwtPayload(token);
     final iss = (payload['iss'] ?? '').toString();
-    final ref = iss.contains('/auth/v1') ? iss.split('.supabase.co').first.split('//').last : iss;
+    final ref = iss.contains('/auth/v1')
+        ? iss.split('.supabase.co').first.split('//').last
+        : iss;
     final sub = (payload['sub'] ?? '').toString();
     final exp = (payload['exp'] ?? '').toString();
-    print('[EDGE_AUTH][$funcion][$etapa] ref=$ref sub=$sub exp=$exp extra=$extra');
+    print(
+      '[EDGE_AUTH][$funcion][$etapa] ref=$ref sub=$sub exp=$exp extra=$extra',
+    );
   }
 
   String _estadoExpToken(String token) {
@@ -157,7 +163,7 @@ class ServicioEdgesEventos {
 
   String _refDesdeEnv() {
     try {
-      final url = (dotenv.env['URL_SUPABASE'] ?? '').trim();
+      final url = (ConfiguracionSupabase.obtenerUrl() ?? '').trim();
       if (url.isEmpty) return 'desconocido_env_vacio';
       final host = Uri.parse(url).host;
       if (!host.contains('.supabase.co')) return host;
@@ -211,7 +217,8 @@ class ServicioEdgesEventos {
         funcion: nombreFuncion,
         status: 0,
         code: 'edge_timeout',
-        mensaje: 'La operación tardó demasiado. Revisá tu conexión e intentá de nuevo.',
+        mensaje:
+            'La operación tardó demasiado. Revisá tu conexión e intentá de nuevo.',
       );
     } catch (e) {
       throw EdgeException(
@@ -228,11 +235,17 @@ class ServicioEdgesEventos {
       decoded = jsonDecode(response.body);
     } catch (e) {
       // Body no es JSON válido — loggear para diagnóstico futuro.
-      debugPrint('⚠️ edge[$nombreFuncion] body no-JSON (status ${response.statusCode}): ${response.body}');
+      debugPrint(
+        '⚠️ edge[$nombreFuncion] body no-JSON (status ${response.statusCode}): ${response.body}',
+      );
       decoded = null;
     }
     final data = _asMap(decoded);
-    return _EdgeHttpResult(status: response.statusCode, data: data, rawBody: response.body);
+    return _EdgeHttpResult(
+      status: response.statusCode,
+      data: data,
+      rawBody: response.body,
+    );
   }
 
   Future<_EdgeHttpResult> _invocarConReintento(
@@ -240,7 +253,11 @@ class ServicioEdgesEventos {
     required Map<String, dynamic> body,
   }) async {
     final tokenInicial = await _accessToken();
-    _logAuthDebug(funcion: nombreFuncion, etapa: 'primer_intento', token: tokenInicial);
+    _logAuthDebug(
+      funcion: nombreFuncion,
+      etapa: 'primer_intento',
+      token: tokenInicial,
+    );
 
     final primer = await _invokeHttp(
       nombreFuncion,
@@ -256,7 +273,11 @@ class ServicioEdgesEventos {
     );
 
     final tokenRefrescado = await _accessToken(forzarRefresh: true);
-    _logAuthDebug(funcion: nombreFuncion, etapa: 'segundo_intento', token: tokenRefrescado);
+    _logAuthDebug(
+      funcion: nombreFuncion,
+      etapa: 'segundo_intento',
+      token: tokenRefrescado,
+    );
 
     final segundo = await _invokeHttp(
       nombreFuncion,
@@ -265,8 +286,7 @@ class ServicioEdgesEventos {
     );
     if (segundo.status != 401) return segundo;
 
-    final detalle401 =
-        segundo.data.isNotEmpty ? segundo.data : segundo.rawBody;
+    final detalle401 = segundo.data.isNotEmpty ? segundo.data : segundo.rawBody;
     throw EdgeException(
       funcion: nombreFuncion,
       status: 401,
@@ -288,7 +308,8 @@ class ServicioEdgesEventos {
 
     // Caso éxito real: HTTP 2xx + body.ok truthy (bool o string "true")
     final okBody = res.data['ok'];
-    final okTruthy = okBody == true ||
+    final okTruthy =
+        okBody == true ||
         okBody == 1 ||
         (okBody is String && okBody.toLowerCase() == 'true');
     if (res.status >= 200 && res.status < 300 && okTruthy) {
@@ -297,10 +318,9 @@ class ServicioEdgesEventos {
 
     // Caso falla: extraer code y mensaje del body de la edge si vienen
     final code = (res.data['code']?.toString() ?? '').trim();
-    final mensaje = (res.data['error']?.toString() ??
-            res.data['message']?.toString() ??
-            '')
-        .trim();
+    final mensaje =
+        (res.data['error']?.toString() ?? res.data['message']?.toString() ?? '')
+            .trim();
     final detail = res.data['detail']?.toString();
 
     // Log diagnóstico: si la edge dió 2xx pero ok!=true (body raro) → loggear
@@ -330,7 +350,11 @@ class ServicioEdgesEventos {
       code: code.isNotEmpty ? code : 'edge_error',
       mensaje: mensaje.isNotEmpty
           ? mensaje
-          : _mensajeEdgeHttpError(funcion: funcion, status: res.status, data: res.data),
+          : _mensajeEdgeHttpError(
+              funcion: funcion,
+              status: res.status,
+              data: res.data,
+            ),
       detail: detail,
     );
   }
@@ -342,10 +366,7 @@ class ServicioEdgesEventos {
     try {
       final res = await _handleEdge(
         'subir_evento',
-        body: {
-          'payload_evento': payloadEvento,
-          'promociones': promociones,
-        },
+        body: {'payload_evento': payloadEvento, 'promociones': promociones},
       );
       final data = res.data;
       return data['id_evento'].toString();
@@ -365,10 +386,7 @@ class ServicioEdgesEventos {
     try {
       final res = await _handleEdge(
         'editar_evento',
-        body: {
-          'id_evento': idEvento,
-          ...campos,
-        },
+        body: {'id_evento': idEvento, ...campos},
       );
       return res.data;
     } on Exception {
@@ -382,10 +400,7 @@ class ServicioEdgesEventos {
     try {
       await _handleEdge(
         'editar_evento',
-        body: {
-          'id_evento': idEvento,
-          'estado_publicacion': 'cancelado',
-        },
+        body: {'id_evento': idEvento, 'estado_publicacion': 'cancelado'},
       );
     } on Exception {
       rethrow;
@@ -397,10 +412,7 @@ class ServicioEdgesEventos {
     try {
       await _handleEdge(
         'editar_evento',
-        body: {
-          'id_evento': idEvento,
-          'estado_publicacion': 'publicado',
-        },
+        body: {'id_evento': idEvento, 'estado_publicacion': 'publicado'},
       );
     } on Exception {
       rethrow;
@@ -409,10 +421,7 @@ class ServicioEdgesEventos {
 
   Future<void> borrarEvento({required String idEvento}) async {
     try {
-      await _handleEdge(
-        'borrar_evento',
-        body: {'id_evento': idEvento},
-      );
+      await _handleEdge('borrar_evento', body: {'id_evento': idEvento});
     } on Exception {
       rethrow;
     }
@@ -429,7 +438,8 @@ class ServicioEdgesEventos {
       'gestionar_asistencia',
       body: {
         if (idToken != null && idToken.isNotEmpty) 'id_token': idToken,
-        if (idReservaGrupal != null && idReservaGrupal.isNotEmpty) 'id_reserva_grupal': idReservaGrupal,
+        if (idReservaGrupal != null && idReservaGrupal.isNotEmpty)
+          'id_reserva_grupal': idReservaGrupal,
         'accion': accion,
       },
     );
@@ -448,9 +458,9 @@ class ServicioEdgesEventos {
       'canjear_asistencia',
       body: {
         'codigo_puerta': codigoPuerta.trim().toUpperCase(),
-        'id_local':      idLocal,
-        'id_evento':     idEvento,
-        'accion':        accion,
+        'id_local': idLocal,
+        'id_evento': idEvento,
+        'accion': accion,
       },
     );
     return res.data;
@@ -524,10 +534,7 @@ class ServicioEdgesEventos {
   }) async {
     final res = await _handleEdge(
       'invitacion_rrpp',
-      body: {
-        'accion': 'generar',
-        'id_evento': idEvento,
-      },
+      body: {'accion': 'generar', 'id_evento': idEvento},
     );
     return res.data;
   }
@@ -594,10 +601,7 @@ class ServicioEdgesEventos {
   }) async {
     final res = await _handleEdge(
       'mejorar_jerarquia',
-      body: {
-        'id_evento': idEvento,
-        'jerarquia_destino': jerarquiaDestino,
-      },
+      body: {'id_evento': idEvento, 'jerarquia_destino': jerarquiaDestino},
     );
     return res.data;
   }
@@ -614,9 +618,9 @@ class ServicioEdgesEventos {
       'canjear_promocion',
       body: {
         'token_codigo': tokenCodigo.trim().toUpperCase(),
-        'id_local':     idLocal,
-        'id_evento':    idEvento,
-        'accion':       accion,
+        'id_local': idLocal,
+        'id_evento': idEvento,
+        'accion': accion,
       },
     );
     return res.data;

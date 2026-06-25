@@ -2,9 +2,9 @@
 library;
 
 import 'dart:convert';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../config/supabase_config.dart';
 import '../core/supabase_client.dart';
 
 class FlyerIaService {
@@ -29,13 +29,13 @@ class FlyerIaService {
   }
 
   String _urlBase() {
-    final base = (dotenv.env['URL_SUPABASE'] ?? '').trim();
+    final base = (ConfiguracionSupabase.obtenerUrl() ?? '').trim();
     if (base.isEmpty) throw Exception('Falta URL_SUPABASE en .env');
     return '${base.replaceFirst(RegExp(r'/+$'), '')}/functions/v1';
   }
 
   String _apiKey() {
-    final key = (dotenv.env['CLAVE_PUBLICA_SUPABASE'] ?? '').trim();
+    final key = (ConfiguracionSupabase.obtenerClavePublica() ?? '').trim();
     if (key.isEmpty) throw Exception('Falta CLAVE_PUBLICA_SUPABASE en .env');
     return key;
   }
@@ -151,7 +151,9 @@ class FlyerIaService {
         estiloNombre: p['estilo_nombre'] as String? ?? '',
         esRetry: p['es_retry'] as bool? ?? false,
         retryUsado: p['retry_usado'] as bool? ?? false,
-        createdAt: DateTime.tryParse(p['created_at'] as String? ?? '') ?? DateTime.now(),
+        createdAt:
+            DateTime.tryParse(p['created_at'] as String? ?? '') ??
+            DateTime.now(),
       );
     } catch (_) {
       return null;
@@ -183,7 +185,9 @@ class FlyerIaService {
       if (uid == null) return [];
       final resp = await _cliente
           .from('flyer_generaciones')
-          .select('id, titulo, estilo_nombre, urls_generadas, es_retry, generacion_padre_id, retry_usado, created_at, error_mensaje')
+          .select(
+            'id, titulo, estilo_nombre, urls_generadas, es_retry, generacion_padre_id, retry_usado, created_at, error_mensaje',
+          )
           .eq('local_id', uid)
           .isFilter('error_mensaje', null)
           .order('created_at', ascending: false)
@@ -198,7 +202,9 @@ class FlyerIaService {
           urls: List<String>.from(m['urls_generadas'] as List? ?? []),
           esRetry: m['es_retry'] as bool? ?? false,
           retryUsado: m['retry_usado'] as bool? ?? false,
-          createdAt: DateTime.tryParse(m['created_at'] as String? ?? '') ?? DateTime.now(),
+          createdAt:
+              DateTime.tryParse(m['created_at'] as String? ?? '') ??
+              DateTime.now(),
         );
       }).toList();
     } catch (_) {

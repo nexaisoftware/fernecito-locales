@@ -108,7 +108,6 @@ flutter:
   assets:
     - assets/imagenes/
     - assets/imagenes/flyer_ia_estilos/
-    - assets/.env
     - assets/audio/
   #   - images/a_dot_ham.jpeg
 

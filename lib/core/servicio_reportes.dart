@@ -30,6 +30,7 @@ class ServicioReportes {
     required String targetId,
     required String motivo,
   }) async {
+    final session = _sb.auth.currentSession;
     final res = await _sb.functions.invoke(
       'reportar_cuenta',
       body: {
@@ -38,6 +39,9 @@ class ServicioReportes {
         'target_id': targetId,
         'motivo': motivo,
       },
+      headers: session != null
+          ? {'Authorization': 'Bearer ${session.accessToken}'}
+          : null,
     );
     if (res.data is Map) return Map<String, dynamic>.from(res.data as Map);
     return {'ok': false, 'error': 'Respuesta invalida'};

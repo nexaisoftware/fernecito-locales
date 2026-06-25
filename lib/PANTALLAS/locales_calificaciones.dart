@@ -33,6 +33,8 @@ class _LocalesCalificacionesState extends State<LocalesCalificaciones> {
   double? _promedio;
   int _cantidad = 0;
   List<Map<String, dynamic>> _resenas = [];
+  bool _mostrarCalificaciones = true; // switch: visible en perfil público
+  bool _guardandoSwitch = false;
 
   @override
   void initState() {
@@ -63,7 +65,8 @@ class _LocalesCalificacionesState extends State<LocalesCalificaciones> {
       try {
         final perfil = await sb
             .from('perfiles_locales')
-            .select('calificacion_promedio, calificacion_cantidad')
+            .select(
+                'calificacion_promedio, calificacion_cantidad, mostrar_calificaciones')
             .eq('id', localId)
             .maybeSingle();
         if (perfil != null) {
@@ -75,6 +78,7 @@ class _LocalesCalificacionesState extends State<LocalesCalificaciones> {
           _cantidad = c is int
               ? c
               : (c != null ? int.tryParse(c.toString()) ?? 0 : 0);
+          _mostrarCalificaciones = perfil['mostrar_calificaciones'] != false;
         }
       } catch (e) {
         debugPrint('⚠️ Calificaciones header: $e');
@@ -102,6 +106,28 @@ class _LocalesCalificacionesState extends State<LocalesCalificaciones> {
         _errorMsg = e.toString();
         _cargando = false;
       });
+    }
+  }
+
+  /// Activa/desactiva la visibilidad pública de la calificación.
+  Future<void> _toggleMostrar(bool valor) async {
+    final sb = ServicioSupabase().cliente;
+    final localId = sb.auth.currentUser?.id;
+    if (localId == null || _guardandoSwitch) return;
+    final anterior = _mostrarCalificaciones;
+    setState(() {
+      _mostrarCalificaciones = valor;
+      _guardandoSwitch = true;
+    });
+    try {
+      await sb
+          .from('perfiles_locales')
+          .update({'mostrar_calificaciones': valor}).eq('id', localId);
+    } catch (e) {
+      debugPrint('⚠️ toggle mostrar_calificaciones: $e');
+      if (mounted) setState(() => _mostrarCalificaciones = anterior); // revertir
+    } finally {
+      if (mounted) setState(() => _guardandoSwitch = false);
     }
   }
 
@@ -149,6 +175,7 @@ class _LocalesCalificacionesState extends State<LocalesCalificaciones> {
                     padding: EdgeInsets.zero,
                     children: [
                       _buildHeaderPromedio(),
+                      _buildSwitchMostrar(),
                       _buildFiltrosEstrellas(),
                       SizedBox(height: 6),
                       ..._buildListaResenas(),
@@ -316,6 +343,65 @@ class _LocalesCalificacionesState extends State<LocalesCalificaciones> {
                 ),
               ],
             ),
+    );
+  }
+
+  Widget _buildSwitchMostrar() {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(20, 0, 20, 10),
+      padding: const EdgeInsets.fromLTRB(16, 12, 10, 12),
+      decoration: BoxDecoration(
+        color: ColoresLocales.superficie,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: ColoresLocales.acentoVioleta.withOpacity(0.15),
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            _mostrarCalificaciones
+                ? CupertinoIcons.eye_fill
+                : CupertinoIcons.eye_slash_fill,
+            size: 20,
+            color: ColoresLocales.acentoVioleta,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Mostrar mi calificación',
+                  style: GoogleFonts.baloo2(
+                    fontSize: 14.5,
+                    fontWeight: FontWeight.w800,
+                    color: ColoresLocales.textoOnFondoClaro,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  _mostrarCalificaciones
+                      ? 'Visible en tu perfil público.'
+                      : 'Oculta: los usuarios no la verán.',
+                  style: GoogleFonts.baloo2(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w600,
+                    color: ColoresLocales.textoSecundarioOnFondoClaro,
+                    height: 1.3,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          CupertinoSwitch(
+            value: _mostrarCalificaciones,
+            activeTrackColor: ColoresLocales.acentoVioleta,
+            onChanged: _guardandoSwitch ? null : _toggleMostrar,
+          ),
+        ],
+      ),
     );
   }
 

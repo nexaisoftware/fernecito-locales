@@ -1,4 +1,4 @@
-/// Punto de entrada Fernecito Locales — inicializa dotenv y Supabase.
+/// Punto de entrada Fernecito Locales — inicializa configuracion y Supabase.
 library;
 
 import 'package:flutter/material.dart';
@@ -29,32 +29,31 @@ void main() async {
   // Fuerza apagar guías de baseline/debug paint que generan "doble subrayado" en textos.
   debugPaintBaselinesEnabled = false;
 
-  // Cargar .env: en iPhone usa el archivo del bundle (assets/.env); en desarrollo usa la raíz.
+  // Cargar .env solo como fallback local. En produccion se usa --dart-define.
   try {
-    await dotenv.load(fileName: 'assets/.env');
-  } catch (_) {
-    try {
-      await dotenv.load(fileName: '.env');
-    } catch (_) {}
-  }
+    await dotenv.load(fileName: '.env');
+  } catch (_) {}
 
   bool supabaseOk = false;
   String? errorSupabase;
   try {
-    final url = (dotenv.env['URL_SUPABASE'] ?? '').trim();
-    final clave = (dotenv.env['CLAVE_PUBLICA_SUPABASE'] ?? '').trim();
+    final url = _config('URL_SUPABASE');
+    final clave = _config('CLAVE_PUBLICA_SUPABASE');
     if (url.isEmpty || clave.isEmpty) {
       throw Exception('Faltan URL_SUPABASE o CLAVE_PUBLICA_SUPABASE');
     }
     await Supabase.initialize(
       url: url,
       anonKey: clave,
-      authOptions: const FlutterAuthClientOptions(authFlowType: AuthFlowType.pkce),
+      authOptions: const FlutterAuthClientOptions(
+        authFlowType: AuthFlowType.pkce,
+      ),
     );
     supabaseOk = true;
   } catch (e) {
     final msg = e.toString();
-    errorSupabase = msg.contains('NotInitializedError') || msg.contains('Instance of')
+    errorSupabase =
+        msg.contains('NotInitializedError') || msg.contains('Instance of')
         ? 'Supabase no pudo inicializarse. Revisá las credenciales.'
         : msg;
   }
@@ -103,7 +102,7 @@ class _PantallaErrorConfig extends StatelessWidget {
                 ),
                 const SizedBox(height: 24),
                 Text(
-                  'En iPhone: copiá el archivo .env de fernecito_frontend a frontend_locales/assets/.env (mismas URL_SUPABASE y CLAVE_PUBLICA_SUPABASE) y volvé a compilar.',
+                  'En produccion se configuran con --dart-define. En local podés usar .env.',
                   style: const TextStyle(color: Colors.white54, fontSize: 12),
                   textAlign: TextAlign.center,
                 ),
@@ -114,6 +113,18 @@ class _PantallaErrorConfig extends StatelessWidget {
       ),
     );
   }
+}
+
+String _config(String key) {
+  const urlSupabase = String.fromEnvironment('URL_SUPABASE');
+  const clavePublicaSupabase = String.fromEnvironment('CLAVE_PUBLICA_SUPABASE');
+
+  final fromDefine = switch (key) {
+    'URL_SUPABASE' => urlSupabase,
+    'CLAVE_PUBLICA_SUPABASE' => clavePublicaSupabase,
+    _ => '',
+  };
+  return fromDefine.isNotEmpty ? fromDefine : (dotenv.env[key] ?? '').trim();
 }
 
 class AppLocales extends StatefulWidget {
@@ -147,7 +158,8 @@ class _AppLocalesState extends State<AppLocales> {
             _staffPerfilCompleto = completo;
           });
         } else {
-          final suspendida = await ServicioEstadoCuentaLocales.instancia.refrescar();
+          final suspendida = await ServicioEstadoCuentaLocales.instancia
+              .refrescar();
           if (suspendida) {
             setState(() {
               _sesionActiva = true;
@@ -175,8 +187,9 @@ class _AppLocalesState extends State<AppLocales> {
     return ThemeData(
       useMaterial3: true,
       brightness: oscuro ? Brightness.dark : Brightness.light,
-      scaffoldBackgroundColor:
-          oscuro ? ColoresLocales.fondoClaro : ColoresLocales.fondoPrincipal,
+      scaffoldBackgroundColor: oscuro
+          ? ColoresLocales.fondoClaro
+          : ColoresLocales.fondoPrincipal,
       cardColor: ColoresLocales.superficie,
       dividerColor: ColoresLocales.separador,
       colorScheme: oscuro
@@ -212,20 +225,21 @@ class _AppLocalesState extends State<AppLocales> {
               theme: _temaApp(oscuro: false),
               darkTheme: _temaApp(oscuro: true),
               onGenerateRoute: (settings) =>
-                  generarRutaLocales(settings) ?? rutaDesconocidaLocales(settings),
-            home: _verificando
-                ? const SkeletonPantallaDashboard()
-                : _sesionActiva
-                    ? (ModoAppLocales.instancia.esStaff
+                  generarRutaLocales(settings) ??
+                  rutaDesconocidaLocales(settings),
+              home: _verificando
+                  ? const SkeletonPantallaDashboard()
+                  : _sesionActiva
+                  ? (ModoAppLocales.instancia.esStaff
                         ? (_staffPerfilCompleto
-                            ? const LocalesStaffHome()
-                            : const LocalesStaffCrearPerfil())
+                              ? const LocalesStaffHome()
+                              : const LocalesStaffCrearPerfil())
                         : (ServicioEstadoCuentaLocales.instancia.suspendida
-                            ? const LocalesCuentaBloqueada()
-                            : (_perfilCompleto
-                                ? const LocalesHome()
-                                : const LocalesCrearPerfil())))
-                    : (ModoAppLocales.instancia.esStaff
+                              ? const LocalesCuentaBloqueada()
+                              : (_perfilCompleto
+                                    ? const LocalesHome()
+                                    : const LocalesCrearPerfil())))
+                  : (ModoAppLocales.instancia.esStaff
                         ? const LocalesStaffLogin()
                         : const LocalesLogin()),
             ),

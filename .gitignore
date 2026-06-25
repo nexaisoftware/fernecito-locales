@@ -55,3 +55,8 @@ ios/.symlinks/
 
 # Android Gradle cache
 android/.gradle/
+
+# Local editor/deploy/backups
+.vscode/
+.vercel/
+BACKEND EDGE/

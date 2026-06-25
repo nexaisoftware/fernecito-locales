@@ -6,8 +6,32 @@ set -euo pipefail
 
 cd "$(dirname "$0")"
 
+load_env_file() {
+  local file="$1"
+  while IFS='=' read -r key value || [ -n "$key" ]; do
+    key="$(printf '%s' "$key" | tr -d '\r' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+    case "$key" in ''|\#*) continue ;; esac
+    value="$(printf '%s' "${value:-}" | tr -d '\r')"
+    value="${value%\"}"
+    value="${value#\"}"
+    export "$key=$value"
+  done < "$file"
+}
+
+if [ -f .env ]; then
+  load_env_file .env
+fi
+if [ -z "${URL_SUPABASE:-}" ] && [ -f assets/.env ]; then
+  load_env_file assets/.env
+fi
+
+: "${URL_SUPABASE:?Falta URL_SUPABASE en frontend_locales/.env, assets/.env o entorno}"
+: "${CLAVE_PUBLICA_SUPABASE:?Falta CLAVE_PUBLICA_SUPABASE en frontend_locales/.env, assets/.env o entorno}"
+
 echo "==> [1/3] flutter build web --release --base-href /"
-flutter build web --release --base-href /
+flutter build web --release --base-href / \
+  --dart-define=URL_SUPABASE="$URL_SUPABASE" \
+  --dart-define=CLAVE_PUBLICA_SUPABASE="$CLAVE_PUBLICA_SUPABASE"
 
 echo "==> [2/3] escribiendo build/web/vercel.json"
 cat > build/web/vercel.json <<'JSON'
@@ -18,6 +42,13 @@ cat > build/web/vercel.json <<'JSON'
     { "source": "/(.*)", "destination": "/index.html" }
   ],
   "headers": [
+    {
+      "source": "/assets/assets/.env",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-store" },
+        { "key": "X-Robots-Tag", "value": "noindex" }
+      ]
+    },
     {
       "source": "/flutter_service_worker.js",
       "headers": [
@@ -43,6 +74,7 @@ JSON
 echo "==> [3/3] vercel deploy --prod (proyecto fernecito-locales)"
 cd build/web
 vercel link --project fernecito-locales --yes
+rm -f .env.local .env .env.production .env.development
 vercel deploy --prod --yes
 
 echo ""
