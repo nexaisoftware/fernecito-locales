@@ -535,15 +535,8 @@ class _EventoCard extends StatelessWidget {
 
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
-      decoration: BoxDecoration(
-        color: ColoresLocales.superficie,
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(
-          color: accentColor.withOpacity(enCurso || overflow ? 0.35 : 0.12),
-          width: enCurso || overflow ? 1.5 : 1,
-        ),
-        boxShadow: ColoresLocales.sombrasCard(acento: accentColor),
-      ),
+      decoration: ColoresLocales.decoracionCard(radius: 22, sinBorde: true)
+          .copyWith(boxShadow: ColoresLocales.sombrasCard(acento: accentColor)),
       child: Padding(
         padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
         child: Column(
@@ -740,11 +733,6 @@ class _StatMini extends StatelessWidget {
             ? color.withOpacity(0.1)
             : ColoresLocales.superficieElevada,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: destacado
-              ? color.withOpacity(0.28)
-              : ColoresLocales.acentoVioleta.withOpacity(0.08),
-        ),
       ),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -796,7 +784,6 @@ class _PillEstado extends StatelessWidget {
       decoration: BoxDecoration(
         color: color.withOpacity(0.12),
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: color.withOpacity(0.28)),
       ),
       child: Text(
         label,
@@ -858,9 +845,6 @@ class _AccionBtn extends StatelessWidget {
             decoration: BoxDecoration(
               color: bg,
               borderRadius: BorderRadius.circular(16),
-              border: enabled
-                  ? null
-                  : Border.all(color: ColoresLocales.bordeSuave),
             ),
             child: Stack(
               clipBehavior: Clip.none,
@@ -897,7 +881,6 @@ class _AccionBtn extends StatelessWidget {
                       decoration: BoxDecoration(
                         color: const Color(0xFFFFD43B),
                         borderRadius: BorderRadius.circular(999),
-                        border: Border.all(color: Colors.white, width: 1.5),
                       ),
                       child: Text(
                         badge >= 1000
@@ -1000,8 +983,6 @@ class _SheetAceptados extends StatelessWidget {
                               decoration: BoxDecoration(
                                 color: Colors.green.shade50,
                                 borderRadius: BorderRadius.circular(999),
-                                border:
-                                    Border.all(color: Colors.green.shade200),
                               ),
                               child: Text(
                                 '${grupos.length} entrada${grupos.length != 1 ? "s" : ""}',
@@ -1352,9 +1333,6 @@ class _SheetPendientesState extends State<_SheetPendientes> {
                             decoration: BoxDecoration(
                               color: const Color(0xFFFFF6E5),
                               borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
-                                color: const Color(0xFFD97706).withOpacity(0.35),
-                              ),
                             ),
                             child: Row(
                               children: [
@@ -1468,11 +1446,10 @@ class _CardGrupoAceptado extends StatelessWidget {
 
     return Container(
       padding: EdgeInsets.all(14),
-      decoration: BoxDecoration(
+      decoration: ColoresLocales.decoracionCard(
+        radius: 16,
+        sinBorde: true,
         color: ColoresLocales.cardLavanda,
-        borderRadius: BorderRadius.circular(16),
-        border:
-            Border.all(color: ColoresLocales.acentoVioleta.withOpacity(0.18)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
@@ -1772,19 +1749,7 @@ class _CardGrupoPendiente extends StatelessWidget {
   }) {
     return Container(
       padding: EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: ColoresLocales.superficie,
-        borderRadius: BorderRadius.circular(16),
-        border:
-            Border.all(color: ColoresLocales.acentoVioleta.withOpacity(0.18)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
+      decoration: ColoresLocales.decoracionCard(radius: 16, sinBorde: true),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1930,7 +1895,7 @@ class _CardGrupoPendiente extends StatelessWidget {
                   style: OutlinedButton.styleFrom(
                     backgroundColor: _exitoRechazar
                         ? Color(0xFFDC2626)
-                        : ColoresLocales.chipInactivo,
+                        : ColoresLocales.acentoVioleta.withValues(alpha: 0.08),
                     disabledBackgroundColor: _exitoRechazar
                         ? Color(0xFFDC2626)
                         : ColoresLocales.chipInactivo,
@@ -1940,12 +1905,7 @@ class _CardGrupoPendiente extends StatelessWidget {
                     disabledForegroundColor: _exitoRechazar
                         ? ColoresLocales.chipInactivo
                         : ColoresLocales.acentoVioleta,
-                    side: BorderSide(
-                      color: _exitoRechazar
-                          ? Color(0xFFDC2626)
-                          : ColoresLocales.acentoVioleta,
-                      width: _exitoRechazar ? 0 : 1.5,
-                    ),
+                    side: BorderSide.none,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(50),
                     ),
@@ -2095,7 +2055,6 @@ class _SquadAvatarStack extends StatelessWidget {
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   color: ColoresLocales.acentoVioleta,
-                  border: Border.all(color: ColoresLocales.superficie, width: 2),
                   boxShadow: [
                     BoxShadow(
                       color: ColoresLocales.acentoVioleta.withOpacity(0.25),
@@ -2138,7 +2097,6 @@ class _AvatarChip extends StatelessWidget {
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         color: ColoresLocales.cardLavanda,
-        border: Border.all(color: ColoresLocales.superficie, width: 2),
         boxShadow: [
           BoxShadow(
             color: ColoresLocales.acentoVioleta.withOpacity(0.18),
@@ -2462,10 +2420,6 @@ class _AvatarUsuario extends StatelessWidget {
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         color: ColoresLocales.cardLavanda,
-        border: Border.all(
-          color: ColoresLocales.acentoVioleta.withOpacity(0.35),
-          width: 1.5,
-        ),
         boxShadow: [
           BoxShadow(
             color: ColoresLocales.acentoVioleta.withOpacity(0.12),

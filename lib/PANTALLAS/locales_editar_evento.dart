@@ -2,9 +2,11 @@ library;
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../core/constants.dart';
+import '../core/tema_app_locales.dart';
 import '../widgets/tema_locales_scope.dart';
 import '../core/supabase_client.dart';
 import '../core/servicio_edges_eventos.dart';
@@ -27,7 +29,12 @@ class _LocalesEditarEventoState extends State<LocalesEditarEvento> {
   DateTime? _fechaInicio;
   DateTime? _fechaFin;
   String _modoLista = 'auto';
+  bool _permiteSquads = true;
+  bool _limitarCupoLista = false;
   int _cupoListaUsados = 0;
+
+  bool _expandVentaEntradas = false;
+  bool _expandSistemaIngreso = false;
 
   final _tituloCtrl = TextEditingController();
   final _descripcionCtrl = TextEditingController();
@@ -58,7 +65,7 @@ class _LocalesEditarEventoState extends State<LocalesEditarEvento> {
       final evento = await ServicioSupabase().cliente
           .from('eventos')
           .select(
-            'id_local, titulo_evento, descripcion_evento, url_flyer, url_compra_entradas, fecha_inicio, fecha_fin, modo_lista, cupo_lista_max, cupo_lista_usados',
+            'id_local, titulo_evento, descripcion_evento, url_flyer, url_compra_entradas, fecha_inicio, fecha_fin, modo_lista, cupo_lista_max, cupo_lista_usados, permite_squads',
           )
           .eq('id_evento', widget.idEvento)
           .maybeSingle();
@@ -81,9 +88,11 @@ class _LocalesEditarEventoState extends State<LocalesEditarEvento> {
         _fechaInicio = _parseDate(evento['fecha_inicio']);
         _fechaFin = _parseDate(evento['fecha_fin']);
         _modoLista = (evento['modo_lista'] as String?) ?? 'auto';
+        _permiteSquads = (evento['permite_squads'] as bool?) ?? true;
         _cupoListaUsados = (evento['cupo_lista_usados'] as num?)?.toInt() ?? 0;
-        _cupoListaMaxCtrl.text =
-            ((evento['cupo_lista_max'] as num?)?.toInt())?.toString() ?? '';
+        final cupoMax = (evento['cupo_lista_max'] as num?)?.toInt();
+        _limitarCupoLista = cupoMax != null && cupoMax > 0;
+        _cupoListaMaxCtrl.text = _limitarCupoLista ? cupoMax.toString() : '';
         _promos.clear();
         for (final m in (promos as List).cast<Map<String, dynamic>>()) {
           _promos.add(_PromoEdit.fromMap(m));
@@ -263,14 +272,12 @@ class _LocalesEditarEventoState extends State<LocalesEditarEvento> {
       _mostrarMsg('La fecha fin debe ser mayor a inicio.');
       return false;
     }
-    // cupo_lista_max es opcional (null = sin límite); si ingresaron algo, debe ser >= 1
-    final cupoTxt = _cupoListaMaxCtrl.text.trim();
-    if (cupoTxt.isNotEmpty) {
-      final cupo = int.tryParse(cupoTxt);
+    // Cupo es opcional (null = sin límite). Si se activa el límite, debe ser >= 1.
+    if (_limitarCupoLista) {
+      final cupo = int.tryParse(_cupoListaMaxCtrl.text.trim());
       if (cupo == null || cupo < 1) {
-        _mostrarMsg(
-          'El cupo máximo de lista debe ser >= 1, o dejalo vacío para sin límite.',
-        );
+        _mostrarMsg('Si limitás el cupo, ingresá un número válido (>= 1).');
+        setState(() => _expandSistemaIngreso = true);
         return false;
       }
     }
@@ -337,7 +344,10 @@ class _LocalesEditarEventoState extends State<LocalesEditarEvento> {
         'fecha_inicio': _fechaInicio!.toUtc().toIso8601String(),
         'fecha_fin': _fechaFin!.toUtc().toIso8601String(),
         'modo_lista': _modoLista,
-        'cupo_lista_max': int.tryParse(_cupoListaMaxCtrl.text.trim()),
+        'permite_squads': _permiteSquads,
+        'cupo_lista_max': _limitarCupoLista
+            ? int.tryParse(_cupoListaMaxCtrl.text.trim())
+            : null,
         // url_compra_entradas no está en CAMPOS_EDITABLES de la edge — se guarda directo
       };
 
@@ -399,6 +409,143 @@ class _LocalesEditarEventoState extends State<LocalesEditarEvento> {
     } finally {
       if (mounted) setState(() => _guardando = false);
     }
+  }
+
+  static const _flyerMiniW = 62.0;
+  static const _flyerMiniH = 93.0;
+
+  void _navegarGenerarFlyerIa() {
+    Navigator.pushNamed(context, '/flyer_ia');
+  }
+
+  Widget _buildSubCardFlyerEvento() {
+    return _card(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            'Subir flyer',
+            style: GoogleFonts.baloo2(
+              color: ColoresLocales.textoOnFondoClaro,
+              fontWeight: FontWeight.w800,
+              fontSize: 15,
+            ),
+          ),
+          const SizedBox(height: 10),
+          IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(
+                  flex: 40,
+                  child: Padding(
+                    padding: const EdgeInsets.only(right: 6),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Text(
+                          'Subir desde galería',
+                          style: GoogleFonts.baloo2(
+                            color: ColoresLocales.textoOnFondoClaro,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 12,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Align(
+                          alignment: Alignment.center,
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(10),
+                            child: Container(
+                              width: _flyerMiniW,
+                              height: _flyerMiniH,
+                              color: ColoresLocales.acentoVioleta
+                                  .withOpacity(0.08),
+                              child: _urlFlyer.isNotEmpty
+                                  ? Image.network(
+                                      _urlFlyer,
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (_, __, ___) => Icon(
+                                        CupertinoIcons.photo,
+                                        color: ColoresLocales.acentoVioleta
+                                            .withOpacity(0.6),
+                                      ),
+                                    )
+                                  : Icon(
+                                      CupertinoIcons.photo,
+                                      size: 22,
+                                      color: ColoresLocales.acentoVioleta
+                                          .withOpacity(0.6),
+                                    ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                Container(
+                  width: 1,
+                  margin: const EdgeInsets.symmetric(vertical: 2),
+                  color: ColoresLocales.separador,
+                ),
+                Expanded(
+                  flex: 60,
+                  child: Padding(
+                    padding: const EdgeInsets.only(left: 10),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          '¿No tenés flyer? Hacé uno en minutos con la herramienta IA de Fernecito.',
+                          style: GoogleFonts.baloo2(
+                            color: ColoresLocales.textoSecundarioOnFondoClaro,
+                            fontSize: 11,
+                            height: 1.25,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        SizedBox(
+                          height: 32,
+                          child: OutlinedButton.icon(
+                            onPressed: _navegarGenerarFlyerIa,
+                            icon: const Icon(
+                              CupertinoIcons.wand_stars,
+                              size: 14,
+                            ),
+                            label: Text(
+                              'Generar flyer IA',
+                              style: GoogleFonts.baloo2(
+                                fontWeight: FontWeight.w800,
+                                fontSize: 12,
+                              ),
+                            ),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: ColoresLocales.acentoVioleta,
+                              side: BorderSide(
+                                color: ColoresLocales.acentoVioleta
+                                    .withOpacity(0.45),
+                              ),
+                              padding:
+                                  const EdgeInsets.symmetric(horizontal: 10),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(50),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   void _mostrarMsg(String txt) {
@@ -491,8 +638,6 @@ class _LocalesEditarEventoState extends State<LocalesEditarEvento> {
               const SizedBox(height: 10),
               _field(_descripcionCtrl, 'Descripción', maxLines: 4),
               const SizedBox(height: 10),
-              _field(_urlCompraCtrl, 'Link compra entradas (opcional)'),
-              const SizedBox(height: 10),
               _fechaTile(
                 'Inicio',
                 _fmt(_fechaInicio),
@@ -510,48 +655,27 @@ class _LocalesEditarEventoState extends State<LocalesEditarEvento> {
                   onPicked: (d) => setState(() => _fechaFin = d),
                 ),
               ),
-              const SizedBox(height: 12),
-              Text(
-                'Lista del evento',
-                style: GoogleFonts.baloo2(fontWeight: FontWeight.w800),
-              ),
-              const SizedBox(height: 8),
-              _infoFila('Modo lista', _modoLista),
-              const SizedBox(height: 8),
-              _field(
-                _cupoListaMaxCtrl,
-                'Cupo máximo de lista (vacío = sin límite)',
-              ),
-              const SizedBox(height: 8),
-              _infoFila('Cupos usados', '$_cupoListaUsados'),
             ],
           ),
         ),
-        if (_urlFlyer.isNotEmpty)
-          _card(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text(
-                  'Flyer actual',
-                  style: GoogleFonts.baloo2(fontWeight: FontWeight.w900),
-                ),
-                const SizedBox(height: 10),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(14),
-                  child: SizedBox(
-                    height: 220,
-                    child: Image.network(
-                      _urlFlyer,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) =>
-                          const Icon(CupertinoIcons.photo),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
+        _buildSubCardFlyerEvento(),
+        _cardOpcionalColapsable(
+          pregunta: '¿Vendés entradas por otra plataforma?',
+          ayudaColapsada: 'PaseShow, Ticketek, etc.',
+          expandido: _expandVentaEntradas,
+          resumenActivo: _resumenVentaEntradas,
+          onExpandidoChanged: (v) => setState(() => _expandVentaEntradas = v),
+          child: _contenidoVentaEntradas(),
+        ),
+        _cardOpcionalColapsable(
+          pregunta: '¿Querés personalizar la lista de ingreso?',
+          ayudaColapsada: '',
+          expandido: _expandSistemaIngreso,
+          resumenEstado: _resumenSistemaIngreso,
+          resumenEstadoDestacado: _sistemaIngresoPersonalizado,
+          onExpandidoChanged: (v) => setState(() => _expandSistemaIngreso = v),
+          child: _contenidoSistemaIngreso(),
+        ),
       ],
     );
   }
@@ -682,7 +806,7 @@ class _LocalesEditarEventoState extends State<LocalesEditarEvento> {
                 onPressed: () => setState(() => _promos.add(_PromoEdit())),
                 icon: const Icon(CupertinoIcons.add),
                 label: Text(
-                  'Agregar promo',
+                  _promos.isEmpty ? 'Agregar promo' : 'Agregar otra promo',
                   style: GoogleFonts.baloo2(fontWeight: FontWeight.w800),
                 ),
                 style: OutlinedButton.styleFrom(
@@ -783,7 +907,7 @@ class _LocalesEditarEventoState extends State<LocalesEditarEvento> {
                 icon: Icon(
                   _paso == 1
                       ? CupertinoIcons.arrow_right_circle_fill
-                      : CupertinoIcons.checkmark_seal_fill,
+                      : IconosLocales.ok,
                 ),
                 label: _guardando
                     ? SizedBox(
@@ -828,7 +952,7 @@ class _LocalesEditarEventoState extends State<LocalesEditarEvento> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Icon(
-                  CupertinoIcons.checkmark_seal_fill,
+                  IconosLocales.exito,
                   color: ColoresLocales.chipInactivo,
                   size: 88,
                 ),
@@ -923,12 +1047,317 @@ class _LocalesEditarEventoState extends State<LocalesEditarEvento> {
     );
   }
 
-  Widget _field(TextEditingController c, String hint, {int maxLines = 1}) {
+  Widget _cardOpcionalColapsable({
+    required String pregunta,
+    required String ayudaColapsada,
+    required bool expandido,
+    required ValueChanged<bool> onExpandidoChanged,
+    String? resumenActivo,
+    String? resumenEstado,
+    bool resumenEstadoDestacado = false,
+    required Widget child,
+  }) {
+    final colorResumenEstado = resumenEstadoDestacado
+        ? ColoresLocales.acentoVioleta
+        : (TemaAppLocales.instancia.esOscuro
+            ? ColoresLocales.textoOnFondoClaro.withValues(alpha: 0.82)
+            : ColoresLocales.textoSecundarioOnFondoClaro);
+
+    return _card(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: () => onExpandidoChanged(!expandido),
+              borderRadius: BorderRadius.circular(14),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 2),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            pregunta,
+                            style: GoogleFonts.baloo2(
+                              color: ColoresLocales.textoOnFondoClaro,
+                              fontWeight: FontWeight.w800,
+                              fontSize: 15,
+                              height: 1.25,
+                            ),
+                          ),
+                          if (!expandido) ...[
+                            if (ayudaColapsada.isNotEmpty) ...[
+                              const SizedBox(height: 4),
+                              Text(
+                                ayudaColapsada,
+                                style: GoogleFonts.baloo2(
+                                  color:
+                                      ColoresLocales.textoSecundarioOnFondoClaro,
+                                  fontSize: 11.5,
+                                  height: 1.3,
+                                ),
+                              ),
+                            ],
+                            if (resumenEstado != null &&
+                                resumenEstado.isNotEmpty) ...[
+                              const SizedBox(height: 6),
+                              Text(
+                                resumenEstado,
+                                style: GoogleFonts.baloo2(
+                                  color: colorResumenEstado,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                  height: 1.35,
+                                ),
+                              ),
+                            ] else if (resumenActivo != null &&
+                                resumenActivo.isNotEmpty) ...[
+                              const SizedBox(height: 6),
+                              Text(
+                                resumenActivo,
+                                style: GoogleFonts.baloo2(
+                                  color: ColoresLocales.acentoVioletaMarca,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Icon(
+                      expandido
+                          ? CupertinoIcons.chevron_up
+                          : CupertinoIcons.chevron_down,
+                      size: 18,
+                      color: ColoresLocales.textoSecundarioOnFondoClaro,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          if (expandido) ...[
+            const SizedBox(height: 14),
+            child,
+          ],
+        ],
+      ),
+    );
+  }
+
+  String? get _resumenVentaEntradas {
+    final url = _urlCompraCtrl.text.trim();
+    if (url.isEmpty) return null;
+    return 'Link de entradas agregado';
+  }
+
+  bool get _sistemaIngresoPersonalizado =>
+      _modoLista != 'auto' || !_permiteSquads || _limitarCupoLista;
+
+  String get _resumenSistemaIngreso {
+    final lista = _modoLista == 'auto'
+        ? 'Lista auto (todos pueden unirse)'
+        : 'Lista manual (aprobación previa)';
+    final squads = _permiteSquads ? 'se permiten squads' : 'sin squads';
+    final cupo = _limitarCupoLista
+        ? () {
+            final n = int.tryParse(_cupoListaMaxCtrl.text.trim());
+            return n != null ? 'cupo máximo $n' : 'con cupo limitado';
+          }()
+        : 'sin cupo límite';
+    return '$lista, $squads, $cupo.';
+  }
+
+  Widget _contenidoVentaEntradas() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Pegá el link para que los usuarios compren directamente.',
+          style: GoogleFonts.baloo2(
+            color: ColoresLocales.textoSecundarioOnFondoClaro,
+            fontSize: 12.5,
+            height: 1.35,
+          ),
+        ),
+        const SizedBox(height: 10),
+        _field(
+          _urlCompraCtrl,
+          'Link de PaseShow, Ticketek u otra plataforma',
+          onChanged: (_) => setState(() {}),
+        ),
+      ],
+    );
+  }
+
+  Widget _contenidoSistemaIngreso() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Modo de lista',
+          style: GoogleFonts.baloo2(
+            color: ColoresLocales.textoSecundarioOnFondoClaro,
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Expanded(
+              child: _chipSeleccionLista(
+                label: 'Auto',
+                subtitle: 'Sin revisión',
+                selected: _modoLista == 'auto',
+                onTap: () => setState(() => _modoLista = 'auto'),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: _chipSeleccionLista(
+                label: 'Manual',
+                subtitle: 'Aprobación manual',
+                selected: _modoLista == 'manual',
+                onTap: () => setState(() => _modoLista = 'manual'),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        _switchFilaCompacta(
+          label: '¿Permitir squads?',
+          valor: _permiteSquads,
+          onChanged: (v) => setState(() => _permiteSquads = v),
+        ),
+        const SizedBox(height: 6),
+        _switchFilaCompacta(
+          label: '¿Cupo máximo de lista?',
+          valor: _limitarCupoLista,
+          onChanged: (v) => setState(() => _limitarCupoLista = v),
+        ),
+        if (_limitarCupoLista) ...[
+          const SizedBox(height: 8),
+          _field(
+            _cupoListaMaxCtrl,
+            'Número máximo de personas en lista',
+            keyboardType: TextInputType.number,
+            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+            onChanged: (_) => setState(() {}),
+          ),
+        ],
+        const SizedBox(height: 8),
+        _infoFila('Cupos usados', '$_cupoListaUsados'),
+      ],
+    );
+  }
+
+  Widget _switchFilaCompacta({
+    required String label,
+    required bool valor,
+    required ValueChanged<bool> onChanged,
+  }) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Expanded(
+          child: Text(
+            label,
+            style: GoogleFonts.baloo2(
+              color: ColoresLocales.textoOnFondoClaro,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        CupertinoSwitch(
+          value: valor,
+          onChanged: onChanged,
+          activeTrackColor: ColoresLocales.acentoVioleta,
+        ),
+      ],
+    );
+  }
+
+  Widget _chipSeleccionLista({
+    required String label,
+    required String subtitle,
+    required bool selected,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        height: 42,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: selected
+              ? ColoresLocales.acentoVioleta
+              : ColoresLocales.cardLavanda,
+          borderRadius: BorderRadius.circular(50),
+          border: selected
+              ? null
+              : Border.all(
+                  color: ColoresLocales.acentoVioleta.withOpacity(0.25),
+                ),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              label,
+              textAlign: TextAlign.center,
+              style: GoogleFonts.baloo2(
+                color: selected
+                    ? ColoresLocales.textoEnBoton
+                    : ColoresLocales.textoOnFondoClaro,
+                fontWeight: selected ? FontWeight.w900 : FontWeight.w700,
+                height: 1,
+              ),
+            ),
+            const SizedBox(height: 1),
+            Text(
+              subtitle,
+              textAlign: TextAlign.center,
+              style: GoogleFonts.baloo2(
+                fontSize: 9,
+                color: selected
+                    ? Colors.white.withOpacity(0.95)
+                    : ColoresLocales.textoSecundarioOnFondoClaro,
+                fontWeight: FontWeight.w700,
+                height: 1,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _field(
+    TextEditingController c,
+    String hint, {
+    int maxLines = 1,
+    TextInputType? keyboardType,
+    List<TextInputFormatter>? inputFormatters,
+    ValueChanged<String>? onChanged,
+  }) {
     return TextField(
       controller: c,
       maxLines: maxLines,
+      keyboardType: keyboardType,
+      inputFormatters: inputFormatters ?? (maxLines == 1 ? [] : null),
+      onChanged: onChanged,
       style: GoogleFonts.baloo2(color: ColoresLocales.textoOnFondoClaro),
-      inputFormatters: maxLines == 1 ? [] : null,
       decoration: InputDecoration(
         hintText: hint,
         hintStyle: GoogleFonts.baloo2(

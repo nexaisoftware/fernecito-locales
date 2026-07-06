@@ -5,6 +5,10 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../core/constants.dart';
 import '../widgets/tema_locales_scope.dart';
+import '../widgets/estado_error_locales.dart';
+import '../widgets/feedback_locales.dart';
+import '../widgets/skeleton_lista_eventos.dart';
+import '../core/formato_metricas.dart';
 import '../core/navegacion_posicionamiento.dart';
 import '../core/supabase_client.dart';
 import '../core/servicio_edges_eventos.dart';
@@ -66,7 +70,7 @@ class _LocalesMisEventosState extends State<LocalesMisEventos> {
       final dataActivos = await ServicioSupabase().cliente
           .from('eventos')
           .select(
-            'id_evento, id_local, titulo_evento, descripcion_evento, url_flyer, fecha_inicio, fecha_fin, fecha_fin_publicacion, fecha_fin_jerarquia, modo_lista, cupo_lista_max, cupo_lista_usados, jerarquia, tiene_promo, url_compra_entradas, estado_publicacion, promociones(titulo_promocion), perfiles_locales!eventos_id_local_fkey(local_verificado)',
+            'id_evento, id_local, titulo_evento, descripcion_evento, url_flyer, fecha_inicio, fecha_fin, fecha_fin_publicacion, fecha_fin_jerarquia, modo_lista, cupo_lista_max, cupo_lista_usados, jerarquia, tiene_promo, url_compra_entradas, estado_publicacion, metric_visitas, promociones(titulo_promocion), perfiles_locales!eventos_id_local_fkey(local_verificado)',
           )
           .eq('id_local', uid)
           .or(
@@ -148,6 +152,7 @@ class _LocalesMisEventosState extends State<LocalesMisEventos> {
             .where((e) => e.idEvento != ev.idEvento)
             .toList();
       });
+      FeedbackLocales.mostrarExito(context, 'Evento eliminado');
     } catch (e) {
       if (!mounted) return;
       setState(() => _borrando.remove(ev.idEvento));
@@ -172,13 +177,22 @@ class _LocalesMisEventosState extends State<LocalesMisEventos> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancelar'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: TextButton.styleFrom(foregroundColor: Colors.red.shade700),
             child: Text(
-              'Sí, despublicar',
+              'Cancelar',
+              style: GoogleFonts.baloo2(fontWeight: FontWeight.w700),
+            ),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xFFDC2626),
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            child: Text(
+              'Sí, quitar de cartelera',
               style: GoogleFonts.baloo2(fontWeight: FontWeight.w800),
             ),
           ),
@@ -218,6 +232,7 @@ class _LocalesMisEventosState extends State<LocalesMisEventos> {
         // Agregar al historial con estado cancelado
         _eventosHistorial = [cancelado, ..._eventosHistorial];
       });
+      FeedbackLocales.mostrarExito(context, 'Evento quitado de la cartelera');
     } catch (e) {
       if (!mounted) return;
       setState(() => _cancelando.remove(ev.idEvento));
@@ -403,36 +418,8 @@ class _LocalesMisEventosState extends State<LocalesMisEventos> {
 
   ({String label, Color color, IconData icon}) _jerarquiaMeta(
     String? jerarquia,
-  ) {
-    final nivel = (jerarquia ?? 'gratis').toLowerCase();
-    return switch (nivel) {
-      'normal' => (
-        label: 'Verificado',
-        color: const Color(0xFF8B5CF6),
-        icon: CupertinoIcons.checkmark_circle_fill,
-      ),
-      'recomendado_fernecito' => (
-        label: 'Rec. Fernecito',
-        color: const Color(0xFF7C3AED),
-        icon: CupertinoIcons.hand_thumbsup_fill,
-      ),
-      'top' => (
-        label: 'Top Cartelera',
-        color: const Color(0xFFD97706),
-        icon: CupertinoIcons.star_fill,
-      ),
-      'top_ultra' => (
-        label: 'Top Ultra',
-        color: ColoresLocales.jerarquiaUltra,
-        icon: CupertinoIcons.rosette,
-      ),
-      _ => (
-        label: 'Gratis',
-        color: const Color(0xFF9CA3AF),
-        icon: CupertinoIcons.circle,
-      ),
-    };
-  }
+  ) =>
+      IconosFeaturesLocales.metaJerarquia(jerarquia);
 
   Widget _chipJerarquia({
     required String text,
@@ -444,7 +431,6 @@ class _LocalesMisEventosState extends State<LocalesMisEventos> {
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(50),
-        border: Border.all(color: color.withValues(alpha: 0.3)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -516,6 +502,92 @@ class _LocalesMisEventosState extends State<LocalesMisEventos> {
     );
   }
 
+  Widget _lineaPieClara({
+    required String etiqueta,
+    required String valor,
+    Color? valorColor,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 5),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 118,
+            child: Text(
+              '$etiqueta:',
+              style: GoogleFonts.baloo2(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: ColoresLocales.textoSecundarioOnFondoClaro,
+                height: 1.3,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              valor,
+              style: GoogleFonts.baloo2(
+                fontSize: 11.5,
+                fontWeight: FontWeight.w800,
+                color: valorColor ?? ColoresLocales.textoOnFondoClaro,
+                height: 1.3,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _pieCardActiva(_EventoMini ev) {
+    final jerarquia = _jerarquiaMeta(ev.jerarquia);
+    final finPub = ev.finCartelera;
+    final diasPub = ev.diasRestantesCartelera;
+    final pubPasada = finPub != null && finPub.isBefore(DateTime.now());
+    final finPosicion = ev.finPosicionamiento;
+    final diasPosicion = ev.diasRestantesPosicionamiento;
+
+    final valorFinPub = finPub == null
+        ? 'Sin fecha definida'
+        : '${_fmtFecha(finPub)} · ${_etiquetaDiasRestantes(diasPub, pasado: pubPasada)}';
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(14, 11, 14, 12),
+      decoration: BoxDecoration(
+        color: ColoresLocales.fondoSuperficie.withValues(alpha: 0.9),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _lineaPieClara(
+            etiqueta: 'Jerarquía',
+            valor: jerarquia.label,
+            valorColor: jerarquia.color,
+          ),
+          if (ev.esPosicionado)
+            _lineaPieClara(
+              etiqueta: 'Hasta el',
+              valor: ev.posicionamientoVencido
+                  ? 'Finalizó el ${_fmtFecha(finPosicion)}'
+                  : '${_fmtFecha(finPosicion)} · ${_etiquetaDiasRestantes(diasPosicion, pasado: false)}',
+              valorColor: _colorUrgencia(
+                diasPosicion,
+                pasado: ev.posicionamientoVencido,
+                base: jerarquia.color,
+              ),
+            ),
+          _lineaPieClara(
+            etiqueta: 'Fin de publicación',
+            valor: valorFinPub,
+            valorColor: _colorUrgencia(diasPub, pasado: pubPasada),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _pieCard({
     required String texto,
     required Color color,
@@ -536,14 +608,10 @@ class _LocalesMisEventosState extends State<LocalesMisEventos> {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
+              SizedBox(
                 width: 22,
                 height: 22,
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.14),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(icono, size: 13, color: color),
+                child: Icon(icono, size: 15, color: color),
               ),
               const SizedBox(width: 8),
               Expanded(
@@ -662,13 +730,13 @@ class _LocalesMisEventosState extends State<LocalesMisEventos> {
     final c = color ?? ColoresLocales.acentoVioleta;
     return Expanded(
       child: Material(
-        color: ColoresLocales.cardLavanda,
-        borderRadius: BorderRadius.circular(12),
+        color: ColoresLocales.superficieElevada,
+        borderRadius: BorderRadius.circular(10),
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(10),
           child: SizedBox(
-            height: 44,
+            height: 42,
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
@@ -699,63 +767,50 @@ class _LocalesMisEventosState extends State<LocalesMisEventos> {
     );
   }
 
+  Widget _badgeVistas(int total) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: ColoresLocales.superficieElevada,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            CupertinoIcons.eye_fill,
+            size: 12,
+            color: ColoresLocales.acentoVioleta,
+          ),
+          const SizedBox(width: 4),
+          Text(
+            formatoMetricaCompacto(total),
+            style: GoogleFonts.baloo2(
+              fontSize: 11,
+              fontWeight: FontWeight.w900,
+              color: ColoresLocales.acentoVioleta,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildCardActiva(_EventoMini ev, bool borrando) {
     final jerarquia = _jerarquiaMeta(ev.jerarquia);
     final modo = (ev.modoLista ?? '').toLowerCase();
     final tieneLista = modo == 'auto' || modo == 'manual';
     final esBasico = !ev.esPosicionado;
-    final pasadoEvento = ev.eventoFinalizado;
-    final finPosicion = ev.finPosicionamiento;
-    final diasPosicion = ev.diasRestantesPosicionamiento;
-    final diasEvento = ev.diasRestantesEvento;
-    final colorPie = ev.esPosicionado
-        ? _colorUrgencia(
-            diasPosicion,
-            pasado: ev.posicionamientoVencido,
-            base: jerarquia.color,
-          )
-        : _colorUrgencia(diasEvento, pasado: pasadoEvento);
-
-    final textoPie = ev.esPosicionado
-        ? (ev.posicionamientoVencido
-            ? 'Finalizó el ${_fmtFecha(finPosicion)}'
-            : '${_fmtFecha(finPosicion)} · ${_etiquetaDiasRestantes(diasPosicion, pasado: false)}')
-        : 'Finaliza el ${_fmtFecha(ev.fechaFin)} · ${_etiquetaDiasRestantes(diasEvento, pasado: pasadoEvento)}';
-
-    final encabezadoPie = ev.esPosicionado
-        ? (ev.posicionamientoVencido
-            ? '${jerarquia.label} · Posicionamiento finalizado'
-            : '${jerarquia.label} · Fin de posicionamiento')
-        : null;
-
-    final subtituloPie = ev.esPosicionado
-        ? (ev.posicionLimitadaPorEvento
-            ? 'Termina con el evento el ${_fmtFechaHora(ev.fechaFin)}'
-            : 'Duración: ${ev.diasBoostRegla ?? 10} días o fin del evento (lo que ocurra primero)')
-        : null;
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 14),
-      decoration: BoxDecoration(
-        color: ColoresLocales.superficie,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(
-          color: jerarquia.color.withValues(alpha: ev.esPosicionado ? 0.22 : 0.12),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: jerarquia.color.withValues(alpha: ev.esPosicionado ? 0.08 : 0.04),
-            blurRadius: 14,
-            offset: const Offset(0, 3),
-          ),
-        ],
-      ),
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: ColoresLocales.decoracionCard(radius: 16, sinBorde: true),
       clipBehavior: Clip.antiAlias,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: const EdgeInsets.all(14),
+            padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -773,18 +828,16 @@ class _LocalesMisEventosState extends State<LocalesMisEventos> {
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                             style: GoogleFonts.baloo2(
-                              fontSize: 15,
+                              fontSize: 15.5,
                               fontWeight: FontWeight.w900,
                               color: ColoresLocales.textoOnFondoClaro,
                               height: 1.2,
                             ),
                           ),
-                          const SizedBox(height: 7),
-                          _chipJerarquia(
-                            text: jerarquia.label,
-                            icon: jerarquia.icon,
-                            color: jerarquia.color,
-                          ),
+                          if (ev.metricVisitas > 0) ...[
+                            const SizedBox(height: 6),
+                            _badgeVistas(ev.metricVisitas),
+                          ],
                           const SizedBox(height: 8),
                           if (ev.fechaInicio != null)
                             _filaInfo(
@@ -837,26 +890,24 @@ class _LocalesMisEventosState extends State<LocalesMisEventos> {
                   ),
                 ],
                 const SizedBox(height: 12),
-                Divider(height: 1, thickness: 1, color: ColoresLocales.separador),
-                const SizedBox(height: 10),
                 Row(
                   children: [
                     Expanded(
                       flex: 3,
-                      child: ElevatedButton.icon(
+                      child: FilledButton.icon(
                         onPressed: () => _abrirPosicionamiento(ev),
                         icon: Icon(
                           esBasico ? CupertinoIcons.rocket_fill : jerarquia.icon,
-                          size: 16,
+                          size: 15,
                         ),
                         label: Text(
                           esBasico ? 'Posicionar' : jerarquia.label,
                           style: GoogleFonts.baloo2(
-                            fontWeight: FontWeight.w900,
+                            fontWeight: FontWeight.w800,
                             fontSize: 12.5,
                           ),
                         ),
-                        style: ElevatedButton.styleFrom(
+                        style: FilledButton.styleFrom(
                           elevation: 0,
                           backgroundColor: esBasico
                               ? const Color(0xFFD9B44A)
@@ -865,9 +916,9 @@ class _LocalesMisEventosState extends State<LocalesMisEventos> {
                               ? ColoresLocales.acentoVioleta
                               : Colors.white,
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
+                            borderRadius: BorderRadius.circular(11),
                           ),
-                          minimumSize: const Size.fromHeight(44),
+                          minimumSize: const Size.fromHeight(42),
                         ),
                       ),
                     ),
@@ -899,13 +950,7 @@ class _LocalesMisEventosState extends State<LocalesMisEventos> {
               ],
             ),
           ),
-          _pieCard(
-            icono: ev.esPosicionado ? jerarquia.icon : CupertinoIcons.clock_fill,
-            encabezado: encabezadoPie,
-            color: colorPie,
-            texto: textoPie,
-            subtitulo: subtituloPie,
-          ),
+          _pieCardActiva(ev),
         ],
       ),
     );
@@ -930,14 +975,7 @@ class _LocalesMisEventosState extends State<LocalesMisEventos> {
 
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
-      decoration: BoxDecoration(
-        color: ColoresLocales.superficie,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(
-          color: ColoresLocales.acentoVioleta.withValues(alpha: 0.12),
-        ),
-        boxShadow: ColoresLocales.sombrasCard(),
-      ),
+      decoration: ColoresLocales.decoracionCard(radius: 18, sinBorde: true),
       clipBehavior: Clip.antiAlias,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1149,30 +1187,17 @@ class _LocalesMisEventosState extends State<LocalesMisEventos> {
         children: [
           Positioned.fill(
             child: DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: ColoresLocales.degradadoHome,
-                  stops: [0.0, 0.22, 0.55, 1.0],
-                ),
-              ),
+              decoration: ColoresLocales.decoracionFondoPantalla,
             ),
           ),
           SafeArea(
             bottom: false,
             child: _cargando
-                ? Center(
-                    child: CircularProgressIndicator(
-                      color: ColoresLocales.acentoVioleta,
-                    ),
-                  )
+                ? const SkeletonListaEventos()
                 : _error != null
-                ? Center(
-                    child: Padding(
-                      padding: EdgeInsets.all(18),
-                      child: Text(_error!, textAlign: TextAlign.center),
-                    ),
+                ? EstadoErrorLocales(
+                    mensaje: _error!,
+                    onReintentar: _cargarEventos,
                   )
                 : Column(
                     children: [
@@ -1329,6 +1354,7 @@ class _EventoMini {
   final String? urlCompraEntradas;
   final List<_PromoResumen> promos;
   final String estadoPublicacion;
+  final int metricVisitas;
 
   _EventoMini({
     required this.idEvento,
@@ -1348,6 +1374,7 @@ class _EventoMini {
     required this.urlCompraEntradas,
     required this.promos,
     this.estadoPublicacion = 'publicado',
+    this.metricVisitas = 0,
   });
 
   static DateTime? _parseDate(dynamic v) {
@@ -1443,6 +1470,7 @@ class _EventoMini {
       urlCompraEntradas: (m['url_compra_entradas'] as String?),
       promos: promos,
       estadoPublicacion: (m['estado_publicacion'] as String?) ?? 'publicado',
+      metricVisitas: (m['metric_visitas'] as num?)?.toInt() ?? 0,
     );
   }
 

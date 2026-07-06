@@ -5,12 +5,14 @@
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <meta name="description" content="Fernecito Locales — panel para administración de tu local.">
-  <meta name="theme-color" content="#742ED1">
+  <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#FFFFFF" media="(prefers-color-scheme: light)">
+  <meta id="theme-color-meta" name="theme-color" content="#FFFFFF">
 
   <!-- PWA / Add to Home Screen -->
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta id="apple-status-bar-style" name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="Fernecito Locales">
   <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png">
   <link rel="apple-touch-icon" sizes="192x192" href="icons/Icon-192.png">
@@ -43,6 +45,98 @@
 
   <!-- Requerido por flutter_image_compress en web -->
   <script src="https://cdn.jsdelivr.net/npm/pica@9.0.1/dist/pica.min.js"></script>
+
+  <script>
+    window.deferredPrompt = null;
+    window.addEventListener('beforeinstallprompt', function (e) {
+      e.preventDefault();
+      window.deferredPrompt = e;
+      window.dispatchEvent(new Event('pwa-install-available'));
+    });
+    window.addEventListener('appinstalled', function () {
+      window.deferredPrompt = null;
+      window.dispatchEvent(new Event('pwa-installed'));
+    });
+    window.solicitarInstalacionPwa = function () {
+      return new Promise(function (resolve) {
+        var prompt = window.deferredPrompt;
+        if (!prompt) {
+          resolve(false);
+          return;
+        }
+        prompt.prompt();
+        prompt.userChoice
+          .then(function (choice) {
+            window.deferredPrompt = null;
+            resolve(choice.outcome === 'accepted');
+          })
+          .catch(function () {
+            window.deferredPrompt = null;
+            resolve(false);
+          });
+      });
+    };
+
+    window.fernecitoForzarRecargaPwa = async function () {
+      try {
+        if ('serviceWorker' in navigator) {
+          var registration = await navigator.serviceWorker.getRegistration();
+          if (registration) {
+            try {
+              await registration.update();
+            } catch (e) {}
+            if (registration.waiting) {
+              registration.waiting.postMessage('skipWaiting');
+              registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+              await new Promise(function (resolve) {
+                var done = false;
+                var finish = function () {
+                  if (done) return;
+                  done = true;
+                  resolve();
+                };
+                navigator.serviceWorker.addEventListener('controllerchange', finish, { once: true });
+                setTimeout(finish, 700);
+              });
+            }
+          }
+        }
+        if ('caches' in window) {
+          var keys = await caches.keys();
+          await Promise.all(keys.map(function (key) { return caches.delete(key); }));
+        }
+      } catch (e) {}
+      window.location.reload();
+    };
+
+    (function () {
+      function preferenciaOscuraLocales() {
+        try {
+          if (localStorage.getItem('flutter.modo_oscuro_locales') === 'true') {
+            return true;
+          }
+          if (localStorage.getItem('flutter.modo_oscuro_locales') === 'false') {
+            return false;
+          }
+        } catch (e) {}
+        return window.matchMedia('(prefers-color-scheme: dark)').matches;
+      }
+
+      window.fernecitoActualizarThemeColor = function (oscuro) {
+        var color = oscuro ? '#000000' : '#FFFFFF';
+        var meta = document.getElementById('theme-color-meta');
+        if (meta) meta.setAttribute('content', color);
+        var apple = document.getElementById('apple-status-bar-style');
+        if (apple) {
+          apple.setAttribute('content', oscuro ? 'black' : 'default');
+        }
+        document.documentElement.style.backgroundColor = color;
+        if (document.body) document.body.style.backgroundColor = color;
+      };
+
+      window.fernecitoActualizarThemeColor(preferenciaOscuraLocales());
+    })();
+  </script>
   
   
   
@@ -61,7 +155,7 @@
     body {
       margin: 0;
       min-height: 100%;
-      background-color: #742ED1;
+      background-color: #FFFFFF;
           background-size: 100% 100%;
     }
 
@@ -115,7 +209,13 @@
     function removeSplashFromWeb() {
       document.getElementById("splash")?.remove();
       document.getElementById("splash-branding")?.remove();
-      document.body.style.background = "transparent";
+      if (window.fernecitoActualizarThemeColor) {
+        window.fernecitoActualizarThemeColor(
+          localStorage.getItem('flutter.modo_oscuro_locales') === 'true'
+        );
+      } else {
+        document.body.style.background = "transparent";
+      }
     }
   </script>
 </head>

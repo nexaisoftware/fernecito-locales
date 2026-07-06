@@ -8,9 +8,13 @@ import '../widgets/tema_locales_scope.dart';
 import '../core/navegacion_locales.dart';
 import '../core/suscripcion_locales.dart';
 import '../core/supabase_client.dart';
+import '../core/programa_pioneros.dart';
+import '../widgets/programa_pioneros_ui.dart';
+import '../widgets/beneficios_plan_comercial.dart';
+import '../widgets/badge_plan_suscripcion.dart';
 
 class LocalesAdministrarSubscriociones extends StatefulWidget {
-  /// 0 = Planes, 1 = Mi suscripción. Si es null, se elige según verificación.
+  /// 0 = Subscripciones, 1 = Mi suscripción. Si es null, se elige según verificación.
   final int? pestanaInicial;
 
   const LocalesAdministrarSubscriociones({super.key, this.pestanaInicial});
@@ -28,6 +32,7 @@ class _LocalesAdministrarSubscriocionesState
   final GlobalKey _plusPlanKey = GlobalKey();
 
   bool get _localVerificado => _estado?.localVerificado ?? false;
+  bool get _esPionero => _estado?.esPionero ?? false;
 
   @override
   void initState() {
@@ -67,6 +72,24 @@ class _LocalesAdministrarSubscriocionesState
     });
   }
 
+  void _irAPlanSiPermitido(String plan) {
+    final estado = _estado;
+    if (estado != null && estado.esPionero && estado.pioneroBeneficiosActivo) {
+      final motivo = estado.reglasPionero.motivoBloqueoPlan(plan);
+      if (motivo != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(motivo, style: GoogleFonts.baloo2(fontWeight: FontWeight.w600)),
+            backgroundColor: ProgramaPioneros.doradoOscuro,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        return;
+      }
+    }
+    _irAPagar(plan);
+  }
+
   void _programarCentradoPlus() {
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       final ctx = _plusPlanKey.currentContext;
@@ -78,6 +101,14 @@ class _LocalesAdministrarSubscriocionesState
         curve: Curves.easeOutCubic,
       );
     });
+  }
+
+  bool _planBloqueadoPionero(String plan) {
+    final estado = _estado;
+    if (estado == null || !estado.esPionero || !estado.pioneroBeneficiosActivo) {
+      return false;
+    }
+    return !estado.reglasPionero.planPermitido(plan);
   }
 
   @override
@@ -132,21 +163,27 @@ class _LocalesAdministrarSubscriocionesState
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.stretch,
                               children: [
+                                if (_esPionero &&
+                                    (_estado?.pioneroBeneficiosActivo ?? false)) ...[
+                                  BannerInfoPioneroSuscripcion(
+                                    reglas: _estado!.reglasPionero,
+                                  ),
+                                ],
                                 _SeccionTitulo(
-                                  titulo: 'Planes verificados',
-                                  subtitulo: 'Elegí el plan que mejor se adapte a tu local',
+                                  titulo: 'Subscripciones',
+                                  subtitulo: _esPionero &&
+                                          (_estado?.pioneroBeneficiosActivo ?? false)
+                                      ? 'Durante tus beneficios regalo, los cambios de suscripción son limitados'
+                                      : 'Elegí la suscripción que mejor se adapte a tu local',
                                 ),
                                 SizedBox(height: 12),
                                 _PlanHeroComercial(
                                   titulo: 'Standard',
                                   precio: '15 usd / mes',
                                   colorPlan: ColoresLocales.acentoVioleta,
-                                  creditos: const [
-                                    _PlanCreditoMini(CupertinoIcons.sparkles, ColoresFeaturesLocales.flyersIa, '3 flyers IA'),
-                                    _PlanCreditoMini(CupertinoIcons.hand_thumbsup_fill, ColoresFeaturesLocales.recomendadoFernecito, '4 recomendados'),
-                                    _PlanCreditoMini(CupertinoIcons.star_fill, ColoresFeaturesLocales.topCartelera, 'Sin top cartelera', incluido: false),
-                                  ],
-                                  onTap: () => NavegacionLocales.irAComprasPagos('Standard'),
+                                  creditos: _creditosComerciales('Standard'),
+                                  habilitado: !_planBloqueadoPionero('Standard'),
+                                  onTap: () => _irAPlanSiPermitido('Standard'),
                                 ),
                                 SizedBox(height: 14),
                                 _PlanHeroComercial(
@@ -155,12 +192,9 @@ class _LocalesAdministrarSubscriocionesState
                                   precio: '35 usd / mes',
                                   colorPlan: const Color(0xFF0891B2),
                                   destacado: true,
-                                  creditos: const [
-                                    _PlanCreditoMini(CupertinoIcons.sparkles, ColoresFeaturesLocales.flyersIa, '20 flyers IA'),
-                                    _PlanCreditoMini(CupertinoIcons.hand_thumbsup_fill, ColoresFeaturesLocales.recomendadoFernecito, '8 recomendados'),
-                                    _PlanCreditoMini(CupertinoIcons.star_fill, ColoresFeaturesLocales.topCartelera, '2 top cartelera'),
-                                  ],
-                                  onTap: () => NavegacionLocales.irAComprasPagos('Plus'),
+                                  creditos: _creditosComerciales('Plus'),
+                                  habilitado: !_planBloqueadoPionero('Plus'),
+                                  onTap: () => _irAPlanSiPermitido('Plus'),
                                 ),
                                 SizedBox(height: 14),
                                 _PlanHeroComercial(
@@ -168,13 +202,14 @@ class _LocalesAdministrarSubscriocionesState
                                   precio: '65 usd / mes',
                                   colorPlan: mostaza,
                                   esPremium: true,
-                                  creditos: const [
-                                    _PlanCreditoMini(CupertinoIcons.sparkles, ColoresFeaturesLocales.flyersIa, '40 flyers IA'),
-                                    _PlanCreditoMini(CupertinoIcons.hand_thumbsup_fill, ColoresFeaturesLocales.recomendadoFernecito, '12 recomendados'),
-                                    _PlanCreditoMini(CupertinoIcons.flame_fill, ColoresFeaturesLocales.topUltra, '2 top ultra'),
-                                  ],
-                                  onTap: () => NavegacionLocales.irAComprasPagos('Premium'),
+                                  creditos: _creditosComerciales('Premium'),
+                                  habilitado: !_planBloqueadoPionero('Premium'),
+                                  onTap: () => _irAPlanSiPermitido('Premium'),
                                 ),
+                                if (!_esPionero) ...[
+                                  SizedBox(height: 14),
+                                  CardInvitacionProgramaPioneros(onCanjeado: _cargarPerfil),
+                                ],
                               ],
                             ),
                           ),
@@ -225,7 +260,7 @@ class _LocalesAdministrarSubscriocionesState
                                                           EdgeInsets.symmetric(
                                                               horizontal: 4),
                                                       child: Text(
-                                                        'Compará planes',
+                                                        'Compará suscripciones',
                                                         style: GoogleFonts.baloo2(
                                                           fontSize: 14,
                                                           fontWeight:
@@ -286,13 +321,18 @@ class _LocalesAdministrarSubscriocionesState
                                                 )
                                               : _PanelMiSuscripcion(
                                                   estado: _estado!,
-                                                  onRenovar: () => _irAPagar(
+                                                  onRenovar: () => _irAPlanSiPermitido(
                                                     _estado!.planParaRenovar,
                                                   ),
                                                   onMejorar: () {
                                                     setState(() => _pestana = 0);
                                                     _programarCentradoPlus();
                                                   },
+                                                  onVerPlanes: () {
+                                                    setState(() => _pestana = 0);
+                                                  },
+                                                  onUpgradePremium: () =>
+                                                      _irAPlanSiPermitido('Premium'),
                                                   onVerPago: () => _irAPagar(
                                                     _estado!.pagoPendiente?.planSolicitado ??
                                                         _estado!.planParaRenovar,
@@ -332,7 +372,7 @@ class _SelectorPestanas extends StatelessWidget {
         children: [
           Expanded(
             child: _PestanaSuscripcion(
-              label: 'Planes',
+              label: 'Subscripciones',
               activa: indice == 0,
               onTap: () => onCambio(0),
             ),
@@ -394,12 +434,16 @@ class _PanelMiSuscripcion extends StatelessWidget {
   final EstadoSuscripcionLocal estado;
   final VoidCallback onRenovar;
   final VoidCallback onMejorar;
+  final VoidCallback onVerPlanes;
+  final VoidCallback onUpgradePremium;
   final VoidCallback onVerPago;
 
   const _PanelMiSuscripcion({
     required this.estado,
     required this.onRenovar,
     required this.onMejorar,
+    required this.onVerPlanes,
+    required this.onUpgradePremium,
     required this.onVerPago,
   });
 
@@ -407,10 +451,18 @@ class _PanelMiSuscripcion extends StatelessWidget {
   Widget build(BuildContext context) {
     TemaLocalesScope.of(context);
     final tipoPlan = estado.tipoPlan;
-    final precio = SuscripcionLocales.precioMesEtiqueta(
-      tipoPlan == 'Gratuita' ? 'Standard' : tipoPlan,
-    );
-    final mostrarMejorar = !SuscripcionLocales.esPremium(tipoPlan);
+    final precio = SuscripcionLocales.precioMesEtiqueta(tipoPlan);
+    final reglas = estado.reglasPionero;
+    final beneficiosActivos = estado.esPionero && estado.pioneroBeneficiosActivo;
+    final bloquearRenov = estado.pioneroBloqueaRenovacionManual;
+    final mostrarMejorarGenerico =
+        !SuscripcionLocales.esPremium(tipoPlan) &&
+        !beneficiosActivos &&
+        tipoPlan != 'Gratuita';
+    final mostrarUpgradePremium =
+        reglas.permiteUpgradePremium &&
+        !estado.tienePagoPendiente &&
+        !estado.pioneroPremiumPagoActivo;
     final bloqueado = estado.tienePagoPendiente;
 
     return Column(
@@ -420,14 +472,18 @@ class _PanelMiSuscripcion extends StatelessWidget {
           estado: estado,
           onVerPago: onVerPago,
         ),
+        if (beneficiosActivos)
+          BannerInfoPioneroSuscripcion(reglas: reglas),
+        if (estado.esPionero &&
+            !estado.pioneroBeneficiosActivo &&
+            estado.pioneroBeneficiosFin != null)
+          BannerInfoPioneroSuscripcion(
+            reglas: reglas,
+            beneficiosTerminados: true,
+          ),
         _HeroPlanCard(
-          tipoPlan: tipoPlan,
-          planRaw: estado.planRaw,
-          precioMes: precio,
-          verificado: estado.localVerificado,
-          planActivo: estado.planActivo,
-          fechaVencimiento: estado.fechaVencimiento,
-          diasRestantes: estado.diasHastaVencimiento,
+          estado: estado,
+          onVerPlanes: tipoPlan == 'Gratuita' ? onVerPlanes : null,
         ),
         SizedBox(height: 16),
         _SeccionTitulo(
@@ -436,28 +492,28 @@ class _PanelMiSuscripcion extends StatelessWidget {
         ),
         SizedBox(height: 10),
         _CreditoBarra(
-          icono: CupertinoIcons.sparkles,
+          icono: IconosFeaturesLocales.flyersIa,
           color: ColoresFeaturesLocales.flyersIa,
           etiqueta: 'Flyers IA',
           restantes: estado.cupos.flyersIa,
           maximo: estado.cuposMaximos.flyersIa,
         ),
         _CreditoBarra(
-          icono: CupertinoIcons.hand_thumbsup_fill,
+          icono: IconosFeaturesLocales.recomendadoFernecito,
           color: ColoresFeaturesLocales.recomendadoFernecito,
           etiqueta: 'Recomendado Fernecito',
           restantes: estado.cupos.recomendadosFernecito,
           maximo: estado.cuposMaximos.recomendadosFernecito,
         ),
         _CreditoBarra(
-          icono: CupertinoIcons.star_fill,
+          icono: IconosFeaturesLocales.topCartelera,
           color: ColoresFeaturesLocales.topCartelera,
           etiqueta: 'Top cartelera',
           restantes: estado.cupos.topCartelera,
           maximo: estado.cuposMaximos.topCartelera,
         ),
         _CreditoBarra(
-          icono: CupertinoIcons.flame_fill,
+          icono: IconosFeaturesLocales.topUltra,
           color: ColoresFeaturesLocales.topUltra,
           etiqueta: 'Top ultra',
           restantes: estado.cupos.topUltra,
@@ -472,8 +528,10 @@ class _PanelMiSuscripcion extends StatelessWidget {
         _DetalleFila(
           icono: CupertinoIcons.checkmark_seal_fill,
           etiqueta: 'Estado verificado',
-          valor: estado.localVerificado ? 'Activo' : 'No verificado',
-          colorValor: estado.localVerificado ? const Color(0xFF059669) : null,
+          valor: (estado.localVerificado || estado.esPionero) ? 'Activo' : 'No verificado',
+          colorValor: estado.esPionero
+              ? ProgramaPioneros.dorado
+              : (estado.localVerificado ? const Color(0xFF059669) : null),
         ),
         if (estado.fechaVerificacion != null)
           _DetalleFila(
@@ -483,7 +541,7 @@ class _PanelMiSuscripcion extends StatelessWidget {
           ),
         _DetalleFila(
           icono: CupertinoIcons.creditcard,
-          etiqueta: 'Precio del plan',
+          etiqueta: 'Precio de la suscripción',
           valor: precio,
         ),
         if (estado.pagoAgendado != null) ...[
@@ -494,7 +552,9 @@ class _PanelMiSuscripcion extends StatelessWidget {
           ),
         ],
         SizedBox(height: 20),
-        if (estado.planActivo && estado.fechaVencimiento != null) ...[
+        if (!bloquearRenov &&
+            estado.planActivo &&
+            estado.fechaVencimiento != null) ...[
           SizedBox(
             width: double.infinity,
             child: ElevatedButton.icon(
@@ -510,7 +570,9 @@ class _PanelMiSuscripcion extends StatelessWidget {
               label: Text(
                 bloqueado
                     ? 'Renovación en revisión'
-                    : 'Renovar antes del ${SuscripcionLocales.formatearFechaCorta(estado.fechaVencimiento!)}',
+                    : estado.pioneroPremiumPagoActivo
+                        ? 'Renovar Premium antes del ${SuscripcionLocales.formatearFechaCorta(estado.fechaVencimiento!)}'
+                        : 'Renovar antes del ${SuscripcionLocales.formatearFechaCorta(estado.fechaVencimiento!)}',
                 style: GoogleFonts.baloo2(
                   fontWeight: FontWeight.w900,
                   fontSize: 15,
@@ -532,43 +594,52 @@ class _PanelMiSuscripcion extends StatelessWidget {
             ),
           ),
           SizedBox(height: 10),
-        ] else if (!bloqueado && !estado.planActivo) ...[
+        ],
+        if (mostrarUpgradePremium) ...[
           SizedBox(
             width: double.infinity,
             child: ElevatedButton.icon(
-              onPressed: onRenovar,
-              icon: Icon(CupertinoIcons.checkmark_seal_fill, color: ColoresLocales.textoEnBoton),
+              onPressed: bloqueado ? null : onUpgradePremium,
+              icon: Icon(
+                Icons.rocket_launch_rounded,
+                color: ColoresLocales.acentoVioletaMarca,
+                size: 20,
+              ),
               label: Text(
-                'Activar plan verificado',
-                style: GoogleFonts.baloo2(fontWeight: FontWeight.w900, fontSize: 15),
+                'Upgrade a Premium',
+                style: GoogleFonts.baloo2(
+                  fontWeight: FontWeight.w900,
+                  fontSize: 15,
+                ),
               ),
               style: ElevatedButton.styleFrom(
                 elevation: 0,
-                backgroundColor: ColoresLocales.botonVioletaFondo,
-                foregroundColor: ColoresLocales.botonVioletaTexto,
+                backgroundColor: ColoresLocales.mostazaDestacado,
+                foregroundColor: ColoresLocales.acentoVioletaMarca,
                 padding: const EdgeInsets.symmetric(vertical: 14),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(50)),
               ),
             ),
           ),
-          SizedBox(height: 10),
+          const SizedBox(height: 10),
         ],
-        if (mostrarMejorar)
+        if (mostrarMejorarGenerico)
           SizedBox(
             width: double.infinity,
-            child: OutlinedButton.icon(
+            child: TextButton.icon(
               onPressed: onMejorar,
               icon: Icon(Icons.rocket_launch_rounded, color: ColoresLocales.acentoVioleta, size: 20),
               label: Text(
-                'Mejorar plan',
+                'Mejorar suscripción',
                 style: GoogleFonts.baloo2(
                   fontWeight: FontWeight.w900,
                   fontSize: 15,
                   color: ColoresLocales.acentoVioleta,
                 ),
               ),
-              style: OutlinedButton.styleFrom(
-                side: BorderSide(color: ColoresLocales.acentoVioleta, width: 1.6),
+              style: TextButton.styleFrom(
+                foregroundColor: ColoresLocales.acentoVioleta,
+                backgroundColor: ColoresLocales.acentoVioleta.withValues(alpha: 0.1),
                 padding: const EdgeInsets.symmetric(vertical: 13),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(50)),
               ),
@@ -643,18 +714,21 @@ class _PanelAlertasSuscripcion extends StatelessWidget {
           icono: CupertinoIcons.checkmark_seal_fill,
           titulo: esDowngrade ? 'Downgrade aprobado' : 'Renovación aprobada',
           mensaje:
-              'Tu plan ${agendado.planSolicitado ?? ''} se activará $fecha. Hasta entonces seguís con tu plan actual.',
+              'Tu suscripción ${agendado.planSolicitado ?? ''} se activará $fecha. Hasta entonces seguís con tu suscripción actual.',
         ),
       );
     }
 
-    if (estado.planActivo && estado.proximoAVencer && !estado.tienePagoAgendado) {
+    if (estado.planActivo &&
+        estado.proximoAVencer &&
+        !estado.tienePagoAgendado &&
+        !estado.pioneroBloqueaRenovacionManual) {
       final dias = estado.diasHastaVencimiento ?? 0;
       alertas.add(
         _AlertaSuscripcion(
           color: ColoresLocales.mostazaDestacado,
           icono: CupertinoIcons.exclamationmark_triangle_fill,
-          titulo: 'Tu plan vence pronto',
+          titulo: 'Tu suscripción vence pronto',
           mensaje: dias <= 1
               ? 'Vence ${dias == 0 ? 'hoy' : 'mañana'}. Renová antes para no perder beneficios.'
               : 'Quedan $dias días. Podés renovar ahora y el cambio se agenda para el vencimiento.',
@@ -666,7 +740,8 @@ class _PanelAlertasSuscripcion extends StatelessWidget {
         estado.localVerificado &&
         estado.fechaVencimiento != null &&
         !estado.tienePagoPendiente &&
-        !estado.tienePagoAgendado) {
+        !estado.tienePagoAgendado &&
+        !estado.pioneroBloqueaRenovacionManual) {
       alertas.add(
         _AlertaSuscripcion(
           color: const Color(0xFFDC2626),
@@ -737,9 +812,8 @@ class _AlertaSuscripcion extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
+        color: color.withValues(alpha: 0.14),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: color.withValues(alpha: 0.35)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -793,47 +867,122 @@ class _AlertaSuscripcion extends StatelessWidget {
 }
 
 class _HeroPlanCard extends StatelessWidget {
-  final String tipoPlan;
-  final String? planRaw;
-  final String precioMes;
-  final bool verificado;
-  final bool planActivo;
-  final DateTime? fechaVencimiento;
-  final int? diasRestantes;
+  final EstadoSuscripcionLocal estado;
+  final VoidCallback? onVerPlanes;
 
-  const _HeroPlanCard({
-    required this.tipoPlan,
-    required this.planRaw,
-    required this.precioMes,
-    required this.verificado,
-    required this.planActivo,
-    required this.fechaVencimiento,
-    required this.diasRestantes,
-  });
+  const _HeroPlanCard({required this.estado, this.onVerPlanes});
 
-  Color get _colorPlan {
-    switch (tipoPlan) {
-      case 'Premium':
-        return ColoresLocales.mostazaDestacado;
-      case 'Plus':
-        return const Color(0xFF0891B2);
-      case 'Pionero':
-        return const Color(0xFF16A34A);
-      case 'Standard':
-        return ColoresLocales.acentoVioleta;
-      default:
-        return ColoresLocales.textoSecundarioOnFondoClaro;
-    }
-  }
+  Color _colorPlan(String tipoPlan) => colorPlanSuscripcionUi(tipoPlan);
 
   @override
   Widget build(BuildContext context) {
     TemaLocalesScope.of(context);
-    final color = _colorPlan;
+    final tipoPlan = estado.tipoPlan;
+    final color = _colorPlan(tipoPlan);
+    final precioMes = SuscripcionLocales.precioMesEtiqueta(tipoPlan);
+    final verificado = (estado.localVerificado || estado.esPionero) && tipoPlan != 'Gratuita';
+    final planActivo = estado.planActivo;
+    final fechaVencimiento = estado.fechaVencimiento;
+    final esPioneroBeneficios = estado.esPionero && estado.pioneroBeneficiosActivo;
+    final diasRestantes = esPioneroBeneficios
+        ? null // ya va en CabeceraResumenPionero
+        : estado.diasHastaVencimiento;
+    final mostrarChipDias = !esPioneroBeneficios &&
+        diasRestantes != null &&
+        planActivo;
+
+    if (estado.esPionero) {
+      return Container(
+        decoration: ColoresLocales.decoracionCard(radius: 24, sinBorde: true).copyWith(
+          color: null,
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              ProgramaPioneros.dorado.withValues(alpha: 0.18),
+              ColoresLocales.superficie,
+            ],
+          ),
+        ),
+        padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            CabeceraResumenPionero(estado: estado),
+            const SizedBox(height: 14),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                _ChipEstadoPlan(
+                  icono: CupertinoIcons.checkmark_seal_fill,
+                  texto: 'Verificado',
+                  color: ProgramaPioneros.dorado,
+                ),
+                _ChipEstadoPlan(
+                  icono: estado.pioneroPremiumPagoActivo
+                      ? CupertinoIcons.creditcard
+                      : esPioneroBeneficios
+                          ? CupertinoIcons.gift_fill
+                          : CupertinoIcons.creditcard,
+                  texto: estado.pioneroPremiumPagoActivo
+                      ? 'Premium pagado'
+                      : esPioneroBeneficios
+                          ? '${ProgramaPioneros.etiquetaPlanSuscripcion(tipoPlan)} GRATIS'
+                          : ProgramaPioneros.etiquetaPlanSuscripcion(tipoPlan),
+                  color: _colorPlan(tipoPlan),
+                ),
+                if (estado.pioneroPremiumPagoActivo && estado.diasHastaVencimiento != null)
+                  _ChipEstadoPlan(
+                    icono: CupertinoIcons.timer,
+                    texto: estado.diasHastaVencimiento! <= 1
+                        ? (estado.diasHastaVencimiento == 0 ? 'Premium vence hoy' : 'Premium vence mañana')
+                        : 'Premium: ${estado.diasHastaVencimiento} días',
+                    color: (estado.diasHastaVencimiento ?? 999) <= 7
+                        ? ColoresLocales.mostazaDestacado
+                        : ColoresLocales.acentoVioleta,
+                  ),
+                if (mostrarChipDias && diasRestantes != null)
+                  _ChipEstadoPlan(
+                    icono: CupertinoIcons.timer,
+                    texto: diasRestantes <= 1
+                        ? (diasRestantes == 0 ? 'Vence hoy' : 'Vence mañana')
+                        : '$diasRestantes días restantes',
+                    color: diasRestantes <= 7
+                        ? ColoresLocales.mostazaDestacado
+                        : ColoresLocales.acentoVioleta,
+                  ),
+              ],
+            ),
+            if (onVerPlanes != null) ...[
+              const SizedBox(height: 14),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: onVerPlanes,
+                  icon: Icon(CupertinoIcons.square_list, color: ColoresLocales.textoEnBoton),
+                  label: Text(
+                    'Ver planes',
+                    style: GoogleFonts.baloo2(fontWeight: FontWeight.w900, fontSize: 15),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    elevation: 0,
+                    backgroundColor: ColoresLocales.botonVioletaFondo,
+                    foregroundColor: ColoresLocales.botonVioletaTexto,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(50)),
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+      );
+    }
 
     return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(24),
+      decoration: ColoresLocales.decoracionCard(radius: 24, sinBorde: true).copyWith(
+        color: null,
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
@@ -842,8 +991,6 @@ class _HeroPlanCard extends StatelessWidget {
             ColoresLocales.superficie,
           ],
         ),
-        border: Border.all(color: color.withValues(alpha: 0.45), width: 1.8),
-        boxShadow: ColoresLocales.sombrasCard(),
       ),
       padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),
       child: Column(
@@ -857,7 +1004,7 @@ class _HeroPlanCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Tu plan',
+                      'Tu suscripción',
                       style: GoogleFonts.baloo2(
                         fontSize: 13,
                         fontWeight: FontWeight.w700,
@@ -866,15 +1013,12 @@ class _HeroPlanCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      SuscripcionLocales.etiquetaPlanUi(
-                        rawDb: planRaw,
-                        localVerificado: verificado,
-                      ),
+                      etiquetaSuscripcionCorta(tipoPlan),
                       style: GoogleFonts.baloo2(
                         fontSize: 28,
                         fontWeight: FontWeight.w900,
                         height: 1,
-                        color: ColoresLocales.textoOnFondoClaro,
+                        color: color,
                       ),
                     ),
                   ],
@@ -883,9 +1027,8 @@ class _HeroPlanCard extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.18),
+                  color: color.withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(50),
-                  border: Border.all(color: color.withValues(alpha: 0.5)),
                 ),
                 child: Text(
                   precioMes,
@@ -913,7 +1056,7 @@ class _HeroPlanCard extends StatelessWidget {
                 icono: planActivo
                     ? CupertinoIcons.bolt_fill
                     : CupertinoIcons.pause_fill,
-                texto: planActivo ? 'Plan activo' : 'Sin plan de pago activo',
+                texto: planActivo ? 'Suscripción activa' : 'Sin suscripción de pago activa',
                 color: planActivo ? ColoresLocales.acentoVioleta : ColoresLocales.textoSecundarioOnFondoClaro,
               ),
               if (diasRestantes != null && planActivo)
@@ -961,6 +1104,27 @@ class _HeroPlanCard extends StatelessWidget {
               ),
             ),
           ],
+          if (onVerPlanes != null) ...[
+            const SizedBox(height: 14),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: onVerPlanes,
+                icon: Icon(CupertinoIcons.square_list, color: ColoresLocales.textoEnBoton),
+                label: Text(
+                  'Ver planes',
+                  style: GoogleFonts.baloo2(fontWeight: FontWeight.w900, fontSize: 15),
+                ),
+                style: ElevatedButton.styleFrom(
+                  elevation: 0,
+                  backgroundColor: ColoresLocales.botonVioletaFondo,
+                  foregroundColor: ColoresLocales.botonVioletaTexto,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(50)),
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -983,9 +1147,8 @@ class _ChipEstadoPlan extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
+        color: color.withValues(alpha: 0.16),
         borderRadius: BorderRadius.circular(50),
-        border: Border.all(color: color.withValues(alpha: 0.28)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -1066,9 +1229,8 @@ class _CreditoBarra extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
         decoration: BoxDecoration(
-          color: ColoresLocales.superficieElevada,
+          color: color.withValues(alpha: 0.08),
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: color.withValues(alpha: 0.18)),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -1204,6 +1366,19 @@ class _PlanCreditoMini {
   final bool incluido;
 }
 
+List<_PlanCreditoMini> _creditosComerciales(String plan) {
+  return beneficiosComercialesPlan(plan)
+      .map(
+        (b) => _PlanCreditoMini(
+          b.icono,
+          b.color,
+          b.texto,
+          incluido: b.incluido,
+        ),
+      )
+      .toList();
+}
+
 class _PlanHeroComercial extends StatelessWidget {
   final Key? cardKey;
   final String titulo;
@@ -1213,6 +1388,7 @@ class _PlanHeroComercial extends StatelessWidget {
   final VoidCallback onTap;
   final bool esPremium;
   final bool destacado;
+  final bool habilitado;
 
   const _PlanHeroComercial({
     this.cardKey,
@@ -1223,28 +1399,26 @@ class _PlanHeroComercial extends StatelessWidget {
     required this.onTap,
     this.esPremium = false,
     this.destacado = false,
+    this.habilitado = true,
   });
 
   @override
   Widget build(BuildContext context) {
     TemaLocalesScope.of(context);
-    return Container(
+    return Opacity(
+      opacity: habilitado ? 1 : 0.55,
+      child: Container(
       key: cardKey,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(24),
+      decoration: ColoresLocales.decoracionCard(radius: 24, sinBorde: true).copyWith(
+        color: null,
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            colorPlan.withValues(alpha: destacado ? 0.28 : 0.2),
+            colorPlan.withValues(alpha: destacado ? 0.32 : 0.2),
             ColoresLocales.superficie,
           ],
         ),
-        border: Border.all(
-          color: colorPlan.withValues(alpha: destacado ? 0.65 : 0.45),
-          width: destacado ? 2.2 : 1.6,
-        ),
-        boxShadow: ColoresLocales.sombrasCard(),
       ),
       padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),
       child: Column(
@@ -1266,24 +1440,14 @@ class _PlanHeroComercial extends StatelessWidget {
                         color: ColoresLocales.textoOnFondoClaro,
                       ),
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Insignia verificado incluida',
-                      style: GoogleFonts.baloo2(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                        color: ColoresLocales.textoSecundarioOnFondoClaro,
-                      ),
-                    ),
                   ],
                 ),
               ),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(
-                  color: colorPlan.withValues(alpha: 0.18),
+                  color: colorPlan.withValues(alpha: destacado ? 0.24 : 0.18),
                   borderRadius: BorderRadius.circular(50),
-                  border: Border.all(color: colorPlan.withValues(alpha: 0.45)),
                 ),
                 child: Text(
                   precio,
@@ -1337,16 +1501,18 @@ class _PlanHeroComercial extends StatelessWidget {
           SizedBox(
             width: double.infinity,
             child: ElevatedButton.icon(
-              onPressed: onTap,
+              onPressed: habilitado ? onTap : onTap,
               icon: Icon(
-                CupertinoIcons.checkmark_seal_fill,
+                habilitado
+                    ? CupertinoIcons.checkmark_seal_fill
+                    : CupertinoIcons.lock_fill,
                 color: esPremium
                     ? ColoresLocales.acentoVioletaMarca
                     : ColoresLocales.textoEnBoton,
                 size: 18,
               ),
               label: Text(
-                'Elegir $titulo',
+                habilitado ? 'Elegir $titulo' : 'No disponible ahora',
                 style: GoogleFonts.baloo2(
                   fontWeight: FontWeight.w900,
                   fontSize: 15,
@@ -1366,6 +1532,7 @@ class _PlanHeroComercial extends StatelessWidget {
           ),
         ],
       ),
+    ),
     );
   }
 }
@@ -1377,21 +1544,7 @@ class _TarjetaCuentaGratuita extends StatelessWidget {
   Widget build(BuildContext context) {
     TemaLocalesScope.of(context);
     return Container(
-      decoration: BoxDecoration(
-        color: ColoresLocales.superficie,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(
-          color: ColoresLocales.acentoVioleta.withOpacity(0.26),
-          width: 1.6,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: ColoresLocales.acentoVioleta.withOpacity(0.12),
-            blurRadius: 18,
-            offset: Offset(0, 7),
-          ),
-        ],
-      ),
+      decoration: ColoresLocales.decoracionCard(radius: 24, sinBorde: true),
       padding: EdgeInsets.fromLTRB(18, 18, 18, 20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1471,11 +1624,8 @@ class _TipBeneficio extends StatelessWidget {
     return Container(
       padding: EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
-        color: ColoresLocales.acentoVioleta.withOpacity(0.08),
+        color: ColoresLocales.acentoVioleta.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: ColoresLocales.acentoVioleta.withOpacity(0.22),
-        ),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1585,18 +1735,7 @@ class _TablaComparativaPlanes extends StatelessWidget {
     }
 
     return Container(
-      decoration: BoxDecoration(
-        color: ColoresLocales.superficie,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: violet.withOpacity(0.22)),
-        boxShadow: [
-          BoxShadow(
-            color: violet.withOpacity(0.08),
-            blurRadius: 14,
-            offset: Offset(0, 6),
-          ),
-        ],
-      ),
+      decoration: ColoresLocales.decoracionCard(radius: 16, sinBorde: true),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(16),
         child: Table(

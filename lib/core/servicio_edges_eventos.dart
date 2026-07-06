@@ -625,6 +625,14 @@ class ServicioEdgesEventos {
     );
     return res.data;
   }
+
+  Future<Map<String, dynamic>> canjearCodigoPionero({required String codigo}) async {
+    final res = await _handleEdge(
+      'canjear_codigo_pionero',
+      body: {'codigo': codigo.trim().toUpperCase()},
+    );
+    return res.data;
+  }
 }
 
 class _EdgeHttpResult {

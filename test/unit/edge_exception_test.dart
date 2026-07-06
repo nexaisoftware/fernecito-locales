@@ -3,7 +3,7 @@
 // mensajes incorrectos al canjear/gestionar listas.
 import 'package:flutter_test/flutter_test.dart';
 
-import '../../lib/core/servicio_edges_eventos.dart';
+import 'package:frontend_locales/core/servicio_edges_eventos.dart';
 
 void main() {
   group('EdgeException — constructor', () {

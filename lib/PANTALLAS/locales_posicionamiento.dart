@@ -275,30 +275,8 @@ class LocalesPosicionamientoState extends State<LocalesPosicionamiento> {
     };
   }
 
-  ({String label, Color color, IconData icon}) _metaNivel(String nivel) {
-    return switch (nivel) {
-      'recomendado_fernecito' => (
-        label: 'Rec. Fernecito',
-        color: ColoresLocales.jerarquiaRecomendado,
-        icon: CupertinoIcons.hand_thumbsup_fill,
-      ),
-      'top' => (
-        label: 'Top Cartelera',
-        color: ColoresLocales.jerarquiaTop,
-        icon: CupertinoIcons.star_fill,
-      ),
-      'top_ultra' => (
-        label: 'Top Ultra',
-        color: ColoresLocales.jerarquiaUltra,
-        icon: CupertinoIcons.rosette,
-      ),
-      _ => (
-        label: nivel,
-        color: Colors.grey,
-        icon: CupertinoIcons.question_circle,
-      ),
-    };
-  }
+  ({String label, Color color, IconData icon}) _metaNivel(String nivel) =>
+      IconosFeaturesLocales.metaNivelPosicionamiento(nivel);
 
   Future<void> _abrirOpcionesMejora(_EventoPos evento) async {
     if (_posicionando.contains(evento.idEvento)) return;
@@ -384,14 +362,9 @@ class LocalesPosicionamientoState extends State<LocalesPosicionamiento> {
                             padding: const EdgeInsets.all(12),
                             decoration: BoxDecoration(
                               color: seleccionadoNivel
-                                  ? meta.color.withOpacity(0.12)
+                                  ? meta.color.withOpacity(0.18)
                                   : ColoresLocales.cardInput,
                               borderRadius: BorderRadius.circular(14),
-                              border: Border.all(
-                                color: seleccionadoNivel
-                                    ? meta.color.withOpacity(0.45)
-                                    : ColoresLocales.acentoVioleta.withOpacity(0.16),
-                              ),
                             ),
                             child: Row(
                               children: [
@@ -490,20 +463,20 @@ class LocalesPosicionamientoState extends State<LocalesPosicionamiento> {
       'recomendado_fernecito' => (
         _credRecomendados,
         'Rec. Fernecito',
-        ColoresLocales.jerarquiaRecomendado,
-        CupertinoIcons.hand_thumbsup_fill,
+        ColoresFeaturesLocales.recomendadoFernecito,
+        IconosFeaturesLocales.recomendadoFernecito,
       ),
       'top' => (
         _credTop,
         'Top Cartelera',
-        ColoresLocales.jerarquiaTop,
-        CupertinoIcons.star_fill,
+        ColoresFeaturesLocales.topCartelera,
+        IconosFeaturesLocales.topCartelera,
       ),
       'top_ultra' => (
         _credTopUltra,
         'Top Ultra',
-        ColoresLocales.jerarquiaUltra,
-        CupertinoIcons.rosette,
+        ColoresFeaturesLocales.topUltra,
+        IconosFeaturesLocales.topUltra,
       ),
       _ => (0, jerarquiaDestino, Colors.grey, CupertinoIcons.question_circle),
     };
@@ -790,7 +763,7 @@ class LocalesPosicionamientoState extends State<LocalesPosicionamiento> {
       : ColoresLocales.textoSecundarioOnFondoClaro;
 
   IconData get _iconEstado => _localVerificado
-      ? CupertinoIcons.checkmark_seal_fill
+      ? IconosLocales.verificado
       : CupertinoIcons.lock_open_fill;
 
   // ── Dialog info crédito ───────────────────────────────────────────────────
@@ -990,20 +963,7 @@ class LocalesPosicionamientoState extends State<LocalesPosicionamiento> {
     return Padding(
       padding: EdgeInsets.symmetric(horizontal: 16),
       child: Container(
-        decoration: BoxDecoration(
-          color: ColoresLocales.superficie,
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(
-            color: ColoresLocales.acentoVioleta.withOpacity(0.15),
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: ColoresLocales.acentoVioleta.withOpacity(0.06),
-              blurRadius: 12,
-              offset: Offset(0, 3),
-            ),
-          ],
-        ),
+        decoration: ColoresLocales.decoracionCard(radius: 18, sinBorde: true),
         padding: EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         child: _cargandoPerfil
             ? Center(
@@ -1037,11 +997,8 @@ class LocalesPosicionamientoState extends State<LocalesPosicionamiento> {
                           vertical: 2,
                         ),
                         decoration: BoxDecoration(
-                          color: _colorEstado.withOpacity(0.12),
+                          color: _colorEstado.withOpacity(0.14),
                           borderRadius: BorderRadius.circular(50),
-                          border: Border.all(
-                            color: _colorEstado.withOpacity(0.3),
-                          ),
                         ),
                         child: Text(
                           _estadoCuenta,
@@ -1073,14 +1030,9 @@ class LocalesPosicionamientoState extends State<LocalesPosicionamiento> {
                           ),
                           decoration: BoxDecoration(
                             color: ColoresLocales.acentoVioleta.withOpacity(
-                              0.1,
+                              0.12,
                             ),
                             borderRadius: BorderRadius.circular(50),
-                            border: Border.all(
-                              color: ColoresLocales.acentoVioleta.withOpacity(
-                                0.28,
-                              ),
-                            ),
                           ),
                           child: Text(
                             SuscripcionLocales.tipoPlanPago(
@@ -1115,14 +1067,14 @@ class LocalesPosicionamientoState extends State<LocalesPosicionamiento> {
                           runSpacing: 4,
                           children: [
                             _CreditoTexto(
-                              icono: CupertinoIcons.hand_thumbsup_fill,
+                              icono: IconosFeaturesLocales.recomendadoFernecito,
                               label: 'Rec.Fernecito:',
                               valor: _credRecomendados,
-                              color: ColoresLocales.jerarquiaRecomendado,
+                              color: ColoresFeaturesLocales.recomendadoFernecito,
                               onTap: () => _mostrarDialogoCredito(
                                 ctx: context,
-                                icono: CupertinoIcons.hand_thumbsup_fill,
-                                color: ColoresLocales.jerarquiaRecomendado,
+                                icono: IconosFeaturesLocales.recomendadoFernecito,
+                                color: ColoresFeaturesLocales.recomendadoFernecito,
                                 titulo: 'Recomendaciones Fernecito',
                                 valor: _credRecomendados,
                                 descripcion:
@@ -1130,14 +1082,14 @@ class LocalesPosicionamientoState extends State<LocalesPosicionamiento> {
                               ),
                             ),
                             _CreditoTexto(
-                              icono: CupertinoIcons.star_fill,
+                              icono: IconosFeaturesLocales.topCartelera,
                               label: 'Top:',
                               valor: _credTop,
-                              color: ColoresLocales.jerarquiaTop,
+                              color: ColoresFeaturesLocales.topCartelera,
                               onTap: () => _mostrarDialogoCredito(
                                 ctx: context,
-                                icono: CupertinoIcons.star_fill,
-                                color: ColoresLocales.jerarquiaTop,
+                                icono: IconosFeaturesLocales.topCartelera,
+                                color: ColoresFeaturesLocales.topCartelera,
                                 titulo: 'Top Cartelera',
                                 valor: _credTop,
                                 descripcion:
@@ -1145,14 +1097,14 @@ class LocalesPosicionamientoState extends State<LocalesPosicionamiento> {
                               ),
                             ),
                             _CreditoTexto(
-                              icono: CupertinoIcons.rosette,
+                              icono: IconosFeaturesLocales.topUltra,
                               label: 'Top Ultra:',
                               valor: _credTopUltra,
-                              color: ColoresLocales.jerarquiaUltra,
+                              color: ColoresFeaturesLocales.topUltra,
                               onTap: () => _mostrarDialogoCredito(
                                 ctx: context,
-                                icono: CupertinoIcons.rosette,
-                                color: ColoresLocales.jerarquiaUltra,
+                                icono: IconosFeaturesLocales.topUltra,
+                                color: ColoresFeaturesLocales.topUltra,
                                 titulo: 'Top Ultra',
                                 valor: _credTopUltra,
                                 descripcion:
@@ -1385,7 +1337,7 @@ class _TabSinPosicion extends StatelessWidget {
     TemaLocalesScope.of(context);
     if (eventos.isEmpty) {
       return _EmptyState(
-        icono: CupertinoIcons.checkmark_seal_fill,
+        icono: IconosLocales.exito,
         titulo: '¡Todos tus eventos están posicionados!',
         subtitulo:
             'Todos tus eventos activos ya tienen posicionamiento. ¡Excelente trabajo!',
@@ -1397,9 +1349,8 @@ class _TabSinPosicion extends StatelessWidget {
             margin: EdgeInsets.fromLTRB(16, 16, 16, 8),
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: ColoresLocales.mostazaDestacado.withOpacity(0.12),
+              color: ColoresLocales.mostazaDestacado.withOpacity(0.16),
               borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: const Color(0xFFF59E0B).withOpacity(0.5)),
             ),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1467,13 +1418,11 @@ class _TabSinPosicion extends StatelessWidget {
 
 class _CardConResaltado extends StatefulWidget {
   final bool resaltar;
-  final Color borderColor;
   final Color shadowColor;
   final Widget child;
 
   const _CardConResaltado({
     required this.resaltar,
-    required this.borderColor,
     required this.shadowColor,
     required this.child,
   });
@@ -1527,10 +1476,8 @@ class _CardConResaltadoState extends State<_CardConResaltado> {
     return AnimatedContainer(
       duration: _duracionColor,
       curve: Curves.easeOutCubic,
-      decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: widget.borderColor),
+      decoration: ColoresLocales.decoracionCard(radius: 18, sinBorde: true, color: color)
+          .copyWith(
         boxShadow: [
           BoxShadow(
             color: widget.shadowColor,
@@ -1571,19 +1518,11 @@ class _CardPosicionado extends StatelessWidget {
     _ => 'Estándar',
   };
 
-  Color get _nivelColor => switch (evento.jerarquia) {
-    'recomendado_fernecito' => ColoresLocales.jerarquiaRecomendado,
-    'top' => ColoresLocales.jerarquiaTop,
-    'top_ultra' => ColoresLocales.jerarquiaUltra,
-    _ => ColoresLocales.textoSecundarioOnFondoClaro,
-  };
+  Color get _nivelColor =>
+      IconosFeaturesLocales.metaJerarquia(evento.jerarquia).color;
 
-  IconData get _nivelIcon => switch (evento.jerarquia) {
-    'recomendado_fernecito' => CupertinoIcons.hand_thumbsup_fill,
-    'top' => CupertinoIcons.star_fill,
-    'top_ultra' => CupertinoIcons.rosette,
-    _ => CupertinoIcons.checkmark_circle,
-  };
+  IconData get _nivelIcon =>
+      IconosFeaturesLocales.metaJerarquia(evento.jerarquia).icon;
 
   // Fin del boost según fecha_fin_jerarquia (10/15 días o fin del evento).
   String get _etiquetaTiempo {
@@ -1646,7 +1585,6 @@ class _CardPosicionado extends StatelessWidget {
     TemaLocalesScope.of(context);
     return _CardConResaltado(
       resaltar: resaltar,
-      borderColor: _nivelColor.withOpacity(0.2),
       shadowColor: _nivelColor.withOpacity(0.08),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1680,11 +1618,8 @@ class _CardPosicionado extends StatelessWidget {
                           vertical: 3,
                         ),
                         decoration: BoxDecoration(
-                          color: _nivelColor.withOpacity(0.12),
+                          color: _nivelColor.withOpacity(0.14),
                           borderRadius: BorderRadius.circular(50),
-                          border: Border.all(
-                            color: _nivelColor.withOpacity(0.3),
-                          ),
                         ),
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
@@ -1837,11 +1772,8 @@ class _CardPosicionado extends StatelessWidget {
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFDC2626).withValues(alpha: 0.1),
+                        color: const Color(0xFFDC2626).withValues(alpha: 0.12),
                         borderRadius: BorderRadius.circular(50),
-                        border: Border.all(
-                          color: const Color(0xFFDC2626).withValues(alpha: 0.3),
-                        ),
                       ),
                       child: cancelando
                           ? const SizedBox(
@@ -1901,7 +1833,6 @@ class _CardSinPosicion extends StatelessWidget {
     TemaLocalesScope.of(context);
     return _CardConResaltado(
       resaltar: resaltar,
-      borderColor: ColoresLocales.acentoVioleta.withOpacity(0.15),
       shadowColor: ColoresLocales.acentoVioleta.withOpacity(0.06),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1956,33 +1887,33 @@ class _CardSinPosicion extends StatelessWidget {
             child: Column(
               children: [
                 _BotonPositionar(
-                  icono: CupertinoIcons.hand_thumbsup_fill,
+                  icono: IconosFeaturesLocales.recomendadoFernecito,
                   label: 'Rec. Fernecito',
                   credLabel: '−1',
-                  credIcono: CupertinoIcons.hand_thumbsup_fill,
-                  color: ColoresLocales.jerarquiaRecomendado,
+                  credIcono: IconosFeaturesLocales.recomendadoFernecito,
+                  color: ColoresFeaturesLocales.recomendadoFernecito,
                   habilitado: credRecomendados > 0,
                   cargando: posicionando.contains(evento.idEvento),
                   onTap: () => onPositionar(evento, 'recomendado_fernecito'),
                 ),
                 const SizedBox(height: 7),
                 _BotonPositionar(
-                  icono: CupertinoIcons.star_fill,
+                  icono: IconosFeaturesLocales.topCartelera,
                   label: 'Top Cartelera',
                   credLabel: '−1',
-                  credIcono: CupertinoIcons.star_fill,
-                  color: ColoresLocales.jerarquiaTop,
+                  credIcono: IconosFeaturesLocales.topCartelera,
+                  color: ColoresFeaturesLocales.topCartelera,
                   habilitado: credTop > 0,
                   cargando: posicionando.contains(evento.idEvento),
                   onTap: () => onPositionar(evento, 'top'),
                 ),
                 const SizedBox(height: 7),
                 _BotonPositionar(
-                  icono: CupertinoIcons.rosette,
+                  icono: IconosFeaturesLocales.topUltra,
                   label: 'Top Ultra',
                   credLabel: '−1',
-                  credIcono: CupertinoIcons.rosette,
-                  color: ColoresLocales.jerarquiaUltra,
+                  credIcono: IconosFeaturesLocales.topUltra,
+                  color: ColoresFeaturesLocales.topUltra,
                   habilitado: credTopUltra > 0,
                   cargando: posicionando.contains(evento.idEvento),
                   onTap: () => onPositionar(evento, 'top_ultra'),
@@ -2015,12 +1946,9 @@ class _CardSinPosicion extends StatelessWidget {
                     ),
                     style: TextButton.styleFrom(
                       foregroundColor: const Color(0xFFDC2626),
-                      backgroundColor: const Color(0xFFDC2626).withOpacity(0.06),
+                      backgroundColor: const Color(0xFFDC2626).withOpacity(0.08),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(50),
-                        side: BorderSide(
-                          color: const Color(0xFFDC2626).withOpacity(0.3),
-                        ),
                       ),
                       minimumSize: const Size.fromHeight(38),
                     ),

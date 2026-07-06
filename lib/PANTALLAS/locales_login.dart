@@ -131,9 +131,11 @@ class _LocalesLoginState extends State<LocalesLogin>
                   flex: 3,
                   child: Container(
                     width: double.infinity,
-                    decoration: const BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+                    decoration: BoxDecoration(
+                      color: ColoresLocales.superficie,
+                      borderRadius: const BorderRadius.vertical(
+                        top: Radius.circular(28),
+                      ),
                     ),
                     child: SingleChildScrollView(
                       controller: _scroll,
@@ -146,7 +148,7 @@ class _LocalesLoginState extends State<LocalesLogin>
                             style: GoogleFonts.baloo2(
                               fontSize: 22,
                               fontWeight: FontWeight.w800,
-                              color: const Color(0xFF1A1A1A),
+                              color: ColoresLocales.textoOnFondoClaro,
                             ),
                           ),
                           const SizedBox(height: 4),
@@ -155,7 +157,7 @@ class _LocalesLoginState extends State<LocalesLogin>
                             style: GoogleFonts.baloo2(
                               fontSize: 13,
                               fontWeight: FontWeight.w600,
-                              color: const Color(0xFF6B7280),
+                              color: ColoresLocales.textoSecundarioOnFondoClaro,
                             ),
                           ),
                           const SizedBox(height: 20),
@@ -166,9 +168,9 @@ class _LocalesLoginState extends State<LocalesLogin>
                                   ? null
                                   : _iniciarSesionGoogle,
                               style: OutlinedButton.styleFrom(
-                                foregroundColor: const Color(0xFF1A1A1A),
-                                backgroundColor: Colors.white,
-                                side: const BorderSide(color: Color(0xFFE5E7EB)),
+                                foregroundColor: ColoresLocales.textoOnFondoClaro,
+                                backgroundColor: ColoresLocales.superficie,
+                                side: BorderSide(color: ColoresLocales.bordeSuave),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(14),
                                 ),
@@ -182,10 +184,10 @@ class _LocalesLoginState extends State<LocalesLogin>
                                   : Row(
                                       mainAxisAlignment: MainAxisAlignment.center,
                                       children: [
-                                        const FaIcon(
+                                        FaIcon(
                                           FontAwesomeIcons.google,
                                           size: 18,
-                                          color: Color(0xFF1A1A1A),
+                                          color: ColoresLocales.textoOnFondoClaro,
                                         ),
                                         const SizedBox(width: 10),
                                         Text(
@@ -268,7 +270,7 @@ class _LocalesLoginState extends State<LocalesLogin>
                               style: GoogleFonts.baloo2(
                                 fontSize: 14,
                                 fontWeight: FontWeight.w700,
-                                color: const Color(0xFF6B7280),
+                                color: ColoresLocales.textoSecundarioOnFondoClaro,
                               ),
                             ),
                           ),
@@ -317,7 +319,7 @@ class _LocalesLoginState extends State<LocalesLogin>
                     _ocultarContrasena
                         ? Icons.visibility_outlined
                         : Icons.visibility_off_outlined,
-                    color: const Color(0xFF9CA3AF),
+                    color: ColoresLocales.textoSecundarioOnFondoClaro,
                     size: 22,
                   ),
                   onPressed: () =>
@@ -429,18 +431,20 @@ class _LocalesLoginState extends State<LocalesLogin>
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: Colors.white,
+        backgroundColor: ColoresLocales.superficie,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Text(
           esEmailSinConfirmar ? 'Email sin confirmar' : 'Error',
           style: GoogleFonts.baloo2(
-            color: const Color(0xFF1A1A1A),
+            color: ColoresLocales.textoOnFondoClaro,
             fontWeight: FontWeight.w800,
           ),
         ),
         content: Text(
           mensaje,
-          style: GoogleFonts.baloo2(color: const Color(0xFF4B5563)),
+          style: GoogleFonts.baloo2(
+            color: ColoresLocales.textoSecundarioOnFondoClaro,
+          ),
         ),
         actions: [
           if (esEmailSinConfirmar && email != null && email.isNotEmpty) ...[
@@ -498,16 +502,21 @@ class _LocalesLoginState extends State<LocalesLogin>
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: Colors.white,
+        backgroundColor: ColoresLocales.superficie,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Text(
           'Listo',
           style: GoogleFonts.baloo2(
-            color: const Color(0xFF1A1A1A),
+            color: ColoresLocales.textoOnFondoClaro,
             fontWeight: FontWeight.w800,
           ),
         ),
-        content: Text(mensaje, style: GoogleFonts.baloo2(color: const Color(0xFF4B5563))),
+        content: Text(
+          mensaje,
+          style: GoogleFonts.baloo2(
+            color: ColoresLocales.textoSecundarioOnFondoClaro,
+          ),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
@@ -551,19 +560,23 @@ class _CampoLogin extends StatelessWidget {
       style: GoogleFonts.baloo2(
         fontSize: 16,
         fontWeight: FontWeight.w600,
-        color: const Color(0xFF1A1A1A),
+        color: ColoresLocales.textoOnFondoClaro,
       ),
       decoration: InputDecoration(
         hintText: hint,
         hintStyle: GoogleFonts.baloo2(
           fontSize: 16,
           fontWeight: FontWeight.w600,
-          color: const Color(0xFF9CA3AF),
+          color: ColoresLocales.textoSecundarioOnFondoClaro,
         ),
-        prefixIcon: Icon(prefixIcon, color: const Color(0xFF9CA3AF), size: 22),
+        prefixIcon: Icon(
+          prefixIcon,
+          color: ColoresLocales.textoSecundarioOnFondoClaro,
+          size: 22,
+        ),
         suffixIcon: suffixIcon,
         filled: true,
-        fillColor: const Color(0xFFF3F4F6),
+        fillColor: ColoresLocales.rellenoInput,
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
@@ -571,7 +584,7 @@ class _CampoLogin extends StatelessWidget {
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+          borderSide: BorderSide(color: ColoresLocales.bordeSuave),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),

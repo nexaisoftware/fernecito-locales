@@ -1710,9 +1710,6 @@ class _PantallaValidacionCodigoState extends State<PantallaValidacionCodigo> {
           decoration: BoxDecoration(
             color: ColoresStaff.card,
             borderRadius: BorderRadius.circular(50),
-            border: Border.all(
-              color: ColoresLocales.acentoVioleta.withOpacity(0.18),
-            ),
           ),
           child: Stack(
             children: [
@@ -1880,22 +1877,15 @@ class _PantallaValidacionCodigoState extends State<PantallaValidacionCodigo> {
                       contentPadding: EdgeInsets.zero,
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(radius),
-                        borderSide: BorderSide(
-                          color: ColoresLocales.acentoVioleta.withOpacity(0.2),
-                        ),
+                        borderSide: BorderSide.none,
                       ),
                       enabledBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(radius),
-                        borderSide: BorderSide(
-                          color: ColoresLocales.acentoVioleta.withOpacity(0.2),
-                        ),
+                        borderSide: BorderSide.none,
                       ),
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(radius),
-                        borderSide: BorderSide(
-                          color: ColoresLocales.acentoVioleta,
-                          width: 2,
-                        ),
+                        borderSide: BorderSide.none,
                       ),
                     ),
                     onChanged: (v) => _onCeldaChanged(i, v),
@@ -2027,7 +2017,6 @@ class _PantallaValidacionCodigoState extends State<PantallaValidacionCodigo> {
       decoration: BoxDecoration(
         color: Colors.white.withOpacity(0.16),
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Colors.white.withOpacity(0.32)),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -2614,16 +2603,11 @@ class _PantallaValidacionCodigoState extends State<PantallaValidacionCodigo> {
           child: OutlinedButton(
             onPressed: bloqueado ? null : () => unawaited(_onSolicitarCanje(validar: false)),
             style: OutlinedButton.styleFrom(
-              backgroundColor: Colors.transparent,
-              disabledBackgroundColor: Colors.transparent,
+              backgroundColor: Colors.white.withValues(alpha: 0.12),
+              disabledBackgroundColor: Colors.white.withValues(alpha: 0.06),
               foregroundColor: ColoresLocales.textoEnBoton,
               disabledForegroundColor: Colors.white.withOpacity(0.5),
-              side: BorderSide(
-                color: bloqueado
-                    ? Colors.white.withOpacity(0.35)
-                    : ColoresStaff.chipInactivo,
-                width: 1.5,
-              ),
+              side: BorderSide.none,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(50),
               ),
@@ -2782,7 +2766,6 @@ class _HistorialTile extends StatelessWidget {
       decoration: BoxDecoration(
         color: bg,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: color.withOpacity(0.35)),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.04),
@@ -2819,14 +2802,9 @@ class _HistorialTile extends StatelessWidget {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                Container(
+                SizedBox(
                   width: 40,
                   height: 40,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: ColoresLocales.acentoVioleta.withOpacity(0.14),
-                    borderRadius: BorderRadius.circular(11),
-                  ),
                   child: Icon(
                     esPromo
                         ? CupertinoIcons.gift_fill

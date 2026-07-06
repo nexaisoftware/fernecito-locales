@@ -2,17 +2,20 @@ library;
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../core/constants.dart';
 import '../core/tema_app_locales.dart';
 import '../widgets/boton_modo_oscuro_locales.dart';
 import '../widgets/badge_etiqueta_locales.dart';
+import '../widgets/badge_plan_suscripcion.dart';
 import '../widgets/tema_locales_scope.dart';
 import '../core/navegacion_posicionamiento.dart';
 import '../core/servicio_estado_cuenta_locales.dart';
 import '../core/servicio_notificaciones_locales.dart';
 import '../core/supabase_client.dart';
 import '../core/suscripcion_locales.dart';
+import '../core/programa_pioneros.dart';
 import 'locales_mis_eventos.dart';
 import 'locales_perfil.dart';
 import 'locales_notificaciones.dart';
@@ -34,7 +37,11 @@ class _LocalesHomeState extends State<LocalesHome> with WidgetsBindingObserver {
   String? _nombreLocal;
   String? _usernameLocal;
   bool _localVerificado = false;
+  bool _esPionero = false;
+  int? _pioneroMesBeneficio;
+  DateTime? _pioneroBeneficiosFin;
   String? _tipoSuscripcionRaw;
+  DateTime? _fechaVencimientoSuscripcion;
   bool _cargandoPerfil = true;
   CuposSuscripcionMock _cuposDashboard =
       const CuposSuscripcionMock(
@@ -93,14 +100,38 @@ class _LocalesHomeState extends State<LocalesHome> with WidgetsBindingObserver {
     try {
       final row = await ServicioSupabase().cliente
           .from('perfiles_locales')
-          .select('foto_perfil_url, nombre_local, local_username, local_verificado')
+          .select(
+            'foto_perfil_url, nombre_local, local_username, local_verificado, '
+            'plan_suscripcion, fecha_vencimiento_suscripcion, '
+            'es_pionero, pionero_mes_beneficio, pionero_beneficios_fin',
+          )
           .eq('id', uid)
           .maybeSingle();
       final tipoRaw = await SuscripcionLocales.leerTipoRawDesdePerfil(uid);
+      final planRawPerfil = row?['plan_suscripcion']?.toString().trim();
+      final tipoRawEfectivo = (tipoRaw != null && tipoRaw.isNotEmpty)
+          ? tipoRaw
+          : planRawPerfil;
+      final vencRaw = row?['fecha_vencimiento_suscripcion'];
+      final vencimiento = vencRaw != null
+          ? DateTime.tryParse(vencRaw.toString())?.toLocal()
+          : null;
       final localVerificado = row?['local_verificado'] as bool? ?? false;
-      final tipoPlan = SuscripcionLocales.tipoPlanPago(
-        rawDb: tipoRaw,
+      final esPionero = row?['es_pionero'] == true;
+      final pioneroMes = (row?['pionero_mes_beneficio'] as num?)?.toInt();
+      final pioneroFinRaw = row?['pionero_beneficios_fin'];
+      final pioneroFin = pioneroFinRaw != null
+          ? DateTime.tryParse(pioneroFinRaw.toString())?.toLocal()
+          : null;
+      final pioneroBeneficiosActivo =
+          esPionero && pioneroFin != null && pioneroFin.isAfter(DateTime.now());
+      final tipoPlan = SuscripcionLocales.tipoPlanEfectivo(
+        rawDb: tipoRawEfectivo,
         localVerificado: localVerificado,
+        esPionero: esPionero,
+        pioneroBeneficiosActivo: pioneroBeneficiosActivo,
+        pioneroMesBeneficio: pioneroMes,
+        fechaVencimiento: vencimiento,
       );
       final cupos = await SuscripcionLocales.leerCuposDesdePerfil(
         uid: uid,
@@ -112,13 +143,25 @@ class _LocalesHomeState extends State<LocalesHome> with WidgetsBindingObserver {
         _nombreLocal = row?['nombre_local'] as String?;
         _usernameLocal = row?['local_username'] as String?;
         _localVerificado = localVerificado;
-        _tipoSuscripcionRaw = tipoRaw;
+        _esPionero = esPionero;
+        _pioneroMesBeneficio = pioneroMes;
+        _pioneroBeneficiosFin = pioneroFin;
+        _tipoSuscripcionRaw = tipoRawEfectivo;
+        _fechaVencimientoSuscripcion = vencimiento;
         _cuposDashboard = cupos;
         _cargandoPerfil = false;
       });
     } catch (_) {
       if (mounted) setState(() => _cargandoPerfil = false);
     }
+  }
+
+  Future<void> _refrescarDashboard() async {
+    await Future.wait([
+      _cargarPerfilLocal(),
+      ServicioNotificacionesLocales().refrescarContador(),
+      _chequearSuspension(),
+    ]);
   }
 
   @override
@@ -131,16 +174,7 @@ class _LocalesHomeState extends State<LocalesHome> with WidgetsBindingObserver {
         children: [
           Positioned.fill(
             child: DecoratedBox(
-              decoration: TemaAppLocales.instancia.esOscuro
-                  ? BoxDecoration(color: ColoresLocales.fondoClaro)
-                  : BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: ColoresLocales.degradadoHome,
-                        stops: const [0.0, 0.22, 0.55, 1.0],
-                      ),
-                    ),
+              decoration: ColoresLocales.decoracionFondoPantalla,
             ),
           ),
           IndexedStack(
@@ -165,64 +199,74 @@ class _LocalesHomeState extends State<LocalesHome> with WidgetsBindingObserver {
     );
   }
 
-  /// Chip de plan + iconos compactos de cupos (mock hasta Supabase). Solo con dashboard activo.
+  /// Cupos + chip verificado al inicio. Solo con dashboard activo.
   Widget _buildBarraPuntosDashboard() {
     if (_cargandoPerfil) return SizedBox.shrink();
 
-    final planChip = _etiquetaPlanBarra();
     final cupos = _cuposDashboard;
+    final tipoPlan = _tipoPlanDashboard();
+    final mostrarVerificado =
+        _esPionero || (_localVerificado && tipoPlan != 'Gratuita');
+    final colorVerificado =
+        _esPionero ? ProgramaPioneros.dorado : ColoresLocales.acentoVioleta;
 
     return Material(
       color: ColoresLocales.barraDashboard,
-      child: Container(
-        width: double.infinity,
-        decoration: BoxDecoration(
-          border: Border(
-            top: BorderSide(color: ColoresLocales.separador),
-          ),
-        ),
+      child: Padding(
         padding: EdgeInsets.symmetric(horizontal: 8, vertical: 5),
         child: Row(
           children: [
-            Container(
-              padding: EdgeInsets.symmetric(horizontal: 9, vertical: 3),
-              decoration: BoxDecoration(
-                color: ColoresLocales.superficieElevada,
-                borderRadius: BorderRadius.circular(999),
-                border: Border.all(color: ColoresLocales.bordeSuave),
-              ),
-              child: Text(
-                planChip,
-                style: GoogleFonts.baloo2(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w900,
-                  color: ColoresLocales.acentoVioleta,
+            if (mostrarVerificado) ...[
+              Container(
+                padding: EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+                decoration: BoxDecoration(
+                  color: ColoresLocales.superficieElevada,
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      IconosLocales.verificado,
+                      size: 12,
+                      color: colorVerificado,
+                    ),
+                    SizedBox(width: 4),
+                    Text(
+                      _esPionero ? 'Pionero' : 'Verificado',
+                      style: GoogleFonts.baloo2(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w900,
+                        color: colorVerificado,
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            ),
-            SizedBox(width: 8),
+              SizedBox(width: 8),
+            ],
             Expanded(
               child: SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
                 child: Row(
                   children: [
                     _miniIconoNumero(
-                      CupertinoIcons.sparkles,
+                      IconosFeaturesLocales.flyersIa,
                       cupos.flyersIa,
                       ColoresFeaturesLocales.flyersIa,
                     ),
                     _miniIconoNumero(
-                      CupertinoIcons.hand_thumbsup_fill,
+                      IconosFeaturesLocales.recomendadoFernecito,
                       cupos.recomendadosFernecito,
                       ColoresFeaturesLocales.recomendadoFernecito,
                     ),
                     _miniIconoNumero(
-                      CupertinoIcons.star_fill,
+                      IconosFeaturesLocales.topCartelera,
                       cupos.topCartelera,
                       ColoresFeaturesLocales.topCartelera,
                     ),
                     _miniIconoNumero(
-                      CupertinoIcons.flame_fill,
+                      IconosFeaturesLocales.topUltra,
                       cupos.topUltra,
                       ColoresFeaturesLocales.topUltra,
                     ),
@@ -236,11 +280,18 @@ class _LocalesHomeState extends State<LocalesHome> with WidgetsBindingObserver {
     );
   }
 
-  String _etiquetaPlanBarra() {
-    if (!_localVerificado) return 'Gratis';
-    return SuscripcionLocales.tipoPlanPago(
+  String _tipoPlanDashboard() {
+    if (!_localVerificado && !_esPionero) return 'Gratuita';
+    final activo = _esPionero &&
+        _pioneroBeneficiosFin != null &&
+        _pioneroBeneficiosFin!.isAfter(DateTime.now());
+    return SuscripcionLocales.tipoPlanEfectivo(
       rawDb: _tipoSuscripcionRaw,
-      localVerificado: true,
+      localVerificado: _localVerificado,
+      esPionero: _esPionero,
+      pioneroBeneficiosActivo: activo,
+      pioneroMesBeneficio: _pioneroMesBeneficio,
+      fechaVencimiento: _fechaVencimientoSuscripcion,
     );
   }
 
@@ -266,12 +317,8 @@ class _LocalesHomeState extends State<LocalesHome> with WidgetsBindingObserver {
   }
 
   Widget _buildNavBar() {
-    return Container(
-      decoration: BoxDecoration(
-        color: ColoresLocales.barraNav,
-        border: Border(top: BorderSide(color: ColoresLocales.separador)),
-        boxShadow: ColoresLocales.sombrasCard(),
-      ),
+    return ColoredBox(
+      color: ColoresLocales.barraNav,
       child: SafeArea(
         top: false,
         child: Padding(
@@ -290,42 +337,167 @@ class _LocalesHomeState extends State<LocalesHome> with WidgetsBindingObserver {
     );
   }
 
+  void _seleccionarTab(int index) {
+    if (_indiceNav == index) return;
+    HapticFeedback.selectionClick();
+    setState(() => _indiceNav = index);
+    if (index == 0) {
+      _cargarPerfilLocal();
+      _chequearSuspension();
+      ServicioNotificacionesLocales().refrescarContador();
+    } else if (index == 3) {
+      ServicioNotificacionesLocales().refrescarContador();
+    } else if (index == 4) {
+      _cargarPerfilLocal();
+    }
+  }
+
+  static const _navAnimDur = Duration(milliseconds: 280);
+  static const _navAnimCurve = Curves.easeOutCubic;
+  static const _navIconoTam = 24.0;
+  static const _navZonaIconoTam = 32.0;
+  static const _navEscalaActivo = 1.28;
+
+  Widget _navIconoAnimado({
+    required bool selected,
+    required Widget child,
+  }) {
+    return AnimatedScale(
+      scale: selected ? _navEscalaActivo : 1,
+      duration: _navAnimDur,
+      curve: _navAnimCurve,
+      alignment: Alignment.center,
+      filterQuality: FilterQuality.medium,
+      child: child,
+    );
+  }
+
+  /// Área fija para todos los ítems: misma caja, misma escala activa.
+  Widget _navZonaIcono({
+    required bool selected,
+    required Widget icon,
+  }) {
+    return SizedBox(
+      width: _navZonaIconoTam,
+      height: _navZonaIconoTam,
+      child: Center(
+        child: _navIconoAnimado(selected: selected, child: icon),
+      ),
+    );
+  }
+
+  List<Shadow>? _sombrasIconoNavActivo(bool selected) {
+    if (!selected) return null;
+    if (TemaAppLocales.instancia.esOscuro) {
+      return [
+        Shadow(
+          color: Colors.white.withValues(alpha: 0.55),
+          blurRadius: 12,
+        ),
+        Shadow(
+          color: Colors.white.withValues(alpha: 0.22),
+          blurRadius: 22,
+        ),
+      ];
+    }
+    return [
+      Shadow(
+        color: ColoresLocales.acentoVioleta.withValues(alpha: 0.42),
+        blurRadius: 8,
+        offset: const Offset(0, 2),
+      ),
+      Shadow(
+        color: ColoresLocales.acentoVioleta.withValues(alpha: 0.18),
+        blurRadius: 14,
+        offset: const Offset(0, 1),
+      ),
+    ];
+  }
+
+  List<BoxShadow>? _glowAvatarNavActivo(bool selected) {
+    if (!selected) return null;
+    if (TemaAppLocales.instancia.esOscuro) {
+      return [
+        BoxShadow(
+          color: Colors.white.withValues(alpha: 0.38),
+          blurRadius: 10,
+          spreadRadius: 0.5,
+        ),
+        BoxShadow(
+          color: Colors.white.withValues(alpha: 0.14),
+          blurRadius: 18,
+        ),
+      ];
+    }
+    return [
+      BoxShadow(
+        color: ColoresLocales.acentoVioleta.withValues(alpha: 0.32),
+        blurRadius: 8,
+        offset: const Offset(0, 2),
+      ),
+    ];
+  }
+
+  Widget _navShell({
+    required int index,
+    required String label,
+    required Widget icon,
+    required VoidCallback onTap,
+  }) {
+    final selected = _indiceNav == index;
+    return Semantics(
+      label: label,
+      selected: selected,
+      button: true,
+      child: SizedBox(
+        height: 62,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(14),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              _navZonaIcono(selected: selected, icon: icon),
+              const SizedBox(height: 3),
+              AnimatedDefaultTextStyle(
+                duration: _navAnimDur,
+                curve: _navAnimCurve,
+                style: GoogleFonts.baloo2(
+                  fontSize: selected
+                      ? (label.length > 8 ? 10 : 11.5)
+                      : (label.length > 8 ? 9.5 : 11),
+                  fontWeight: selected ? FontWeight.w800 : FontWeight.w500,
+                  color: selected
+                      ? ColoresLocales.acentoVioleta
+                      : ColoresLocales.textoSecundarioOnFondoClaro,
+                ),
+                child: Text(
+                  label,
+                  textAlign: TextAlign.center,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _navItem(int index, IconData icon, String label) {
     final selected = _indiceNav == index;
-    return SizedBox(
-      height: 60,
-      child: InkWell(
-        onTap: () {
-          setState(() => _indiceNav = index);
-          if (index == 0) {
-            _cargarPerfilLocal();
-            _chequearSuspension();
-            ServicioNotificacionesLocales().refrescarContador();
-          }
-        },
-        borderRadius: BorderRadius.circular(14),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              icon,
-              size: 24,
-              color: selected ? ColoresLocales.acentoVioleta : ColoresLocales.textoSecundarioOnFondoClaro,
-            ),
-            SizedBox(height: 4),
-            Text(
-              label,
-              textAlign: TextAlign.center,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: GoogleFonts.baloo2(
-                fontSize: 11,
-                fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-                color: selected ? ColoresLocales.acentoVioleta : ColoresLocales.textoSecundarioOnFondoClaro,
-              ),
-            ),
-          ],
-        ),
+    return _navShell(
+      index: index,
+      label: label,
+      onTap: () => _seleccionarTab(index),
+      icon: Icon(
+        icon,
+        size: _navIconoTam,
+        color: selected
+            ? ColoresLocales.acentoVioleta
+            : ColoresLocales.textoSecundarioOnFondoClaro,
+        shadows: _sombrasIconoNavActivo(selected),
       ),
     );
   }
@@ -339,171 +511,117 @@ class _LocalesHomeState extends State<LocalesHome> with WidgetsBindingObserver {
     final colorActivo = selected
         ? ColoresLocales.acentoVioleta
         : ColoresLocales.textoSecundarioOnFondoClaro;
-    return SizedBox(
-      height: 60,
-      child: InkWell(
-        onTap: () {
-          setState(() => _indiceNav = index);
-          // Al entrar al tab refrescamos contador (la pantalla lo refresca otra vez al cargar).
-          ServicioNotificacionesLocales().refrescarContador();
-        },
-        borderRadius: BorderRadius.circular(14),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            ValueListenableBuilder<int>(
-              valueListenable: ServicioNotificacionesLocales().contadorNoLeidas,
-              builder: (context, sinLeer, _) {
-                return SizedBox(
-                  width: 30,
-                  height: 26,
-                  child: Stack(
-                    clipBehavior: Clip.none,
-                    alignment: Alignment.center,
-                    children: [
-                      Icon(CupertinoIcons.bell_fill, size: 24, color: colorActivo),
-                      if (sinLeer > 0)
-                        Positioned(
-                          right: -2,
-                          top: -2,
-                          child: Container(
-                            constraints: BoxConstraints(minWidth: 17, minHeight: 17),
-                            padding: EdgeInsets.symmetric(horizontal: 4),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFEF4444),
-                              borderRadius: BorderRadius.circular(50),
-                              border: Border.all(color: ColoresLocales.superficie, width: 1.5),
-                            ),
-                            child: Center(
-                              child: Text(
-                                sinLeer > 99 ? '99+' : '$sinLeer',
-                                style: GoogleFonts.baloo2(
-                                  fontSize: 9,
-                                  fontWeight: FontWeight.w900,
-                                  color: ColoresLocales.chipInactivo,
-                                  height: 1.0,
-                                ),
-                              ),
+    return _navShell(
+      index: index,
+      label: 'Notificaciones',
+      onTap: () => _seleccionarTab(index),
+      icon: ValueListenableBuilder<int>(
+        valueListenable: ServicioNotificacionesLocales().contadorNoLeidas,
+        builder: (context, sinLeer, _) {
+          return SizedBox(
+            width: _navIconoTam,
+            height: _navIconoTam,
+            child: Stack(
+              clipBehavior: Clip.none,
+              alignment: Alignment.center,
+              children: [
+                Icon(
+                  CupertinoIcons.bell_fill,
+                  size: _navIconoTam,
+                  color: colorActivo,
+                  shadows: _sombrasIconoNavActivo(selected),
+                ),
+                if (sinLeer > 0)
+                  Positioned(
+                    right: -6,
+                    top: -5,
+                    child: IgnorePointer(
+                      child: Container(
+                        constraints: const BoxConstraints(minWidth: 14, minHeight: 14),
+                        padding: const EdgeInsets.symmetric(horizontal: 3),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFEF4444),
+                          borderRadius: BorderRadius.circular(50),
+                          border: Border.all(
+                            color: ColoresLocales.superficie,
+                            width: 1.2,
+                          ),
+                        ),
+                        child: Center(
+                          child: Text(
+                            sinLeer > 99 ? '99+' : '$sinLeer',
+                            style: GoogleFonts.baloo2(
+                              fontSize: 8,
+                              fontWeight: FontWeight.w900,
+                              color: ColoresLocales.chipInactivo,
+                              height: 1.0,
                             ),
                           ),
                         ),
-                    ],
+                      ),
+                    ),
                   ),
-                );
-              },
+              ],
             ),
-            const SizedBox(height: 4),
-            Text(
-              'Notis',
-              textAlign: TextAlign.center,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: GoogleFonts.baloo2(
-                fontSize: 11,
-                fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-                color: colorActivo,
-              ),
-            ),
-          ],
-        ),
+          );
+        },
       ),
     );
   }
 
   Widget _navItemAvatar(int index, String label) {
     final selected = _indiceNav == index;
-    return SizedBox(
-      height: 60,
-      child: InkWell(
-        onTap: () {
-          setState(() => _indiceNav = index);
-          _cargarPerfilLocal();
-        },
-        borderRadius: BorderRadius.circular(14),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              width: 30, // levemente mayor presencia visual que ícono plano
-              height: 30,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: selected ? ColoresLocales.acentoVioleta : ColoresLocales.bordeSuave,
-                  width: selected ? 2.2 : 1.4,
-                ),
-                boxShadow: selected && !TemaAppLocales.instancia.esOscuro
-                    ? [
-                        BoxShadow(
-                          color: ColoresLocales.acentoVioleta.withOpacity(0.18),
-                          blurRadius: 4,
-                        ),
-                      ]
-                    : null,
-              ),
-              child: ClipOval(
-                child: _cargandoPerfil
-                    ? Center(child: CupertinoActivityIndicator())
-                    : _fotoPerfilUrl != null && _fotoPerfilUrl!.isNotEmpty
-                        ? Image.network(_fotoPerfilUrl!, fit: BoxFit.cover, errorBuilder: (_, __, ___) => _avatarFallback())
-                        : _avatarFallback(),
-              ),
+    return _navShell(
+      index: index,
+      label: label,
+      onTap: () => _seleccionarTab(index),
+      icon: SizedBox(
+        width: _navIconoTam,
+        height: _navIconoTam,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            border: Border.all(
+              color: selected
+                  ? ColoresLocales.acentoVioleta
+                  : ColoresLocales.bordeSuave,
+              width: selected ? 2 : 1.3,
             ),
-            SizedBox(height: 4),
-            Text(
-              label,
-              textAlign: TextAlign.center,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: GoogleFonts.baloo2(
-                fontSize: 11,
-                fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-                color: selected ? ColoresLocales.acentoVioleta : ColoresLocales.textoSecundarioOnFondoClaro,
-              ),
-            ),
-          ],
+            boxShadow: _glowAvatarNavActivo(selected),
+          ),
+          child: ClipOval(
+            child: _cargandoPerfil
+                ? const Center(child: CupertinoActivityIndicator(radius: 8))
+                : _fotoPerfilUrl != null && _fotoPerfilUrl!.isNotEmpty
+                    ? Image.network(
+                        _fotoPerfilUrl!,
+                        fit: BoxFit.cover,
+                        width: _navIconoTam,
+                        height: _navIconoTam,
+                        errorBuilder: (_, __, ___) => _avatarFallback(),
+                      )
+                    : _avatarFallback(),
+          ),
         ),
       ),
     );
   }
 
   Widget _avatarFallback() {
-    return Icon(CupertinoIcons.person_fill, color: ColoresLocales.acentoVioleta.withOpacity(0.7), size: 22);
+    return ColoredBox(
+      color: ColoresLocales.cardLavanda,
+      child: Icon(
+        CupertinoIcons.person_fill,
+        color: ColoresLocales.acentoVioleta.withValues(alpha: 0.7),
+        size: _navIconoTam * 0.72,
+      ),
+    );
   }
 
-  Widget _badgeVerificado() {
-    return GestureDetector(
+  Widget _badgePlan() {
+    return BadgePlanSuscripcion(
+      tipoPlan: _tipoPlanDashboard(),
       onTap: () => Navigator.pushNamed(context, '/administrar_subscripciones'),
-      child: Container(
-        padding: EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-        decoration: BoxDecoration(
-          color: ColoresLocales.mostazaBadge,
-          borderRadius: BorderRadius.circular(999),
-          border: Border.all(
-            color: ColoresLocales.acentoVioletaMarca.withOpacity(0.85),
-            width: 1.2,
-          ),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              CupertinoIcons.checkmark_seal_fill,
-              size: 13,
-              color: ColoresLocales.acentoVioletaMarca,
-            ),
-            SizedBox(width: 4),
-            Text(
-              'Perfil verificado',
-              style: GoogleFonts.baloo2(
-                fontSize: 11,
-                fontWeight: FontWeight.w800,
-                color: ColoresLocales.acentoVioletaMarca,
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 
@@ -544,9 +662,13 @@ class _LocalesHomeState extends State<LocalesHome> with WidgetsBindingObserver {
       ),
     ];
 
-    return CustomScrollView(
-      slivers: [
-        SliverToBoxAdapter(
+    return RefreshIndicator(
+      color: ColoresLocales.acentoVioleta,
+      onRefresh: _refrescarDashboard,
+      child: CustomScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        slivers: [
+          SliverToBoxAdapter(
           child: SafeArea(
             bottom: false,
             child: Padding(
@@ -587,9 +709,9 @@ class _LocalesHomeState extends State<LocalesHome> with WidgetsBindingObserver {
                       ],
                     ),
                   ),
-                  if (_localVerificado) ...[
+                  if (!_cargandoPerfil) ...[
                     SizedBox(width: 8),
-                    _badgeVerificado(),
+                    _badgePlan(),
                   ],
                 ],
               ),
@@ -613,7 +735,8 @@ class _LocalesHomeState extends State<LocalesHome> with WidgetsBindingObserver {
             ),
           ),
         ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -626,22 +749,13 @@ class _LocalesHomeState extends State<LocalesHome> with WidgetsBindingObserver {
         borderRadius: BorderRadius.circular(20),
         child: Container(
           padding: EdgeInsets.symmetric(horizontal: 18, vertical: 20),
-          decoration: ColoresLocales.decoracionCard(exclusivo: true),
+          decoration: ColoresLocales.decoracionCard(exclusivo: true, sinBorde: true),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
+              SizedBox(
                 width: 76,
                 height: 76,
-                decoration: BoxDecoration(
-                  color: ColoresLocales.superficieElevada,
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(
-                    color: mostaza.withOpacity(
-                      TemaAppLocales.instancia.esOscuro ? 0.35 : 0.45,
-                    ),
-                  ),
-                ),
                 child: Icon(a.icon, size: 42, color: mostaza),
               ),
               SizedBox(width: 16),
@@ -694,18 +808,13 @@ class _LocalesHomeState extends State<LocalesHome> with WidgetsBindingObserver {
         borderRadius: BorderRadius.circular(20),
         child: Container(
           padding: EdgeInsets.symmetric(horizontal: 18, vertical: 20),
-          decoration: ColoresLocales.decoracionCard(),
+          decoration: ColoresLocales.decoracionCard(sinBorde: true),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
+              SizedBox(
                 width: 76,
                 height: 76,
-                decoration: BoxDecoration(
-                  color: ColoresLocales.superficieElevada,
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: ColoresLocales.bordeSuave),
-                ),
                 child: Icon(a.icon, size: 42, color: ColoresLocales.acentoVioleta),
               ),
               SizedBox(width: 16),

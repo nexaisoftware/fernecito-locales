@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 
-import '../../lib/models/vinculo_staff_local.dart';
+import 'package:frontend_locales/models/vinculo_staff_local.dart';
 
 Map<String, dynamic> _mapBase({
   String estadoCuenta = 'activa',

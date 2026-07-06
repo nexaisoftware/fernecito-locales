@@ -3,6 +3,8 @@ library;
 import 'package:flutter/cupertino.dart';
 
 import '../models/actividad_metrica.dart';
+import '../models/datos_impresiones.dart';
+import 'constants.dart';
 import 'supabase_client.dart';
 
 class ServicioMetricasLocales {
@@ -407,7 +409,7 @@ class ServicioMetricasLocales {
                   ? 'Pase $codigo aceptado en lista'
                   : 'Reserva aceptada en lista',
               estadoLabel: 'Aceptada',
-              icono: CupertinoIcons.checkmark_seal_fill,
+              icono: IconosLocales.exito,
               colorEstado: ColoresMetricas.aceptado,
               idActor: _idActorLista(t),
               idLocal: idLocal,
@@ -464,7 +466,7 @@ class ServicioMetricasLocales {
                       ? 'Pase $codigo aceptado'
                       : 'Reserva aceptada',
                   estadoLabel: 'Aceptada',
-                  icono: CupertinoIcons.checkmark_seal_fill,
+                  icono: IconosLocales.exito,
                   colorEstado: ColoresMetricas.aceptado,
                   idActor: _idActorLista(t),
                   idLocal: idLocal,
@@ -812,6 +814,150 @@ class ServicioMetricasLocales {
     if (raw is num) return raw.toInt();
     return int.tryParse(raw?.toString() ?? '') ?? 0;
   }
+
+  static const _sentinelEvento = '00000000-0000-0000-0000-000000000000';
+
+  Future<DatosImpresionesMetricas> cargarImpresiones({
+    required int dias,
+    AlcanceFiltroMetricas filtro = const AlcanceFiltroMetricas(),
+  }) async {
+    final uid = _uid;
+    if (uid == null) return DatosImpresionesMetricas.vacio;
+
+    final hoy = DateTime.now();
+    final desde = DateTime.utc(hoy.year, hoy.month, hoy.day)
+        .subtract(Duration(days: dias - 1));
+    final desdeStr =
+        '${desde.year.toString().padLeft(4, '0')}-${desde.month.toString().padLeft(2, '0')}-${desde.day.toString().padLeft(2, '0')}';
+
+    try {
+      final sb = ServicioSupabase().cliente;
+      final rows = (await sb
+              .from('impresiones_diarias')
+              .select('fecha, seccion, id_evento, conteo')
+              .eq('id_local', uid)
+              .gte('fecha', desdeStr)
+          as List)
+          .cast<Map<String, dynamic>>();
+
+      final filtradas = rows.where((r) {
+        final seccion = r['seccion']?.toString() ?? '';
+        final idEv = r['id_evento']?.toString() ?? '';
+        switch (filtro.tipo) {
+          case AlcanceFiltroTipo.perfil:
+            return seccion == 'perfil_local';
+          case AlcanceFiltroTipo.evento:
+            return idEv == filtro.idEvento && idEv != _sentinelEvento;
+          case AlcanceFiltroTipo.todas:
+            return true;
+        }
+      }).toList();
+
+      final buckets = <DateTime, int>{};
+      for (var i = dias - 1; i >= 0; i--) {
+        final d = DateTime.utc(hoy.year, hoy.month, hoy.day)
+            .subtract(Duration(days: i));
+        buckets[d] = 0;
+      }
+
+      var totalPerfil = 0;
+      var totalClicks = 0;
+      final porEvento = <String, _EventoImpAcum>{};
+
+      for (final r in filtradas) {
+        final conteo = _asInt(r['conteo']);
+        final seccion = r['seccion']?.toString() ?? '';
+        final idEv = r['id_evento']?.toString() ?? '';
+        final fechaRaw = r['fecha'];
+        DateTime? f;
+        if (fechaRaw is DateTime) {
+          f = fechaRaw.toUtc();
+        } else {
+          f = DateTime.tryParse(fechaRaw?.toString() ?? '')?.toUtc();
+        }
+        if (f != null) {
+          final key = DateTime.utc(f.year, f.month, f.day);
+          if (buckets.containsKey(key)) {
+            buckets[key] = (buckets[key] ?? 0) + conteo;
+          }
+        }
+        if (seccion == 'perfil_local') totalPerfil += conteo;
+        if (seccion == 'click_evento') totalClicks += conteo;
+        if (idEv.isNotEmpty && idEv != _sentinelEvento) {
+          final prev = porEvento[idEv];
+          porEvento[idEv] = _EventoImpAcum(
+            titulo: prev?.titulo ?? 'Evento',
+            conteo: (prev?.conteo ?? 0) + conteo,
+          );
+        }
+      }
+
+      if (porEvento.isNotEmpty) {
+        try {
+          final ids = porEvento.keys.toList();
+          final titulosRows = await sb
+              .from('eventos')
+              .select('id_evento, titulo_evento')
+              .eq('id_local', uid)
+              .inFilter('id_evento', ids);
+          for (final row in (titulosRows as List).cast<Map<String, dynamic>>()) {
+            final id = row['id_evento']?.toString() ?? '';
+            if (id.isEmpty || !porEvento.containsKey(id)) continue;
+            final titulo = row['titulo_evento']?.toString().trim();
+            if (titulo != null && titulo.isNotEmpty) {
+              final prev = porEvento[id]!;
+              porEvento[id] = _EventoImpAcum(
+                titulo: titulo,
+                conteo: prev.conteo,
+              );
+            }
+          }
+        } catch (e) {
+          debugPrint('⚠️ cargarImpresiones titulos eventos: $e');
+        }
+      }
+
+      final total =
+          filtradas.fold<int>(0, (s, r) => s + _asInt(r['conteo']));
+
+      final eventos = porEvento.entries
+          .map(
+            (e) => EventoImpresionResumen(
+              idEvento: e.key,
+              titulo: e.value.titulo,
+              conteo: e.value.conteo,
+            ),
+          )
+          .toList()
+        ..sort((a, b) => b.conteo.compareTo(a.conteo));
+
+      final serie = buckets.entries
+          .map(
+            (e) => PuntoRendimiento(
+              etiqueta: '${e.key.day}/${e.key.month}',
+              valor: e.value.toDouble(),
+            ),
+          )
+          .toList();
+
+      return DatosImpresionesMetricas(
+        seriePorDia: serie,
+        totalImpresiones: total,
+        totalPerfil: totalPerfil,
+        totalClicks: totalClicks,
+        eventos: eventos,
+      );
+    } catch (e, st) {
+      debugPrint('⚠️ cargarImpresiones: $e\n$st');
+      rethrow;
+    }
+  }
+}
+
+class _EventoImpAcum {
+  const _EventoImpAcum({required this.titulo, required this.conteo});
+  final String titulo;
+  final int conteo;
 }
 
 class _TopEventoAcum {

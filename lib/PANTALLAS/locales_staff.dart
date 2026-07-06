@@ -7,7 +7,6 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../core/constants.dart';
-import '../core/tema_app_locales.dart';
 import '../widgets/tema_locales_scope.dart';
 import '../core/servicio_edges_eventos.dart';
 import '../core/servicio_staff_locales.dart';
@@ -109,7 +108,6 @@ class _LocalesStaffState extends State<LocalesStaff> {
             decoration: BoxDecoration(
               color: ColoresLocales.superficie,
               borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-              border: Border(top: BorderSide(color: ColoresLocales.separador)),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -227,9 +225,6 @@ class _LocalesStaffState extends State<LocalesStaff> {
       decoration: BoxDecoration(
         color: (color ?? ColoresLocales.acentoVioleta).withOpacity(0.10),
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(
-          color: (color ?? ColoresLocales.acentoVioleta).withOpacity(0.22),
-        ),
       ),
       child: Text(
         label,
@@ -248,11 +243,6 @@ class _LocalesStaffState extends State<LocalesStaff> {
       decoration: BoxDecoration(
         color: ColoresLocales.cardLavanda,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: TemaAppLocales.instancia.esOscuro
-              ? ColoresLocales.bordeSuave
-              : a.colorEstado.withOpacity(0.20),
-        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -263,11 +253,8 @@ class _LocalesStaffState extends State<LocalesStaff> {
               Container(
                 width: 40,
                 height: 40,
-                decoration: BoxDecoration(
-                  color: a.colorEstado.withOpacity(0.12),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(a.icono, color: a.colorEstado, size: 20),
+                alignment: Alignment.center,
+                child: Icon(a.icono, color: a.colorEstado, size: 22),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -400,9 +387,6 @@ class _LocalesStaffState extends State<LocalesStaff> {
                 decoration: BoxDecoration(
                   color: ColoresLocales.superficie,
                   borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-                  border: Border(
-                    top: BorderSide(color: ColoresLocales.separador),
-                  ),
                 ),
                 child: SingleChildScrollView(
                   child: Column(
@@ -480,7 +464,6 @@ class _LocalesStaffState extends State<LocalesStaff> {
                           decoration: BoxDecoration(
                             color: ColoresLocales.superficieElevada,
                             borderRadius: BorderRadius.circular(16),
-                            border: Border.all(color: ColoresLocales.bordeSuave),
                           ),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -524,8 +507,8 @@ class _LocalesStaffState extends State<LocalesStaff> {
                                 style: OutlinedButton.styleFrom(
                                   minimumSize: Size.fromHeight(44),
                                   foregroundColor: ColoresLocales.acentoVioleta,
-                                  backgroundColor: ColoresLocales.superficieElevada,
-                                  side: BorderSide(color: ColoresLocales.bordeSuave),
+                                  backgroundColor: ColoresLocales.cardInput,
+                                  side: BorderSide.none,
                                   shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(50),
                                   ),
@@ -555,8 +538,8 @@ class _LocalesStaffState extends State<LocalesStaff> {
                                 style: OutlinedButton.styleFrom(
                                   minimumSize: Size.fromHeight(44),
                                   foregroundColor: ColoresLocales.acentoVioleta,
-                                  backgroundColor: ColoresLocales.superficieElevada,
-                                  side: BorderSide(color: ColoresLocales.bordeSuave),
+                                  backgroundColor: ColoresLocales.cardInput,
+                                  side: BorderSide.none,
                                   shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(50),
                                   ),
@@ -736,10 +719,6 @@ class _LocalesStaffState extends State<LocalesStaff> {
         surfaceTintColor: ColoresLocales.fondoClaro,
         elevation: 0,
         scrolledUnderElevation: 0,
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(1),
-          child: Divider(height: 1, color: ColoresLocales.separador),
-        ),
         centerTitle: true,
         leading: CupertinoButton(
           padding: EdgeInsets.zero,
@@ -838,7 +817,6 @@ class _LocalesStaffState extends State<LocalesStaff> {
       decoration: BoxDecoration(
         color: Colors.red.withOpacity(0.12),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.red.withOpacity(0.35)),
       ),
       child: Column(
         children: [
@@ -858,22 +836,13 @@ class _LocalesStaffState extends State<LocalesStaff> {
   Widget _emptyStaff() {
     return Container(
       padding: EdgeInsets.fromLTRB(18, 22, 18, 20),
-      decoration: ColoresLocales.decoracionCard(),
+      decoration: ColoresLocales.decoracionCard(sinBorde: true),
       child: Column(
         children: [
-          Container(
-            width: 72,
-            height: 72,
-            decoration: BoxDecoration(
-              color: ColoresLocales.superficieElevada,
-              shape: BoxShape.circle,
-              border: Border.all(color: ColoresLocales.bordeSuave),
-            ),
-            child: Icon(
-              CupertinoIcons.add,
-              size: 42,
-              color: ColoresLocales.acentoVioleta,
-            ),
+          Icon(
+            CupertinoIcons.person_badge_plus_fill,
+            size: 56,
+            color: ColoresLocales.acentoVioleta.withValues(alpha: 0.75),
           ),
           SizedBox(height: 14),
           Text(
@@ -946,7 +915,7 @@ class _LocalesStaffState extends State<LocalesStaff> {
 
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
-      decoration: ColoresLocales.decoracionCard(radius: 20),
+      decoration: ColoresLocales.decoracionCard(radius: 20, sinBorde: true),
       clipBehavior: Clip.antiAlias,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -954,12 +923,7 @@ class _LocalesStaffState extends State<LocalesStaff> {
           // ── Cabecera empleado ──────────────────────────────────────────
           Container(
             padding: const EdgeInsets.fromLTRB(16, 14, 10, 14),
-            decoration: BoxDecoration(
-              color: ColoresLocales.cardLavanda,
-              border: Border(
-                bottom: BorderSide(color: ColoresLocales.separador),
-              ),
-            ),
+            color: ColoresLocales.cardLavanda,
             child: Row(
               children: [
                 _avatarEmpleado(e, avatarColor),
@@ -1015,9 +979,6 @@ class _LocalesStaffState extends State<LocalesStaff> {
                     decoration: BoxDecoration(
                       color: ColoresLocales.mostazaDestacado.withValues(alpha: 0.10),
                       borderRadius: BorderRadius.circular(14),
-                      border: Border.all(
-                        color: ColoresLocales.mostazaBadge.withValues(alpha: 0.35),
-                      ),
                     ),
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1053,7 +1014,7 @@ class _LocalesStaffState extends State<LocalesStaff> {
                     permisosTotal: _permisosListasTotal(e),
                     children: [
                       _FilaPermisoSwitch(
-                        icono: CupertinoIcons.checkmark_seal_fill,
+                        icono: IconosLocales.exito,
                         titulo: 'Aceptar y rechazar listas',
                         subtitulo: 'Confirmar o denegar solicitudes de entrada',
                         value: e.habilitadoAceptarListas,
@@ -1134,9 +1095,7 @@ class _LocalesStaffState extends State<LocalesStaff> {
                         ),
                         style: OutlinedButton.styleFrom(
                           foregroundColor: ColoresLocales.acentoVioleta,
-                          side: BorderSide(
-                            color: ColoresLocales.acentoVioleta.withValues(alpha: 0.35),
-                          ),
+                          side: BorderSide.none,
                           backgroundColor: ColoresLocales.superficieElevada,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(50),
@@ -1210,11 +1169,6 @@ class _LocalesStaffState extends State<LocalesStaff> {
             ? const Color(0xFF059669).withValues(alpha: 0.12)
             : ColoresLocales.superficieElevada,
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(
-          color: activo
-              ? const Color(0xFF059669).withValues(alpha: 0.35)
-              : ColoresLocales.bordeSuave,
-        ),
       ),
       child: Text(
         activo ? 'Activo' : 'Pausado',
@@ -1269,7 +1223,6 @@ class _SeccionPermisosEmpleadoState extends State<_SeccionPermisosEmpleado> {
       decoration: BoxDecoration(
         color: ColoresLocales.superficieElevada,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: color.withValues(alpha: 0.18)),
       ),
       clipBehavior: Clip.antiAlias,
       child: Column(
@@ -1279,27 +1232,14 @@ class _SeccionPermisosEmpleadoState extends State<_SeccionPermisosEmpleado> {
             color: color.withValues(alpha: 0.08),
             child: InkWell(
               onTap: () => setState(() => _expandido = !_expandido),
-              child: Container(
+              child: Padding(
                 padding: const EdgeInsets.fromLTRB(12, 10, 10, 10),
-                decoration: BoxDecoration(
-                  border: _expandido
-                      ? Border(
-                          bottom: BorderSide(
-                            color: color.withValues(alpha: 0.12),
-                          ),
-                        )
-                      : null,
-                ),
                 child: Row(
                   children: [
-                    Container(
+                    SizedBox(
                       width: 34,
                       height: 34,
-                      decoration: BoxDecoration(
-                        color: color.withValues(alpha: 0.14),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Icon(widget.icono, size: 18, color: color),
+                      child: Icon(widget.icono, size: 22, color: color),
                     ),
                     const SizedBox(width: 10),
                     Expanded(
@@ -1338,9 +1278,6 @@ class _SeccionPermisosEmpleadoState extends State<_SeccionPermisosEmpleado> {
                         decoration: BoxDecoration(
                           color: color.withValues(alpha: 0.14),
                           borderRadius: BorderRadius.circular(999),
-                          border: Border.all(
-                            color: color.withValues(alpha: 0.28),
-                          ),
                         ),
                         child: Text(
                           '${widget.permisosActivos}/${widget.permisosTotal}',

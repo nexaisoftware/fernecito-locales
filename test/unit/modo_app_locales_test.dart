@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 
-import '../../lib/core/modo_app_locales.dart';
+import 'package:frontend_locales/core/modo_app_locales.dart';
 
 void main() {
   // ModoAppLocales es un singleton. Reseteamos el estado antes de cada test

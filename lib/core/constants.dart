@@ -1,8 +1,23 @@
 /// Constantes visuales Fernecito Locales — misma estética que fernecito_frontend.
 library;
 
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'tema_app_locales.dart';
+
+/// Íconos con significado fijo — no mezclar sello verificado con ok/éxito.
+class IconosLocales {
+  IconosLocales._();
+
+  /// Insignia de local/perfil verificado (sello con tilde). Solo para eso.
+  static const verificado = CupertinoIcons.checkmark_seal_fill;
+
+  /// Acción completada, guardado, aceptado, todo listo.
+  static const exito = CupertinoIcons.checkmark_circle_fill;
+
+  /// Confirmación compacta en botones.
+  static const ok = CupertinoIcons.checkmark;
+}
 
 class ColoresLocales {
   static bool get _oscuro => TemaAppLocales.instancia.esOscuro;
@@ -104,6 +119,18 @@ class ColoresLocales {
   static Color get bordeSuave =>
       _oscuro ? const Color(0xFF333333) : Colors.grey.shade300;
 
+  /// Decoración de fondo estándar (dashboard, mis eventos, etc.).
+  static BoxDecoration get decoracionFondoPantalla => _oscuro
+      ? BoxDecoration(color: fondoClaro)
+      : BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: degradadoHome,
+            stops: const [0.0, 0.22, 0.55, 1.0],
+          ),
+        );
+
   /// Degradado de fondo del home — plano negro en oscuro (estética staff).
   static List<Color> get degradadoHome => _oscuro
       ? const [
@@ -192,10 +219,26 @@ class ColoresLocales {
           : acentoVioleta.withOpacity(0.16));
 
   /// Decoración estándar de cards (dashboard y pantallas similares).
+  /// Decoración de card con paleta oscura fija (Mi local — no sigue modo claro).
+  static BoxDecoration decoracionCardOscuraMiLocal({
+    Color? color,
+    double radius = 20,
+    bool sinBorde = false,
+  }) {
+    return BoxDecoration(
+      color: color ?? ColoresMiLocalPerfil.superficie,
+      borderRadius: BorderRadius.circular(radius),
+      border: sinBorde
+          ? null
+          : Border.all(color: ColoresMiLocalPerfil.bordeSuave),
+    );
+  }
+
   static BoxDecoration decoracionCard({
     Color? color,
     double radius = 20,
     bool exclusivo = false,
+    bool sinBorde = false,
   }) {
     final bg = color ?? superficie;
     if (exclusivo && !_oscuro) {
@@ -206,16 +249,165 @@ class ColoresLocales {
           colors: degradadoCardExclusivo,
         ),
         borderRadius: BorderRadius.circular(radius),
-        border: Border.all(color: bordeCard(exclusivo: true), width: 1.2),
+        border: sinBorde
+            ? null
+            : Border.all(color: bordeCard(exclusivo: true), width: 1.2),
         boxShadow: sombrasCard(exclusivo: true),
       );
     }
     return BoxDecoration(
       color: bg,
       borderRadius: BorderRadius.circular(radius),
-      border: Border.all(color: bordeCard(exclusivo: exclusivo)),
+      border: sinBorde
+          ? null
+          : Border.all(color: bordeCard(exclusivo: exclusivo)),
       boxShadow: sombrasCard(exclusivo: exclusivo),
     );
+  }
+}
+
+/// Mi local siempre oscuro (como el perfil público en app usuarios).
+class ColoresMiLocalPerfil {
+  ColoresMiLocalPerfil._();
+
+  static const fondo = Color(0xFF121212);
+  static const superficie = Color(0xFF1A1A1A);
+  static const superficieElevada = Color(0xFF242424);
+  static const fondoSuperficie = Color(0xFF1E1E1E);
+  static const textoPrincipal = Color(0xFFFFFFFF);
+  static const textoSecundario = Color(0xFFAAAAAA);
+  static const acentoVioleta = Color(0xFFC4B5FD);
+  static const principalMarca = Color(0xFF7C3AED);
+  static const separador = Color(0xFF2A2A2A);
+  static const bordeSuave = Color(0xFF333333);
+  static const chipInactivo = superficie;
+  static const rellenoInput = superficieElevada;
+
+  static BoxDecoration get decoracionFondo => BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            principalMarca.withValues(alpha: 0.28),
+            principalMarca.withValues(alpha: 0.1),
+            Colors.transparent,
+          ],
+          stops: const [0.0, 0.22, 0.5],
+        ),
+        color: fondo,
+      );
+}
+
+/// Límites de texto en la pantalla Mi local.
+class LimitesMiLocalPerfil {
+  LimitesMiLocalPerfil._();
+
+  /// Ej.: "el rincon de la hamburguesa - burgers de calidad" (48 chars).
+  static const maxCaracteresNombre = 50;
+
+  /// Salto manual ~10 chars antes del wrap natural del ancho disponible.
+  static const saltoLineaNombreAntes = 10;
+
+  /// Nombres cortos: una sola línea.
+  static const minCaracteresUnaLinea = 22;
+
+  /// Desde acá se busca reparto ~50/50 entre líneas.
+  static const minCaracteresDivisionBalanceada = 32;
+}
+
+/// Parte el nombre del hero para salto temprano y bloque más parejo.
+class FormatoNombreLocalHero {
+  FormatoNombreLocalHero._();
+
+  static const _separadores = {' ', ',', '-', '–', '—', '/'};
+
+  static String paraDisplay({
+    required String nombre,
+    required double maxWidth,
+    required TextStyle textStyle,
+    required TextDirection textDirection,
+    double reservaTrailing = 0,
+  }) {
+    final texto = nombre.trim();
+    if (texto.isEmpty || texto.length <= LimitesMiLocalPerfil.minCaracteresUnaLinea) {
+      return texto;
+    }
+
+    final anchoTexto = (maxWidth - reservaTrailing).clamp(80.0, maxWidth);
+    final finNatural = _finPrimeraLineaNatural(
+      texto,
+      textStyle,
+      anchoTexto,
+      textDirection,
+    );
+
+    final target = _indiceCorteObjetivo(texto.length, finNatural);
+    if (target <= 0 || target >= texto.length) return texto;
+
+    final corte = _indiceCorteEnPalabra(texto, target);
+    if (corte <= 0 || corte >= texto.length) return texto;
+
+    final linea1 = texto.substring(0, corte).trimRight();
+    final linea2 = texto.substring(corte).trimLeft();
+    if (linea1.isEmpty || linea2.isEmpty) return texto;
+    return '$linea1\n$linea2';
+  }
+
+  static int _finPrimeraLineaNatural(
+    String texto,
+    TextStyle textStyle,
+    double maxWidth,
+    TextDirection textDirection,
+  ) {
+    final painter = TextPainter(
+      text: TextSpan(text: texto, style: textStyle),
+      textDirection: textDirection,
+      maxLines: 2,
+    )..layout(maxWidth: maxWidth);
+
+    final metrics = painter.computeLineMetrics();
+    if (metrics.length < 2) return texto.length;
+
+    return painter
+        .getPositionForOffset(
+          Offset(metrics.first.width, metrics.first.baseline),
+        )
+        .offset
+        .clamp(1, texto.length);
+  }
+
+  static int _indiceCorteObjetivo(int largo, int finNatural) {
+    if (largo >= LimitesMiLocalPerfil.minCaracteresDivisionBalanceada) {
+      return (largo / 2).round().clamp(1, largo - 1);
+    }
+
+    final anticipado =
+        finNatural - LimitesMiLocalPerfil.saltoLineaNombreAntes;
+    return anticipado.clamp(10, largo - 1);
+  }
+
+  static int _indiceCorteEnPalabra(String texto, int target) {
+    final limite = target.clamp(1, texto.length - 1);
+
+    for (var i = limite; i >= limite - 12 && i > 0; i--) {
+      if (_separadores.contains(texto[i])) return i + 1;
+    }
+    for (var i = limite; i < limite + 8 && i < texto.length; i++) {
+      if (_separadores.contains(texto[i])) return i + 1;
+    }
+    return limite;
+  }
+
+  /// Espacio reservado en la última línea para lápiz + insignia.
+  static double reservaTrailing({
+    required bool tieneInsignia,
+    required bool esInsigniaPionero,
+    required double fontSize,
+  }) {
+    final lapiz = fontSize * 0.75 + 8;
+    if (!tieneInsignia) return lapiz;
+    if (esInsigniaPionero) return lapiz + fontSize * 3.4;
+    return lapiz + fontSize * 1.15;
   }
 }
 
@@ -226,4 +418,70 @@ class ColoresFeaturesLocales {
   static const recomendadoFernecito = Color(0xFF0891B2);
   static const topCartelera = Color(0xFFD97706);
   static const topUltra = Color(0xFFEC4899);
+}
+
+/// Iconografía de créditos — misma referencia que el resumen del dashboard.
+class IconosFeaturesLocales {
+  IconosFeaturesLocales._();
+
+  static const flyersIa = CupertinoIcons.sparkles;
+  static const recomendadoFernecito = CupertinoIcons.hand_thumbsup_fill;
+  static const topCartelera = CupertinoIcons.star_fill;
+  static const topUltra = CupertinoIcons.flame_fill;
+
+  static ({String label, Color color, IconData icon}) metaJerarquia(String? jerarquia) {
+    final nivel = (jerarquia ?? 'gratis').toLowerCase();
+    return switch (nivel) {
+      'normal' => (
+        label: 'Verificado',
+        color: ColoresFeaturesLocales.verificado,
+        icon: CupertinoIcons.checkmark_seal_fill,
+      ),
+      'recomendado_fernecito' => (
+        label: 'Rec. Fernecito',
+        color: ColoresFeaturesLocales.recomendadoFernecito,
+        icon: recomendadoFernecito,
+      ),
+      'top' => (
+        label: 'Top Cartelera',
+        color: ColoresFeaturesLocales.topCartelera,
+        icon: topCartelera,
+      ),
+      'top_ultra' => (
+        label: 'Top Ultra',
+        color: ColoresFeaturesLocales.topUltra,
+        icon: topUltra,
+      ),
+      _ => (
+        label: 'Gratis',
+        color: const Color(0xFF9CA3AF),
+        icon: CupertinoIcons.circle,
+      ),
+    };
+  }
+
+  static ({String label, Color color, IconData icon}) metaNivelPosicionamiento(String nivel) {
+    return switch (nivel) {
+      'recomendado_fernecito' => (
+        label: 'Rec. Fernecito',
+        color: ColoresFeaturesLocales.recomendadoFernecito,
+        icon: recomendadoFernecito,
+      ),
+      'top' => (
+        label: 'Top Cartelera',
+        color: ColoresFeaturesLocales.topCartelera,
+        icon: topCartelera,
+      ),
+      'top_ultra' => (
+        label: 'Top Ultra',
+        color: ColoresFeaturesLocales.topUltra,
+        icon: topUltra,
+      ),
+      _ => (
+        label: nivel,
+        color: Colors.grey,
+        icon: CupertinoIcons.question_circle,
+      ),
+    };
+  }
 }

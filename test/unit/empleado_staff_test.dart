@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 
-import '../../lib/models/empleado_staff.dart';
+import 'package:frontend_locales/models/empleado_staff.dart';
 
 Map<String, dynamic> _mapBase({
   bool activo = true,
@@ -23,8 +23,8 @@ Map<String, dynamic> _mapBase({
       'habilitado_ver_lista_aceptados': verListaAceptados,
       'habilitado_qr_invitacion': qrInvitacion,
       'qr_invitacion_pasar_cupo': qrInvitacionPasarCupo,
-      if (perfilStaff != null) 'perfiles_staff': perfilStaff,
-      if (perfilUsuario != null) 'perfiles_usuarios': perfilUsuario,
+      'perfiles_staff': ?perfilStaff,
+      'perfiles_usuarios': ?perfilUsuario,
     };
 
 void main() {

@@ -16,9 +16,9 @@ import '../core/constants.dart';
 import '../core/crear_evento_desde_flyer_args.dart';
 import '../core/tema_app_locales.dart';
 import '../widgets/tema_locales_scope.dart';
+import '../widgets/feedback_locales.dart';
 import '../core/supabase_client.dart';
 import '../core/servicio_edges_eventos.dart';
-import '../core/suscripcion_locales.dart';
 
 enum _IntencionPublicacion { estandar, recFernecito, topCartelera, topUltra }
 
@@ -43,7 +43,7 @@ class _LocalesCrearEventoState extends State<LocalesCrearEvento> {
   String? _idLocal;
   bool _localVerificado = false;
   String? _nombreLocal;
-  String? _tipoSuscripcionRaw;
+  String? _ciudadLocal;
 
   final _tituloEventoCtrl = TextEditingController();
   final _descripcionEventoCtrl = TextEditingController();
@@ -85,6 +85,12 @@ class _LocalesCrearEventoState extends State<LocalesCrearEvento> {
   final List<_PromoDraft> _promos = [];
   bool _autocompletandoUbicacion = false;
 
+  /// Secciones opcionales colapsadas en modo completo (paso 1).
+  bool _expandUbicacionExterna = false;
+  bool _expandVentaEntradas = false;
+  bool _expandSistemaIngreso = false;
+  bool _expandAdvertenciasExtras = false;
+
   static const List<String> _provinciasEvento = ['Córdoba'];
   static const List<String> _ciudadesCordobaEvento = [
     'Córdoba capital',
@@ -125,19 +131,11 @@ class _LocalesCrearEventoState extends State<LocalesCrearEvento> {
   int _credRecomendados = 0;
   int _credTop = 0;
   int _credTopUltra = 0;
-  int _credFlyersAI = 0;
   static const int _maxRecomendados = 16;
   static const int _maxTop = 6;
   static const int _maxTopUltra = 2;
-  static const int _maxFlyersAI = 20;
 
   String? _idEventoPublicado;
-
-  static const Color _mostaza = Color(0xFFD9B44A);
-  static const Color _violetRec = Color(0xFF7C3AED);
-  static const Color _amberTop = Color(0xFFD97706);
-  static const Color _rosaUltra = ColoresLocales.jerarquiaUltra;
-  static const Color _cyanFlyers = Color(0xFF0891B2);
 
   void _irAPaso(int paso) {
     setState(() => _paso = paso);
@@ -253,21 +251,19 @@ class _LocalesCrearEventoState extends State<LocalesCrearEvento> {
       final row = await ServicioSupabase().cliente
           .from('perfiles_locales')
           .select(
-            'id, local_verificado, direccion, url_maps, nombre_local, cupos_recomendado, cupos_top_cartelera, cupos_top_ultra, cupos_flyers_ia',
+            'id, local_verificado, direccion, url_maps, nombre_local, ciudad, provincia, cupos_recomendado, cupos_top_cartelera, cupos_top_ultra',
           )
           .eq('id', uid)
           .maybeSingle();
-      final tipoRaw = await SuscripcionLocales.leerTipoRawDesdePerfil(uid);
       if (!mounted) return;
       setState(() {
         _idLocal = uid;
         _localVerificado = row?['local_verificado'] as bool? ?? false;
         _nombreLocal = row?['nombre_local'] as String?;
-        _tipoSuscripcionRaw = tipoRaw;
+        _ciudadLocal = row?['ciudad'] as String?;
         _credRecomendados = (row?['cupos_recomendado'] as num?)?.toInt() ?? 0;
         _credTop = (row?['cupos_top_cartelera'] as num?)?.toInt() ?? 0;
         _credTopUltra = (row?['cupos_top_ultra'] as num?)?.toInt() ?? 0;
-        _credFlyersAI = (row?['cupos_flyers_ia'] as num?)?.toInt() ?? 0;
         _intencionPublicacion = _IntencionPublicacion.estandar;
         _cargandoPerfil = false;
       });
@@ -375,11 +371,6 @@ class _LocalesCrearEventoState extends State<LocalesCrearEvento> {
                         decoration: BoxDecoration(
                           color: ColoresLocales.cardLavanda,
                           borderRadius: BorderRadius.circular(50),
-                          border: Border.all(
-                            color: ColoresLocales.acentoVioleta.withOpacity(
-                              0.2,
-                            ),
-                          ),
                         ),
                         child: Text(
                           'Año: ${temporal.year}',
@@ -503,8 +494,194 @@ class _LocalesCrearEventoState extends State<LocalesCrearEvento> {
         _procesandoFlyer = false;
         _errorFlyer = 'No se pudo procesar el flyer. Intentá de nuevo.';
       });
-      _mostrarError('Error al procesar el flyer: $e');
+      _mostrarError('Error al procesar el flyer: $e', bloqueante: true);
     }
+  }
+
+  static const _flyerMiniW = 62.0;
+  static const _flyerMiniH = 93.0;
+
+  void _navegarGenerarFlyerIa() {
+    Navigator.pushNamed(context, '/flyer_ia');
+  }
+
+  Widget _buildSubCardSubirFlyer() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        color: ColoresLocales.cardLavanda.withOpacity(0.45),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            'Subir flyer',
+            style: GoogleFonts.baloo2(
+              color: ColoresLocales.textoOnFondoClaro,
+              fontWeight: FontWeight.w800,
+              fontSize: 15,
+            ),
+          ),
+          const SizedBox(height: 10),
+          IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(
+                  flex: 40,
+                  child: Padding(
+                    padding: const EdgeInsets.only(right: 6),
+                    child: _buildColumnSubirDesdeGaleria(),
+                  ),
+                ),
+                Expanded(
+                  flex: 60,
+                  child: Padding(
+                    padding: const EdgeInsets.only(left: 10),
+                    child: _buildPromoFlyerIa(),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildColumnSubirDesdeGaleria() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          'Subir desde galería',
+          style: GoogleFonts.baloo2(
+            color: ColoresLocales.textoOnFondoClaro,
+            fontWeight: FontWeight.w700,
+            fontSize: 12,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Align(
+          alignment: Alignment.center,
+          child: _buildMiniaturaFlyerSubir(),
+        ),
+        if (_errorFlyer != null) ...[
+          const SizedBox(height: 8),
+          Text(
+            _errorFlyer!,
+            style: GoogleFonts.baloo2(
+              color: Colors.red.shade700,
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ] else if (_procesandoFlyer ||
+            _flyerBytesComprimidos != null ||
+            (_flyerNombre != null && _flyerNombre!.isNotEmpty)) ...[
+          const SizedBox(height: 6),
+          Text(
+            _procesandoFlyer
+                ? 'Procesando flyer...'
+                : _flyerBytesComprimidos != null
+                ? 'Flyer listo · tocá para reemplazar'
+                : _flyerNombre!,
+            style: GoogleFonts.baloo2(
+              color: ColoresLocales.textoSecundarioOnFondoClaro,
+              fontSize: 10.5,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildMiniaturaFlyerSubir() {
+    return GestureDetector(
+      onTap: _procesandoFlyer ? null : _seleccionarFlyer,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(10),
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            Container(
+              width: _flyerMiniW,
+              height: _flyerMiniH,
+              color: ColoresLocales.acentoVioleta.withOpacity(0.08),
+              child: _flyerBytes != null
+                  ? Image.memory(_flyerBytes!, fit: BoxFit.cover)
+                  : _urlFlyerSubido != null
+                  ? Image.network(_urlFlyerSubido!, fit: BoxFit.cover)
+                  : Icon(
+                      CupertinoIcons.plus,
+                      size: 22,
+                      color: ColoresLocales.acentoVioleta.withOpacity(0.75),
+                    ),
+            ),
+            if (_procesandoFlyer)
+              Container(
+                width: _flyerMiniW,
+                height: _flyerMiniH,
+                color: Colors.black.withOpacity(0.45),
+                child: Center(
+                  child: SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: ColoresLocales.superficie,
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPromoFlyerIa() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Text(
+          '¿No tenés flyer? Hacé uno en minutos con la herramienta IA de Fernecito.',
+          style: GoogleFonts.baloo2(
+            color: ColoresLocales.textoSecundarioOnFondoClaro,
+            fontSize: 11,
+            height: 1.25,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 6),
+        SizedBox(
+          height: 32,
+          child: TextButton.icon(
+            onPressed: _navegarGenerarFlyerIa,
+            icon: const Icon(CupertinoIcons.wand_stars, size: 14),
+            label: Text(
+              'Generar flyer IA',
+              style: GoogleFonts.baloo2(
+                fontWeight: FontWeight.w800,
+                fontSize: 12,
+              ),
+            ),
+            style: TextButton.styleFrom(
+              foregroundColor: ColoresLocales.acentoVioleta,
+              backgroundColor: ColoresLocales.acentoVioleta.withValues(alpha: 0.1),
+              padding: const EdgeInsets.symmetric(horizontal: 10),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(50),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
   }
 
   void _agregarPromo() {
@@ -521,7 +698,7 @@ class _LocalesCrearEventoState extends State<LocalesCrearEvento> {
         _mostrarError('Completá el título del evento.');
         return false;
       }
-      if (_descripcionEventoCtrl.text.trim().isEmpty) {
+      if (!_esSimple && _descripcionEventoCtrl.text.trim().isEmpty) {
         _mostrarError('Completá la descripción del evento.');
         return false;
       }
@@ -536,37 +713,44 @@ class _LocalesCrearEventoState extends State<LocalesCrearEvento> {
       }
       return false;
     }
-    if (_fechaInicio == null || _fechaFin == null) {
-      _mostrarError('Seleccioná fecha y hora de inicio y fin.');
-      return false;
-    }
-    if (!_fechaFin!.isAfter(_fechaInicio!)) {
-      _mostrarError('La fecha de fin debe ser posterior al inicio.');
-      return false;
-    }
-    if (!_esEnLocal) {
+    if (!_esSimple) {
+      if (_fechaInicio == null || _fechaFin == null) {
+        _mostrarError('Seleccioná fecha y hora de inicio y fin.');
+        return false;
+      }
+      if (!_fechaFin!.isAfter(_fechaInicio!)) {
+        _mostrarError('La fecha de fin debe ser posterior al inicio.');
+        return false;
+      }
+      if (!_esEnLocal) {
       if (_direccionEventoCtrl.text.trim().isEmpty) {
         _mostrarError('Completá la dirección del evento.');
+        setState(() => _expandUbicacionExterna = true);
         return false;
       }
       if (_ciudadEventoCtrl.text.trim().isEmpty) {
         _mostrarError('Completá la ciudad del evento.');
+        setState(() => _expandUbicacionExterna = true);
         return false;
       }
       if (_provinciaEventoCtrl.text.trim().isEmpty) {
         _mostrarError('Completá la provincia del evento.');
+        setState(() => _expandUbicacionExterna = true);
         return false;
       }
       if (_urlMapsEventoCtrl.text.trim().isEmpty) {
         _mostrarError('Completá la URL de Google Maps del evento.');
+        setState(() => _expandUbicacionExterna = true);
         return false;
+      }
       }
     }
     // Cupo es opcional (null = sin límite). Si se ingresa, debe ser >= 1.
-    if (_limitarCupoLista) {
+    if (!_esSimple && _limitarCupoLista) {
       final cupo = int.tryParse(_cupoListaCtrl.text.trim());
       if (cupo == null || cupo <= 0) {
         _mostrarError('Si limitás el cupo, ingresá un número válido (>= 1).');
+        setState(() => _expandSistemaIngreso = true);
         return false;
       }
     }
@@ -661,27 +845,32 @@ class _LocalesCrearEventoState extends State<LocalesCrearEvento> {
         ? null
         : int.tryParse(_edadMinimaCtrl.text.trim());
     final urlCompra = _urlCompraEntradasCtrl.text.trim();
+    final descripcion = _descripcionEventoCtrl.text.trim();
 
     return {
       // --- Modo del evento (la edge neutraliza los campos funcionales si simple) ---
       'modo_evento': _modoEvento,
       // --- Datos básicos ---
       'titulo_evento': _tituloEventoCtrl.text.trim(),
-      'descripcion_evento': _descripcionEventoCtrl.text.trim(),
+      'descripcion_evento': _esSimple
+          ? null
+          : (descripcion.isEmpty ? null : descripcion),
       'url_flyer': _urlFlyerSubido ?? '',
       // Campos funcionales: en modo simple se mandan neutralizados.
       'url_compra_entradas': _esSimple ? null : (urlCompra.isEmpty ? null : urlCompra),
       'tipo_evento': _tipoEvento,
       'edad_minima': _esSimple ? null : edad,
-      'fecha_inicio': _fechaInicio!.toUtc().toIso8601String(),
-      'fecha_fin': _fechaFin!.toUtc().toIso8601String(),
-      'dia_semana': _fechaInicio != null ? _diaSemana(_fechaInicio!) : null,
+      if (!_esSimple) ...{
+        'fecha_inicio': _fechaInicio!.toUtc().toIso8601String(),
+        'fecha_fin': _fechaFin!.toUtc().toIso8601String(),
+        'dia_semana': _diaSemana(_fechaInicio!),
+      },
       // --- Lista (irrelevante en modo simple, la edge la fuerza a 'auto') ---
       'modo_lista': _esSimple ? 'auto' : _modoLista,
       'cupo_lista_max': _esSimple ? null : cupoLista, // null = sin límite
       'permite_squads': _esSimple ? false : _permiteSquads,
-      // --- Ubicación ---
-      'es_en_local': _esEnLocal,
+      // --- Ubicación: en simple siempre en el local (ciudad del perfil) ---
+      'es_en_local': _esSimple ? true : _esEnLocal,
       if (!_esEnLocal) 'direccion_evento': _direccionEventoCtrl.text.trim(),
       'ciudad_evento': _esEnLocal ? null : _ciudadEventoCtrl.text.trim(),
       'provincia_evento': _esEnLocal ? null : _provinciaEventoCtrl.text.trim(),
@@ -755,13 +944,21 @@ class _LocalesCrearEventoState extends State<LocalesCrearEvento> {
         _paso = 3;
       });
     } catch (e) {
-      if (mounted) _mostrarError('No se pudo publicar el evento: $e');
+      if (mounted) _mostrarError('No se pudo publicar el evento: $e', bloqueante: true);
     } finally {
       if (mounted) setState(() => _guardando = false);
     }
   }
 
-  void _mostrarError(String mensaje) {
+  void _mostrarError(String mensaje, {bool bloqueante = false}) {
+    final esErrorRed = bloqueante ||
+        mensaje.startsWith('No se pudo') ||
+        mensaje.startsWith('Error al');
+    if (!esErrorRed) {
+      HapticFeedback.lightImpact();
+      FeedbackLocales.mostrarAdvertencia(context, mensaje, conNavBar: false);
+      return;
+    }
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -810,57 +1007,203 @@ class _LocalesCrearEventoState extends State<LocalesCrearEvento> {
     }
   }
 
-  String get _textoBotonDoradoPublicar {
-    if (_intencionPublicacion == _IntencionPublicacion.recFernecito &&
+  Future<void> _publicarEnJerarquia(_IntencionPublicacion intencion) async {
+    if (_guardando) return;
+
+    if (!_localVerificado &&
+        intencion != _IntencionPublicacion.estandar) {
+      return;
+    }
+
+    if (intencion == _IntencionPublicacion.recFernecito &&
         _credRecomendados <= 0) {
-      return '¡Comprar más créditos!';
+      return;
     }
-    if (_intencionPublicacion == _IntencionPublicacion.topCartelera &&
-        _credTop <= 0) {
-      return '¡Comprar más créditos!';
+    if (intencion == _IntencionPublicacion.topCartelera && _credTop <= 0) {
+      return;
     }
-    if (_intencionPublicacion == _IntencionPublicacion.topUltra &&
-        _credTopUltra <= 0) {
-      return '¡Comprar más créditos!';
+    if (intencion == _IntencionPublicacion.topUltra && _credTopUltra <= 0) {
+      return;
     }
-    return 'Publicar';
+
+    setState(() => _intencionPublicacion = intencion);
+    await _publicarEvento();
   }
 
-  String get _estadoCuentaEtiqueta =>
-      _localVerificado ? 'Verificado' : 'Gratuita';
+  void _mostrarModalJerarquias() {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: ColoresLocales.superficie,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Center(
+                  child: Container(
+                    width: 36,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: ColoresLocales.separador,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'Niveles de visibilidad',
+                  style: GoogleFonts.baloo2(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w900,
+                    color: ColoresLocales.textoOnFondoClaro,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'Elegí dónde querés que aparezca tu evento en la cartelera de usuarios.',
+                  style: GoogleFonts.baloo2(
+                    fontSize: 13,
+                    height: 1.4,
+                    color: ColoresLocales.textoSecundarioOnFondoClaro,
+                  ),
+                ),
+                const SizedBox(height: 18),
+                _filaJerarquiaInfo(
+                  icono: CupertinoIcons.square_grid_2x2,
+                  color: ColoresLocales.acentoVioletaMarca,
+                  titulo: 'Estándar',
+                  subtitulo: _localVerificado ? 'Zona normal' : 'Zona gratis',
+                  descripcion: _localVerificado
+                      ? 'Tu evento entra a la cartelera de tu ciudad con la visibilidad incluida en tu plan verificado.'
+                      : 'Tu evento aparece en la cartelera con visibilidad básica. Verificá tu cuenta para más alcance.',
+                  costo: 'Gratis',
+                ),
+                _filaJerarquiaInfo(
+                  icono: IconosFeaturesLocales.recomendadoFernecito,
+                  color: ColoresFeaturesLocales.recomendadoFernecito,
+                  titulo: 'Recomendado Fernecito',
+                  subtitulo: 'Destacado en recomendados',
+                  descripcion:
+                      'Aparece en la sección de recomendados, con mayor exposición frente a usuarios afines a tu propuesta. El boost dura hasta 15 días o hasta que venza el evento.',
+                  costo: '1 crédito · te quedan $_credRecomendados',
+                ),
+                _filaJerarquiaInfo(
+                  icono: IconosFeaturesLocales.topCartelera,
+                  color: ColoresFeaturesLocales.topCartelera,
+                  titulo: 'Top Cartelera',
+                  subtitulo: 'Carousel principal',
+                  descripcion:
+                      'Máxima visibilidad en el carrusel principal de la cartelera. Ideal para fechas clave o lanzamientos. Boost de hasta 10 días.',
+                  costo: '1 crédito · te quedan $_credTop',
+                ),
+                _filaJerarquiaInfo(
+                  icono: IconosFeaturesLocales.topUltra,
+                  color: ColoresFeaturesLocales.topUltra,
+                  titulo: 'Top Ultra',
+                  subtitulo: 'Stories al abrir la app',
+                  descripcion:
+                      'Tu evento se muestra en las stories fullscreen que ven los usuarios al entrar. El impacto visual más alto de la plataforma.',
+                  costo: '1 crédito · te quedan $_credTopUltra',
+                ),
+                const SizedBox(height: 8),
+                SizedBox(
+                  height: 48,
+                  child: TextButton(
+                    onPressed: () => Navigator.pop(ctx),
+                    style: TextButton.styleFrom(
+                      foregroundColor: ColoresLocales.acentoVioletaMarca,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                    child: Text(
+                      'Entendido',
+                      style: GoogleFonts.baloo2(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 15,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
 
-  Color get _colorEstadoCuenta => _localVerificado
-      ? ColoresLocales.acentoVioleta
-      : ColoresLocales.textoSecundarioOnFondoClaro;
-
-  IconData get _iconEstadoCuenta => _localVerificado
-      ? CupertinoIcons.checkmark_seal_fill
-      : CupertinoIcons.lock_open_fill;
-
-  void _onBotonDoradoPublicar() {
-    // Sin verificación: solo puede publicar gratis/normal (la edge lo fuerza igual)
-    if (!_localVerificado &&
-        (_intencionPublicacion == _IntencionPublicacion.recFernecito ||
-            _intencionPublicacion == _IntencionPublicacion.topCartelera ||
-            _intencionPublicacion == _IntencionPublicacion.topUltra)) {
-      return;
-    }
-    if (_intencionPublicacion == _IntencionPublicacion.recFernecito &&
-        _credRecomendados <= 0) {
-      Navigator.pushNamed(context, '/administrar_subscripciones');
-      return;
-    }
-    if (_intencionPublicacion == _IntencionPublicacion.topCartelera &&
-        _credTop <= 0) {
-      Navigator.pushNamed(context, '/administrar_subscripciones');
-      return;
-    }
-    if (_intencionPublicacion == _IntencionPublicacion.topUltra &&
-        _credTopUltra <= 0) {
-      Navigator.pushNamed(context, '/administrar_subscripciones');
-      return;
-    }
-    _publicarEvento();
+  Widget _filaJerarquiaInfo({
+    required IconData icono,
+    required Color color,
+    required String titulo,
+    required String subtitulo,
+    required String descripcion,
+    required String costo,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            alignment: Alignment.center,
+            child: Icon(icono, color: color, size: 22),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  titulo,
+                  style: GoogleFonts.baloo2(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w900,
+                    color: ColoresLocales.textoOnFondoClaro,
+                  ),
+                ),
+                Text(
+                  subtitulo,
+                  style: GoogleFonts.baloo2(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: color,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  descripcion,
+                  style: GoogleFonts.baloo2(
+                    fontSize: 12.5,
+                    height: 1.35,
+                    color: ColoresLocales.textoSecundarioOnFondoClaro,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  costo,
+                  style: GoogleFonts.baloo2(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w700,
+                    color: ColoresLocales.textoSecundarioOnFondoClaro,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   void _mostrarDialogoCreditoCrear({
@@ -880,14 +1223,10 @@ class _LocalesCrearEventoState extends State<LocalesCrearEvento> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Container(
+              SizedBox(
                 width: 56,
                 height: 56,
-                decoration: BoxDecoration(
-                  color: color.withOpacity(0.1),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(icono, color: color, size: 28),
+                child: Icon(icono, color: color, size: 32),
               ),
               SizedBox(height: 14),
               Text(
@@ -971,338 +1310,380 @@ class _LocalesCrearEventoState extends State<LocalesCrearEvento> {
 
   Widget _buildPanelCuentaCreditosCrear() {
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      decoration: BoxDecoration(
-        color: ColoresLocales.superficie,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(
-          color: ColoresLocales.acentoVioleta.withOpacity(0.15),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: ColoresLocales.acentoVioleta.withOpacity(0.06),
-            blurRadius: 12,
-            offset: Offset(0, 3),
-          ),
-        ],
-      ),
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+      decoration: ColoresLocales.decoracionCard(sinBorde: true),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
+          Text(
+            'Créditos disponibles',
+            style: GoogleFonts.baloo2(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: ColoresLocales.textoSecundarioOnFondoClaro,
+              letterSpacing: 0.2,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
             children: [
-              Icon(_iconEstadoCuenta, size: 14, color: _colorEstadoCuenta),
-              SizedBox(width: 5),
+              _pillCreditoResumen(
+                icono: IconosFeaturesLocales.recomendadoFernecito,
+                label: 'Rec.',
+                valor: _credRecomendados,
+                color: ColoresFeaturesLocales.recomendadoFernecito,
+                onTap: () => _mostrarDialogoCreditoCrear(
+                  icono: IconosFeaturesLocales.recomendadoFernecito,
+                  color: ColoresFeaturesLocales.recomendadoFernecito,
+                  titulo: 'Recomendado Fernecito',
+                  valor: _credRecomendados,
+                  maximo: _maxRecomendados,
+                  descripcion:
+                      'Destacá tu evento en la sección de recomendados de la cartelera.',
+                ),
+              ),
+              _pillCreditoResumen(
+                icono: IconosFeaturesLocales.topCartelera,
+                label: 'Top',
+                valor: _credTop,
+                color: ColoresFeaturesLocales.topCartelera,
+                onTap: () => _mostrarDialogoCreditoCrear(
+                  icono: IconosFeaturesLocales.topCartelera,
+                  color: ColoresFeaturesLocales.topCartelera,
+                  titulo: 'Top Cartelera',
+                  valor: _credTop,
+                  maximo: _maxTop,
+                  descripcion:
+                      'Posicioná tu evento en el carrusel principal de la cartelera.',
+                ),
+              ),
+              _pillCreditoResumen(
+                icono: IconosFeaturesLocales.topUltra,
+                label: 'Ultra',
+                valor: _credTopUltra,
+                color: ColoresFeaturesLocales.topUltra,
+                onTap: () => _mostrarDialogoCreditoCrear(
+                  icono: IconosFeaturesLocales.topUltra,
+                  color: ColoresFeaturesLocales.topUltra,
+                  titulo: 'Top Ultra',
+                  valor: _credTopUltra,
+                  maximo: _maxTopUltra,
+                  descripcion:
+                      'Stories fullscreen al abrir la app. Máximo impacto visual.',
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _pillCreditoResumen({
+    required IconData icono,
+    required String label,
+    required int valor,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            color: ColoresLocales.superficie,
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icono, size: 14, color: color),
+              const SizedBox(width: 6),
               Text(
-                'Cuenta: ',
+                label,
                 style: GoogleFonts.baloo2(
                   fontSize: 12,
                   fontWeight: FontWeight.w700,
                   color: ColoresLocales.textoSecundarioOnFondoClaro,
                 ),
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                decoration: BoxDecoration(
-                  color: _colorEstadoCuenta.withOpacity(0.12),
-                  borderRadius: BorderRadius.circular(50),
-                  border: Border.all(
-                    color: _colorEstadoCuenta.withOpacity(0.3),
-                  ),
-                ),
-                child: Text(
-                  _estadoCuentaEtiqueta,
-                  style: GoogleFonts.baloo2(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w800,
-                    color: _colorEstadoCuenta,
-                  ),
+              const SizedBox(width: 6),
+              Text(
+                '$valor',
+                style: GoogleFonts.baloo2(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w900,
+                  color: ColoresLocales.textoOnFondoClaro,
                 ),
               ),
             ],
           ),
-          if (_localVerificado) ...[
-            SizedBox(height: 8),
-            Row(
-              children: [
-                Text(
-                  'Subscripción: ',
-                  style: GoogleFonts.baloo2(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: ColoresLocales.textoSecundarioOnFondoClaro,
-                  ),
-                ),
-                Container(
-                  padding: EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 2,
-                  ),
-                  decoration: BoxDecoration(
-                    color: ColoresLocales.acentoVioleta.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(50),
-                    border: Border.all(
-                      color: ColoresLocales.acentoVioleta.withOpacity(0.28),
-                    ),
-                  ),
-                  child: Text(
-                    SuscripcionLocales.tipoPlanPago(
-                      rawDb: _tipoSuscripcionRaw,
-                      localVerificado: true,
-                    ),
-                    style: GoogleFonts.baloo2(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w800,
-                      color: ColoresLocales.acentoVioleta,
-                    ),
-                  ),
-                ),
-              ],
+        ),
+      ),
+    );
+  }
+
+  Widget _encabezadoPublicarEn() {
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            'Publicar en',
+            style: GoogleFonts.baloo2(
+              color: ColoresLocales.textoOnFondoClaro,
+              fontWeight: FontWeight.w900,
+              fontSize: 18,
             ),
-          ],
-          SizedBox(height: 10),
-          Row(
+          ),
+        ),
+        Material(
+          color: ColoresLocales.superficieElevada,
+          shape: const CircleBorder(),
+          child: InkWell(
+            onTap: _mostrarModalJerarquias,
+            customBorder: const CircleBorder(),
+            child: Padding(
+              padding: const EdgeInsets.all(8),
+              child: Icon(
+                CupertinoIcons.info_circle,
+                size: 20,
+                color: ColoresLocales.acentoVioletaMarca,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _botonPublicarEn({
+    required _IntencionPublicacion intencion,
+    required IconData icono,
+    required Color color,
+    required String nombreNivel,
+    required String detalleCosto,
+    required bool habilitado,
+    String? motivoDeshabilitado,
+    bool filled = false,
+  }) {
+    final publicando =
+        _guardando && _intencionPublicacion == intencion;
+    final onTap = habilitado && !_guardando
+        ? () => _publicarEnJerarquia(intencion)
+        : null;
+
+    final child = Row(
+      children: [
+        SizedBox(
+          width: 36,
+          height: 36,
+          child: publicando
+              ? Padding(
+                  padding: const EdgeInsets.all(9),
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: filled
+                        ? ColoresLocales.textoEnBoton
+                        : color,
+                  ),
+                )
+              : Icon(
+                  icono,
+                  size: 22,
+                  color: filled
+                      ? ColoresLocales.textoEnBoton
+                      : (habilitado
+                            ? color
+                            : ColoresLocales.textoSecundarioOnFondoClaro),
+                ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Te quedan:',
+                'Publicar en $nombreNivel',
                 style: GoogleFonts.baloo2(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                  color: ColoresLocales.textoSecundarioOnFondoClaro,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w900,
+                  color: filled
+                      ? ColoresLocales.textoEnBoton
+                      : (habilitado
+                            ? ColoresLocales.textoOnFondoClaro
+                            : ColoresLocales.textoSecundarioOnFondoClaro),
                 ),
               ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Wrap(
-                  spacing: 14,
-                  runSpacing: 4,
-                  children: [
-                    _CreditoTextoCrear(
-                      icono: CupertinoIcons.hand_thumbsup_fill,
-                      label: 'Rec.Fernecito:',
-                      valor: _credRecomendados,
-                      color: _violetRec,
-                      onTap: () => _mostrarDialogoCreditoCrear(
-                        icono: CupertinoIcons.hand_thumbsup_fill,
-                        color: _violetRec,
-                        titulo: 'Recomendaciones Fernecito',
-                        valor: _credRecomendados,
-                        maximo: _maxRecomendados,
-                        descripcion:
-                            'Tus eventos aparecen destacados en la sección de recomendaciones de Fernecito, con mayor visibilidad frente a usuarios afines a tu propuesta.',
-                      ),
-                    ),
-                    _CreditoTextoCrear(
-                      icono: CupertinoIcons.star_fill,
-                      label: 'Top:',
-                      valor: _credTop,
-                      color: _amberTop,
-                      onTap: () => _mostrarDialogoCreditoCrear(
-                        icono: CupertinoIcons.star_fill,
-                        color: _amberTop,
-                        titulo: 'Top Cartelera',
-                        valor: _credTop,
-                        maximo: _maxTop,
-                        descripcion:
-                            'Posicionás tu evento en el top de la cartelera principal de Fernecito. Máxima visibilidad para todos los usuarios que navegan la app.',
-                      ),
-                    ),
-                    _CreditoTextoCrear(
-                      icono: CupertinoIcons.flame_fill,
-                      label: 'Ultra:',
-                      valor: _credTopUltra,
-                      color: _rosaUltra,
-                      onTap: () => _mostrarDialogoCreditoCrear(
-                        icono: CupertinoIcons.flame_fill,
-                        color: _rosaUltra,
-                        titulo: 'Top Ultra',
-                        valor: _credTopUltra,
-                        maximo: _maxTopUltra,
-                        descripcion:
-                            'El nivel más alto. Tu evento aparece en las stories que se muestran al abrir la app. Máximo impacto visual garantizado.',
-                      ),
-                    ),
-                    _CreditoTextoCrear(
-                      icono: Icons.auto_awesome,
-                      label: 'Flyers AI:',
-                      valor: _credFlyersAI,
-                      color: _cyanFlyers,
-                      onTap: () => _mostrarDialogoCreditoCrear(
-                        icono: Icons.auto_awesome,
-                        color: _cyanFlyers,
-                        titulo: 'Generación de Flyers con IA',
-                        valor: _credFlyersAI,
-                        maximo: _maxFlyersAI,
-                        descripcion:
-                            'Usá inteligencia artificial para generar flyers profesionales y atractivos para tus eventos en segundos, sin necesidad de diseñador.',
-                      ),
-                    ),
-                  ],
+              Text(
+                motivoDeshabilitado ?? detalleCosto,
+                style: GoogleFonts.baloo2(
+                  fontSize: 12,
+                  height: 1.2,
+                  color: filled
+                      ? ColoresLocales.textoEnBoton.withValues(alpha: 0.85)
+                      : ColoresLocales.textoSecundarioOnFondoClaro,
                 ),
               ),
             ],
+          ),
+        ),
+        if (!publicando)
+          Icon(
+            CupertinoIcons.arrow_up_circle_fill,
+            size: 22,
+            color: filled
+                ? ColoresLocales.textoEnBoton.withValues(alpha: 0.9)
+                : (habilitado
+                      ? color
+                      : ColoresLocales.textoSecundarioOnFondoClaro
+                            .withValues(alpha: 0.5)),
+          ),
+      ],
+    );
+
+    if (filled && habilitado) {
+      return Opacity(
+        opacity: habilitado ? 1 : 0.42,
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(18),
+            child: Ink(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [color, color.withValues(alpha: 0.82)],
+                ),
+                borderRadius: BorderRadius.circular(18),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 13,
+                ),
+                child: child,
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Opacity(
+      opacity: habilitado ? 1 : 0.42,
+      child: Material(
+        color: ColoresLocales.superficie,
+        borderRadius: BorderRadius.circular(18),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(18),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(18),
+              color: habilitado
+                  ? color.withValues(alpha: 0.08)
+                  : ColoresLocales.superficieElevada,
+            ),
+            child: child,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBotonesPublicarEn() {
+    final estandarDetalle = _localVerificado
+        ? 'Gratis · incluido en tu plan'
+        : 'Gratis';
+
+    final premiumBloqueado = !_localVerificado;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _botonPublicarEn(
+          intencion: _IntencionPublicacion.estandar,
+          icono: CupertinoIcons.square_grid_2x2,
+          color: ColoresLocales.acentoVioletaMarca,
+          nombreNivel: _localVerificado
+              ? 'Estándar'
+              : 'Estándar (Gratis)',
+          detalleCosto: estandarDetalle,
+          habilitado: true,
+        ),
+        const SizedBox(height: 10),
+        _botonPublicarEn(
+          intencion: _IntencionPublicacion.recFernecito,
+          icono: IconosFeaturesLocales.recomendadoFernecito,
+          color: ColoresFeaturesLocales.recomendadoFernecito,
+          nombreNivel: 'Recomendado Fernecito',
+          detalleCosto: '1 crédito · te quedan $_credRecomendados',
+          habilitado: !premiumBloqueado && _credRecomendados > 0,
+          motivoDeshabilitado: premiumBloqueado
+              ? 'Requiere cuenta verificada'
+              : (_credRecomendados <= 0 ? 'Sin créditos disponibles' : null),
+          filled: true,
+        ),
+        const SizedBox(height: 10),
+        _botonPublicarEn(
+          intencion: _IntencionPublicacion.topCartelera,
+          icono: IconosFeaturesLocales.topCartelera,
+          color: ColoresFeaturesLocales.topCartelera,
+          nombreNivel: 'Top Cartelera',
+          detalleCosto: '1 crédito · te quedan $_credTop',
+          habilitado: !premiumBloqueado && _credTop > 0,
+          motivoDeshabilitado: premiumBloqueado
+              ? 'Requiere cuenta verificada'
+              : (_credTop <= 0 ? 'Sin créditos disponibles' : null),
+          filled: true,
+        ),
+        const SizedBox(height: 10),
+        _botonPublicarEn(
+          intencion: _IntencionPublicacion.topUltra,
+          icono: IconosFeaturesLocales.topUltra,
+          color: ColoresFeaturesLocales.topUltra,
+          nombreNivel: 'Top Ultra',
+          detalleCosto: '1 crédito · te quedan $_credTopUltra',
+          habilitado: !premiumBloqueado && _credTopUltra > 0,
+          motivoDeshabilitado: premiumBloqueado
+              ? 'Requiere cuenta verificada'
+              : (_credTopUltra <= 0 ? 'Sin créditos disponibles' : null),
+          filled: true,
+        ),
+        if (premiumBloqueado) ...[
+          const SizedBox(height: 12),
+          Text(
+            'Verificá tu cuenta para desbloquear Recomendado, Top Cartelera y Top Ultra.',
+            textAlign: TextAlign.center,
+            style: GoogleFonts.baloo2(
+              fontSize: 12,
+              height: 1.35,
+              color: ColoresLocales.textoSecundarioOnFondoClaro,
+            ),
+          ),
+        ] else if (_credRecomendados <= 0 &&
+            _credTop <= 0 &&
+            _credTopUltra <= 0) ...[
+          const SizedBox(height: 12),
+          TextButton(
+            onPressed: () =>
+                Navigator.pushNamed(context, '/administrar_subscripciones'),
+            child: Text(
+              'Conseguir más créditos',
+              style: GoogleFonts.baloo2(
+                fontWeight: FontWeight.w800,
+                color: ColoresLocales.acentoVioletaMarca,
+              ),
+            ),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _botonZonaEstandar() {
-    final sel = _intencionPublicacion == _IntencionPublicacion.estandar;
-    return AnimatedScale(
-      scale: sel ? 1.04 : 1.0,
-      duration: Duration(milliseconds: 200),
-      curve: Curves.easeOutCubic,
-      child: AnimatedContainer(
-        duration: Duration(milliseconds: 200),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(50),
-          boxShadow: sel
-              ? [
-                  BoxShadow(
-                    color: ColoresLocales.acentoVioleta.withOpacity(0.42),
-                    blurRadius: 18,
-                    spreadRadius: 0,
-                    offset: Offset(0, 4),
-                  ),
-                  BoxShadow(
-                    color: ColoresLocales.acentoVioleta.withOpacity(0.18),
-                    blurRadius: 10,
-                    offset: Offset(0, 2),
-                  ),
-                ]
-              : null,
-        ),
-        child: OutlinedButton(
-          onPressed: () => setState(
-            () => _intencionPublicacion = _IntencionPublicacion.estandar,
-          ),
-          style: OutlinedButton.styleFrom(
-            minimumSize: Size.fromHeight(sel ? 52 : 48),
-            side: BorderSide(
-              color: ColoresLocales.acentoVioleta,
-              width: sel ? 2.4 : 1.45,
-            ),
-            foregroundColor: ColoresLocales.acentoVioleta,
-            backgroundColor: ColoresLocales.superficie,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(50),
-            ),
-          ),
-          child: Text(
-            'Zona estándar',
-            style: GoogleFonts.baloo2(
-              fontWeight: FontWeight.w900,
-              fontSize: sel ? 16 : 15,
-              color: ColoresLocales.acentoVioleta,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _botonOpcionRecTop({
-    required IconData icono,
-    required String titulo,
-    required String costoLabel,
-    required Color color,
-    required bool seleccionado,
-    required VoidCallback onTap,
-  }) {
-    final sombras = <BoxShadow>[
-      if (seleccionado) ...[
-        BoxShadow(
-          color: ColoresLocales.acentoVioleta.withOpacity(0.38),
-          blurRadius: 16,
-          spreadRadius: 0,
-          offset: Offset(0, 4),
-        ),
-        BoxShadow(
-          color: ColoresLocales.acentoVioleta.withOpacity(0.16),
-          blurRadius: 8,
-          offset: const Offset(0, 2),
-        ),
       ],
-      BoxShadow(
-        color: color.withOpacity(seleccionado ? 0.4 : 0.22),
-        blurRadius: seleccionado ? 14 : 8,
-        offset: const Offset(0, 3),
-      ),
-    ];
-
-    return AnimatedScale(
-      scale: seleccionado ? 1.04 : 1.0,
-      duration: const Duration(milliseconds: 200),
-      curve: Curves.easeOutCubic,
-      child: GestureDetector(
-        onTap: onTap,
-        child: AnimatedContainer(
-          duration: Duration(milliseconds: 200),
-          width: double.infinity,
-          padding: EdgeInsets.symmetric(
-            horizontal: 14,
-            vertical: seleccionado ? 13 : 11,
-          ),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [color, color.withOpacity(0.78)],
-              begin: Alignment.centerLeft,
-              end: Alignment.centerRight,
-            ),
-            borderRadius: BorderRadius.circular(50),
-            boxShadow: sombras,
-            border: Border.all(
-              color: seleccionado
-                  ? Colors.white.withOpacity(0.95)
-                  : Colors.transparent,
-              width: seleccionado ? 2.2 : 0,
-            ),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(icono, size: 16, color: ColoresLocales.textoEnBoton),
-              SizedBox(width: 8),
-              Flexible(
-                child: Text(
-                  titulo,
-                  textAlign: TextAlign.center,
-                  style: GoogleFonts.baloo2(
-                    fontSize: seleccionado ? 14 : 13,
-                    fontWeight: FontWeight.w900,
-                    color: ColoresLocales.textoEnBoton,
-                  ),
-                ),
-              ),
-              SizedBox(width: 8),
-              Container(
-                padding: EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.22),
-                  borderRadius: BorderRadius.circular(50),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      costoLabel,
-                      style: GoogleFonts.baloo2(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w900,
-                        color: ColoresLocales.textoEnBoton,
-                      ),
-                    ),
-                    const SizedBox(width: 3),
-                    Icon(icono, size: 11, color: ColoresLocales.textoEnBoton),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
     );
   }
 
@@ -1311,29 +1692,80 @@ class _LocalesCrearEventoState extends State<LocalesCrearEvento> {
     return texto[0].toUpperCase() + texto.substring(1);
   }
 
+  Widget _opcionModoPublicacion({
+    required String label,
+    required String descripcion,
+    required bool selected,
+    required VoidCallback onTap,
+  }) {
+    final fondoBoton = selected
+        ? ColoresLocales.botonVioletaFondo
+        : ColoresLocales.superficieElevada;
+    final textoBoton = selected
+        ? ColoresLocales.botonVioletaTexto
+        : ColoresLocales.textoOnFondoClaro;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(14),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 150),
+              height: 38,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: fondoBoton,
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Text(
+                label,
+                style: GoogleFonts.baloo2(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w800,
+                  color: textoBoton,
+                ),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 5),
+        Text(
+          descripcion,
+          textAlign: TextAlign.center,
+          style: GoogleFonts.baloo2(
+            fontSize: 10.5,
+            height: 1.25,
+            color: ColoresLocales.textoSecundarioOnFondoClaro,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _chipSeleccionEvento({
     required String label,
     required bool selected,
     required VoidCallback onTap,
     String? subtitle,
     double? height,
+    double verticalPadding = 6,
   }) {
     return GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(
         duration: Duration(milliseconds: 150),
         height: height,
-        padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        padding: EdgeInsets.symmetric(horizontal: 12, vertical: verticalPadding),
         decoration: BoxDecoration(
           color: selected
               ? ColoresLocales.acentoVioleta
               : ColoresLocales.cardLavanda,
           borderRadius: BorderRadius.circular(50),
-          border: selected
-              ? null
-              : Border.all(
-                  color: ColoresLocales.acentoVioleta.withOpacity(0.25),
-                ),
         ),
         child: subtitle == null
             ? Text(
@@ -1452,6 +1884,7 @@ class _LocalesCrearEventoState extends State<LocalesCrearEvento> {
   }
 
   InputDecoration _inputUnaLinea(String hint) {
+    const radius = BorderRadius.all(Radius.circular(50));
     return InputDecoration(
       hintText: hint,
       hintStyle: GoogleFonts.baloo2(
@@ -1461,31 +1894,23 @@ class _LocalesCrearEventoState extends State<LocalesCrearEvento> {
       filled: true,
       fillColor: ColoresLocales.rellenoInput,
       contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(50),
-        borderSide: BorderSide(
-          color: ColoresLocales.acentoVioleta.withOpacity(0.25),
-          width: 1.3,
-        ),
+      border: const OutlineInputBorder(
+        borderRadius: radius,
+        borderSide: BorderSide.none,
       ),
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(50),
-        borderSide: BorderSide(
-          color: ColoresLocales.acentoVioleta.withOpacity(0.25),
-          width: 1.3,
-        ),
+      enabledBorder: const OutlineInputBorder(
+        borderRadius: radius,
+        borderSide: BorderSide.none,
       ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(50),
-        borderSide: BorderSide(
-          color: ColoresLocales.acentoVioleta,
-          width: 1.8,
-        ),
+      focusedBorder: const OutlineInputBorder(
+        borderRadius: radius,
+        borderSide: BorderSide.none,
       ),
     );
   }
 
   InputDecoration _inputMultiLinea(String hint) {
+    const radius = BorderRadius.all(Radius.circular(24));
     return InputDecoration(
       hintText: hint,
       hintStyle: GoogleFonts.baloo2(
@@ -1495,26 +1920,17 @@ class _LocalesCrearEventoState extends State<LocalesCrearEvento> {
       filled: true,
       fillColor: ColoresLocales.rellenoInput,
       contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(24),
-        borderSide: BorderSide(
-          color: ColoresLocales.acentoVioleta.withOpacity(0.25),
-          width: 1.3,
-        ),
+      border: const OutlineInputBorder(
+        borderRadius: radius,
+        borderSide: BorderSide.none,
       ),
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(24),
-        borderSide: BorderSide(
-          color: ColoresLocales.acentoVioleta.withOpacity(0.25),
-          width: 1.3,
-        ),
+      enabledBorder: const OutlineInputBorder(
+        borderRadius: radius,
+        borderSide: BorderSide.none,
       ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(24),
-        borderSide: BorderSide(
-          color: ColoresLocales.acentoVioleta,
-          width: 1.8,
-        ),
+      focusedBorder: const OutlineInputBorder(
+        borderRadius: radius,
+        borderSide: BorderSide.none,
       ),
     );
   }
@@ -1523,14 +1939,368 @@ class _LocalesCrearEventoState extends State<LocalesCrearEvento> {
     return Container(
       margin: EdgeInsets.only(bottom: 14),
       padding: EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: ColoresLocales.superficie.withOpacity(0.94),
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(
-          color: ColoresLocales.acentoVioleta.withOpacity(0.18),
-        ),
-      ),
+      decoration: ColoresLocales.decoracionCard(sinBorde: true),
       child: child,
+    );
+  }
+
+  Widget _cardOpcionalColapsable({
+    required String pregunta,
+    required String ayudaColapsada,
+    required bool expandido,
+    required ValueChanged<bool> onExpandidoChanged,
+    String? resumenActivo,
+    String? resumenEstado,
+    bool resumenEstadoDestacado = false,
+    required Widget child,
+  }) {
+    final colorResumenEstado = resumenEstadoDestacado
+        ? ColoresLocales.acentoVioleta
+        : (TemaAppLocales.instancia.esOscuro
+            ? ColoresLocales.textoOnFondoClaro.withValues(alpha: 0.82)
+            : ColoresLocales.textoSecundarioOnFondoClaro);
+
+    return _card(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: () => onExpandidoChanged(!expandido),
+              borderRadius: BorderRadius.circular(14),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 2),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            pregunta,
+                            style: GoogleFonts.baloo2(
+                              color: ColoresLocales.textoOnFondoClaro,
+                              fontWeight: FontWeight.w800,
+                              fontSize: 15,
+                              height: 1.25,
+                            ),
+                          ),
+                          if (!expandido) ...[
+                            if (ayudaColapsada.isNotEmpty) ...[
+                              const SizedBox(height: 4),
+                              Text(
+                                ayudaColapsada,
+                                style: GoogleFonts.baloo2(
+                                  color: ColoresLocales.textoSecundarioOnFondoClaro,
+                                  fontSize: 11.5,
+                                  height: 1.3,
+                                ),
+                              ),
+                            ],
+                            if (resumenEstado != null &&
+                                resumenEstado.isNotEmpty) ...[
+                              const SizedBox(height: 6),
+                              Text(
+                                resumenEstado,
+                                style: GoogleFonts.baloo2(
+                                  color: colorResumenEstado,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                  height: 1.35,
+                                ),
+                              ),
+                            ] else if (resumenActivo != null &&
+                                resumenActivo.isNotEmpty) ...[
+                              const SizedBox(height: 6),
+                              Text(
+                                resumenActivo,
+                                style: GoogleFonts.baloo2(
+                                  color: ColoresLocales.acentoVioletaMarca,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Icon(
+                      expandido
+                          ? CupertinoIcons.chevron_up
+                          : CupertinoIcons.chevron_down,
+                      size: 18,
+                      color: ColoresLocales.textoSecundarioOnFondoClaro,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          if (expandido) ...[
+            const SizedBox(height: 14),
+            child,
+          ],
+        ],
+      ),
+    );
+  }
+
+  String? get _resumenUbicacionExterna {
+    if (_esEnLocal) return null;
+    final ciudad = _ciudadEventoCtrl.text.trim();
+    if (ciudad.isNotEmpty) return 'Fuera del local · $ciudad';
+    return 'Fuera del local';
+  }
+
+  String? get _resumenVentaEntradas {
+    final url = _urlCompraEntradasCtrl.text.trim();
+    if (url.isEmpty) return null;
+    return 'Link de entradas agregado';
+  }
+
+  String? get _resumenAdvertenciasExtras {
+    final txt = _advertenciasCtrl.text.trim();
+    if (txt.isEmpty) return null;
+    return 'Con advertencias o requisitos';
+  }
+
+  bool get _sistemaIngresoPersonalizado =>
+      _modoLista != 'auto' || !_permiteSquads || _limitarCupoLista;
+
+  String get _resumenSistemaIngreso {
+    final lista = _modoLista == 'auto'
+        ? 'Lista auto (todos pueden unirse)'
+        : 'Lista manual (aprobación previa)';
+    final squads = _permiteSquads ? 'se permiten squads' : 'sin squads';
+    final cupo = _limitarCupoLista
+        ? () {
+            final n = int.tryParse(_cupoListaCtrl.text.trim());
+            return n != null ? 'cupo máximo $n' : 'con cupo limitado';
+          }()
+        : 'sin cupo límite';
+    return '$lista, $squads, $cupo.';
+  }
+
+  Widget _contenidoSistemaIngreso() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Modo de lista',
+          style: GoogleFonts.baloo2(
+            color: ColoresLocales.textoSecundarioOnFondoClaro,
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Expanded(
+              child: _chipSeleccionEvento(
+                label: 'Auto',
+                subtitle: 'Sin revisión',
+                selected: _modoLista == 'auto',
+                height: 42,
+                onTap: () => setState(() => _modoLista = 'auto'),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: _chipSeleccionEvento(
+                label: 'Manual',
+                subtitle: 'Aprobación manual',
+                selected: _modoLista == 'manual',
+                height: 42,
+                onTap: () => setState(() => _modoLista = 'manual'),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        _switchFilaCompacta(
+          label: '¿Permitir squads?',
+          valor: _permiteSquads,
+          onChanged: (v) => setState(() => _permiteSquads = v),
+        ),
+        const SizedBox(height: 6),
+        _switchFilaCompacta(
+          label: '¿Cupo máximo de lista?',
+          valor: _limitarCupoLista,
+          onChanged: (v) => setState(() => _limitarCupoLista = v),
+        ),
+        if (_limitarCupoLista)
+          TextFormField(
+            controller: _cupoListaCtrl,
+            keyboardType: TextInputType.number,
+            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+            onChanged: (_) => setState(() {}),
+            style: GoogleFonts.baloo2(
+              color: ColoresLocales.textoOnFondoClaro,
+            ),
+            decoration: _inputUnaLinea(
+              'Número máximo de personas en lista',
+            ),
+            validator: (v) {
+              if (!_limitarCupoLista) return null;
+              final n = int.tryParse((v ?? '').trim());
+              return (n == null || n <= 0)
+                  ? 'Ingresá un cupo válido'
+                  : null;
+            },
+          ),
+      ],
+    );
+  }
+
+  Widget _contenidoVentaEntradas() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Pegá el link para que los usuarios compren directamente.',
+          style: GoogleFonts.baloo2(
+            color: ColoresLocales.textoSecundarioOnFondoClaro,
+            fontSize: 12.5,
+            height: 1.35,
+          ),
+        ),
+        const SizedBox(height: 10),
+        TextFormField(
+          controller: _urlCompraEntradasCtrl,
+          keyboardType: TextInputType.url,
+          onChanged: (_) => setState(() {}),
+          style: GoogleFonts.baloo2(
+            color: ColoresLocales.textoOnFondoClaro,
+          ),
+          decoration: _inputUnaLinea(
+            'Link de PaseShow, Ticketek u otra plataforma',
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _contenidoUbicacionEvento() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SegmentedButton<bool>(
+          segments: const [
+            ButtonSegment<bool>(
+              value: true,
+              label: Text('En mi local'),
+            ),
+            ButtonSegment<bool>(
+              value: false,
+              label: Text('En otro lugar'),
+            ),
+          ],
+          selected: {_esEnLocal},
+          style: ButtonStyle(
+            side: WidgetStateProperty.all(BorderSide.none),
+            foregroundColor: WidgetStateProperty.resolveWith(
+              (_) => ColoresLocales.textoOnFondoClaro,
+            ),
+            backgroundColor: WidgetStateProperty.resolveWith(
+              (s) => s.contains(WidgetState.selected)
+                  ? ColoresLocales.acentoVioleta.withOpacity(0.2)
+                  : ColoresLocales.chipInactivo,
+            ),
+          ),
+          onSelectionChanged: (set) {
+            final v = set.first;
+            setState(() {
+              _esEnLocal = v;
+              if (!v) _expandUbicacionExterna = true;
+              if (_esEnLocal) {
+                _direccionEventoCtrl.clear();
+                _ciudadEventoCtrl.clear();
+                _provinciaEventoCtrl.clear();
+                _urlMapsEventoCtrl.clear();
+              }
+            });
+          },
+        ),
+        if (_esEnLocal) ...[
+          const SizedBox(height: 8),
+          Text(
+            'Se usará la ubicación de tu perfil: ${_nombreLocal ?? 'tu local'}',
+            style: GoogleFonts.baloo2(
+              color: ColoresLocales.textoSecundarioOnFondoClaro,
+              fontSize: 12,
+            ),
+          ),
+        ],
+        if (!_esEnLocal) ...[
+          const SizedBox(height: 10),
+          TextFormField(
+            controller: _direccionEventoCtrl,
+            onChanged: (_) => setState(() {}),
+            style: GoogleFonts.baloo2(
+              color: ColoresLocales.textoOnFondoClaro,
+            ),
+            decoration: _inputUnaLinea('Dirección del evento'),
+            validator: (v) => !_esEnLocal && (v == null || v.trim().isEmpty)
+                ? 'Completá la dirección del evento'
+                : null,
+          ),
+          const SizedBox(height: 10),
+          _campoUbicacionConAutofiltro(
+            controller: _ciudadEventoCtrl,
+            label: 'Ciudad del evento',
+            opciones: _ciudadesCordobaEvento,
+            validator: (v) => !_esEnLocal && (v == null || v.trim().isEmpty)
+                ? 'Completá la ciudad del evento'
+                : null,
+          ),
+          const SizedBox(height: 10),
+          _campoUbicacionConAutofiltro(
+            controller: _provinciaEventoCtrl,
+            label: 'Provincia',
+            opciones: _provinciasEvento,
+            validator: (v) => !_esEnLocal && (v == null || v.trim().isEmpty)
+                ? 'Completá la provincia del evento'
+                : null,
+          ),
+          const SizedBox(height: 10),
+          TextFormField(
+            controller: _urlMapsEventoCtrl,
+            onChanged: (_) => setState(() {}),
+            style: GoogleFonts.baloo2(
+              color: ColoresLocales.textoOnFondoClaro,
+            ),
+            decoration: _inputUnaLinea('URL de Google Maps'),
+            validator: (v) => !_esEnLocal && (v == null || v.trim().isEmpty)
+                ? 'Completá la URL de Google Maps'
+                : null,
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _contenidoAdvertenciasExtras() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        TextFormField(
+          controller: _advertenciasCtrl,
+          minLines: 3,
+          maxLines: 5,
+          onChanged: (_) => setState(() {}),
+          style: GoogleFonts.baloo2(
+            color: ColoresLocales.textoOnFondoClaro,
+          ),
+          decoration: _inputMultiLinea(
+            'Ej: código de vestimenta, llevar DNI, edad mínima...',
+          ),
+        ),
+      ],
     );
   }
 
@@ -1561,8 +2331,10 @@ class _LocalesCrearEventoState extends State<LocalesCrearEvento> {
     );
   }
 
-  String get _tituloAppBar =>
-      _paso == 1 ? 'Crear el evento' : 'Sumá promos y visibilidad';
+  String get _tituloAppBar {
+    if (_paso == 1) return 'Crear el evento';
+    return _esSimple ? 'Publicar en cartelera' : 'Sumá promos y visibilidad';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1576,7 +2348,11 @@ class _LocalesCrearEventoState extends State<LocalesCrearEvento> {
           ? null
           : AppBar(
               elevation: 0,
-              backgroundColor: ColoresLocales.superficie,
+              scrolledUnderElevation: 0,
+              surfaceTintColor: Colors.transparent,
+              shadowColor: Colors.transparent,
+              backgroundColor: Colors.transparent,
+              forceMaterialTransparency: true,
               centerTitle: true,
               leading: CupertinoButton(
                 padding: EdgeInsets.zero,
@@ -1743,7 +2519,8 @@ class _LocalesCrearEventoState extends State<LocalesCrearEvento> {
                     },
                     style: OutlinedButton.styleFrom(
                       minimumSize: const Size.fromHeight(50),
-                      side: BorderSide(color: Colors.white.withOpacity(0.8)),
+                      side: BorderSide.none,
+                      backgroundColor: Colors.white.withValues(alpha: 0.14),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(50),
                       ),
@@ -1792,35 +2569,47 @@ class _LocalesCrearEventoState extends State<LocalesCrearEvento> {
                   style: GoogleFonts.baloo2(
                     color: ColoresLocales.textoOnFondoClaro,
                     fontWeight: FontWeight.w800,
-                    fontSize: 18,
+                    fontSize: 16,
                   ),
                 ),
-                const SizedBox(height: 10),
+                const SizedBox(height: 12),
                 Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Expanded(
-                      child: _chipSeleccionEvento(
+                      child: _opcionModoPublicacion(
                         label: 'Completo',
-                        subtitle: 'Lista, cupos y promos',
+                        descripcion: 'Configurá promos, QR, listas y más',
                         selected: _modoEvento == 'completo',
-                        height: 56,
-                        onTap: () => setState(() => _modoEvento = 'completo'),
+                        onTap: () => setState(() {
+                          if (_modoEvento == 'simple') {
+                            _modoLista = 'auto';
+                            _permiteSquads = true;
+                            _limitarCupoLista = false;
+                          }
+                          _modoEvento = 'completo';
+                        }),
                       ),
                     ),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: 10),
                     Expanded(
-                      child: _chipSeleccionEvento(
+                      child: _opcionModoPublicacion(
                         label: 'Simple',
-                        subtitle: 'Solo mostrar el evento',
+                        descripcion: 'Solo flyer en cartelera',
                         selected: _modoEvento == 'simple',
-                        height: 56,
                         onTap: () => setState(() {
                           _modoEvento = 'simple';
-                          // Apagar lo funcional para que no quede colgado.
+                          _esEnLocal = true;
+                          _fechaInicio = null;
+                          _fechaFin = null;
                           _agregarPromos = false;
                           _limitarCupoLista = false;
                           _permiteSquads = false;
                           _modoLista = 'auto';
+                          _expandUbicacionExterna = false;
+                          _expandVentaEntradas = false;
+                          _expandSistemaIngreso = false;
+                          _expandAdvertenciasExtras = false;
                         }),
                       ),
                     ),
@@ -1836,7 +2625,9 @@ class _LocalesCrearEventoState extends State<LocalesCrearEvento> {
                       color: ColoresLocales.acentoVioleta.withOpacity(0.08),
                     ),
                     child: Text(
-                      'Modo vidriera: el evento aparece en la cartelera con su flyer y recibe jerarquía, pero no tendrá reservas, lista ni promos.',
+                      _ciudadLocal != null && _ciudadLocal!.trim().isNotEmpty
+                          ? 'Modo vidriera: solo título, flyer y tipo. Se publica en $_ciudadLocal (ubicación de tu local) y sale de cartelera automáticamente a los 30 días.'
+                          : 'Modo vidriera: solo título, flyer y tipo. Completá ciudad en tu perfil para aparecer en cartelera. El evento sale solo a los 30 días.',
                       style: GoogleFonts.baloo2(
                         color: ColoresLocales.textoSecundarioOnFondoClaro,
                         fontSize: 12.5,
@@ -1850,10 +2641,12 @@ class _LocalesCrearEventoState extends State<LocalesCrearEvento> {
           ),
           _card(
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Text(
-                  'Completá la información base de tu evento',
+                  _esSimple
+                      ? 'Lo esencial para la cartelera'
+                      : 'Completá la información base de tu evento',
                   style: GoogleFonts.baloo2(
                     color: ColoresLocales.textoOnFondoClaro,
                     fontWeight: FontWeight.w800,
@@ -1871,164 +2664,23 @@ class _LocalesCrearEventoState extends State<LocalesCrearEvento> {
                       ? 'Completá el título del evento'
                       : null,
                 ),
-                SizedBox(height: 12),
-                GestureDetector(
-                  onTap: _procesandoFlyer ? null : _seleccionarFlyer,
-                  child: Container(
-                    width: double.infinity,
-                    padding: EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(22),
-                      border: Border.all(
-                        color: ColoresLocales.acentoVioleta.withOpacity(0.25),
-                      ),
-                      color: ColoresLocales.superficie,
+                const SizedBox(height: 12),
+                _buildSubCardSubirFlyer(),
+                if (!_esSimple) ...[
+                  SizedBox(height: 12),
+                  TextFormField(
+                    controller: _descripcionEventoCtrl,
+                    minLines: 3,
+                    maxLines: 5,
+                    decoration: _inputMultiLinea('Descripción breve del evento'),
+                    style: GoogleFonts.baloo2(
+                      color: ColoresLocales.textoOnFondoClaro,
                     ),
-                    child: Column(
-                      children: [
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(16),
-                          child: Stack(
-                            alignment: Alignment.center,
-                            children: [
-                              Container(
-                                width: 170,
-                                height: 260,
-                                color: ColoresLocales.acentoVioleta.withOpacity(
-                                  0.08,
-                                ),
-                                child: _flyerBytes != null
-                                    ? Image.memory(
-                                        _flyerBytes!,
-                                        fit: BoxFit.cover,
-                                      )
-                                    : _urlFlyerSubido != null
-                                    ? Image.network(
-                                        _urlFlyerSubido!,
-                                        fit: BoxFit.cover,
-                                      )
-                                    : CustomPaint(
-                                        painter: _DashedRoundedRectPainter(
-                                          color: ColoresLocales.acentoVioleta
-                                              .withOpacity(0.4),
-                                        ),
-                                        child: Container(
-                                          width: 170,
-                                          height: 260,
-                                          color: ColoresLocales.acentoVioleta
-                                              .withOpacity(0.04),
-                                          padding: EdgeInsets.symmetric(
-                                            horizontal: 14,
-                                          ),
-                                          child: Column(
-                                            mainAxisAlignment:
-                                                MainAxisAlignment.center,
-                                            children: [
-                                              Icon(
-                                                CupertinoIcons.camera_fill,
-                                                color: ColoresLocales
-                                                    .acentoVioleta
-                                                    .withOpacity(0.7),
-                                                size: 36,
-                                              ),
-                                              SizedBox(height: 10),
-                                              Text(
-                                                'Tocá para subir tu flyer',
-                                                textAlign: TextAlign.center,
-                                                style: GoogleFonts.baloo2(
-                                                  color: ColoresLocales
-                                                      .textoSecundarioOnFondoClaro,
-                                                  fontWeight: FontWeight.w700,
-                                                ),
-                                              ),
-                                              SizedBox(height: 4),
-                                              Text(
-                                                'Formato vertical · máx 10MB',
-                                                textAlign: TextAlign.center,
-                                                style: GoogleFonts.baloo2(
-                                                  color: ColoresLocales
-                                                      .textoSecundarioOnFondoClaro,
-                                                  fontSize: 11,
-                                                  fontWeight: FontWeight.w600,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      ),
-                              ),
-                              if (_procesandoFlyer)
-                                Container(
-                                  width: 170,
-                                  height: 260,
-                                  decoration: BoxDecoration(
-                                    color: Colors.black.withOpacity(0.5),
-                                    borderRadius: BorderRadius.circular(16),
-                                  ),
-                                  child: Column(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      CircularProgressIndicator(
-                                        color: ColoresLocales.superficie,
-                                        strokeWidth: 2,
-                                      ),
-                                      SizedBox(height: 10),
-                                      Text(
-                                        'Subiendo flyer...',
-                                        style: GoogleFonts.baloo2(
-                                          color: ColoresLocales.textoEnBoton,
-                                          fontSize: 13,
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                            ],
-                          ),
-                        ),
-                        if (_errorFlyer != null) ...[
-                          SizedBox(height: 6),
-                          Text(
-                            _errorFlyer!,
-                            textAlign: TextAlign.center,
-                            style: GoogleFonts.baloo2(
-                              color: Colors.red.shade700,
-                              fontSize: 12,
-                            ),
-                          ),
-                        ],
-                        SizedBox(height: 8),
-                        Text(
-                          _procesandoFlyer
-                              ? 'Procesando flyer...'
-                              : _flyerBytesComprimidos != null
-                              ? 'Flyer listo. Se subirá al publicar. Tocá para reemplazar.'
-                              : _flyerNombre ??
-                                    'Usá flyers en formato vertical.',
-                          textAlign: TextAlign.center,
-                          style: GoogleFonts.baloo2(
-                            color: ColoresLocales.textoSecundarioOnFondoClaro,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ],
-                    ),
+                    validator: (v) => (v == null || v.trim().isEmpty)
+                        ? 'Completá la descripción del evento'
+                        : null,
                   ),
-                ),
-                SizedBox(height: 12),
-                TextFormField(
-                  controller: _descripcionEventoCtrl,
-                  minLines: 3,
-                  maxLines: 5,
-                  decoration: _inputMultiLinea('Descripción breve del evento'),
-                  style: GoogleFonts.baloo2(
-                    color: ColoresLocales.textoOnFondoClaro,
-                  ),
-                  validator: (v) => (v == null || v.trim().isEmpty)
-                      ? 'Completá la descripción del evento'
-                      : null,
-                ),
+                ],
                 SizedBox(height: 12),
                 Align(
                   alignment: Alignment.centerLeft,
@@ -2061,50 +2713,51 @@ class _LocalesCrearEventoState extends State<LocalesCrearEvento> {
                         return _chipSeleccionEvento(
                           label: _capitalizarChip(tipo),
                           selected: seleccionado,
+                          verticalPadding: 3,
                           onTap: () => setState(() => _tipoEvento = tipo),
                         );
                       }).toList(),
                 ),
-                SizedBox(height: 12),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    'Elegí fecha y hora',
-                    style: GoogleFonts.baloo2(
-                      color: ColoresLocales.textoOnFondoClaro,
-                      fontWeight: FontWeight.w700,
+                if (!_esSimple) ...[
+                  SizedBox(height: 12),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      'Elegí fecha y hora',
+                      style: GoogleFonts.baloo2(
+                        color: ColoresLocales.textoOnFondoClaro,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                   ),
-                ),
-                const SizedBox(height: 8),
-                _FechaHoraField(
-                  label: 'Inicio',
-                  valor: _textoFecha(_fechaInicio),
-                  onTap: () async {
-                    final d = await _seleccionarFechaHora(
-                      context,
-                      _fechaInicio,
-                    );
-                    if (d != null && mounted) {
-                      setState(() {
-                        _fechaInicio = d;
-                        if (_fechaFin == null || !_fechaFin!.isAfter(d)) {
-                          _fechaFin = d.add(const Duration(hours: 5));
-                        }
-                      });
-                    }
-                  },
-                ),
-                SizedBox(height: 10),
-                _FechaHoraField(
-                  label: 'Fin',
-                  valor: _textoFecha(_fechaFin),
-                  onTap: () async {
-                    final d = await _seleccionarFechaHora(context, _fechaFin);
-                    if (d != null && mounted) setState(() => _fechaFin = d);
-                  },
-                ),
-                if (!_esSimple) ...[
+                  const SizedBox(height: 8),
+                  _FechaHoraField(
+                    label: 'Inicio',
+                    valor: _textoFecha(_fechaInicio),
+                    onTap: () async {
+                      final d = await _seleccionarFechaHora(
+                        context,
+                        _fechaInicio,
+                      );
+                      if (d != null && mounted) {
+                        setState(() {
+                          _fechaInicio = d;
+                          if (_fechaFin == null || !_fechaFin!.isAfter(d)) {
+                            _fechaFin = d.add(const Duration(hours: 5));
+                          }
+                        });
+                      }
+                    },
+                  ),
+                  SizedBox(height: 10),
+                  _FechaHoraField(
+                    label: 'Fin',
+                    valor: _textoFecha(_fechaFin),
+                    onTap: () async {
+                      final d = await _seleccionarFechaHora(context, _fechaFin);
+                      if (d != null && mounted) setState(() => _fechaFin = d);
+                    },
+                  ),
                   SizedBox(height: 12),
                   TextFormField(
                     controller: _edadMinimaCtrl,
@@ -2119,251 +2772,45 @@ class _LocalesCrearEventoState extends State<LocalesCrearEvento> {
               ],
             ),
           ),
-          if (!_esSimple)
-          _card(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Venta de entradas (opcional)',
-                  style: GoogleFonts.baloo2(
-                    color: ColoresLocales.textoOnFondoClaro,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                SizedBox(height: 6),
-                Text(
-                  'Si ya vendés entradas en otra plataforma, podés pegar el link acá para que los usuarios compren directamente.',
-                  style: GoogleFonts.baloo2(
-                    color: ColoresLocales.textoSecundarioOnFondoClaro,
-                    fontSize: 13,
-                  ),
-                ),
-                SizedBox(height: 10),
-                TextFormField(
-                  controller: _urlCompraEntradasCtrl,
-                  keyboardType: TextInputType.url,
-                  style: GoogleFonts.baloo2(
-                    color: ColoresLocales.textoOnFondoClaro,
-                  ),
-                  decoration: _inputUnaLinea(
-                    'Pegá acá tu link de PaseShow, Ticketek u otra plataforma',
-                  ),
-                ),
-              ],
+          if (!_esSimple) ...[
+            _cardOpcionalColapsable(
+              pregunta: '¿Vendés entradas por otra plataforma?',
+              ayudaColapsada: 'PaseShow, Ticketek, etc.',
+              expandido: _expandVentaEntradas,
+              resumenActivo: _resumenVentaEntradas,
+              onExpandidoChanged: (v) =>
+                  setState(() => _expandVentaEntradas = v),
+              child: _contenidoVentaEntradas(),
             ),
-          ),
-          _card(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '¿Dónde se realiza el evento?',
-                  style: GoogleFonts.baloo2(
-                    color: ColoresLocales.textoOnFondoClaro,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                SizedBox(height: 10),
-                SegmentedButton<bool>(
-                  segments: [
-                    ButtonSegment<bool>(
-                      value: true,
-                      label: Text('En mi local'),
-                    ),
-                    ButtonSegment<bool>(
-                      value: false,
-                      label: Text('En otro lugar'),
-                    ),
-                  ],
-                  selected: {_esEnLocal},
-                  style: ButtonStyle(
-                    foregroundColor: WidgetStateProperty.resolveWith(
-                      (_) => ColoresLocales.textoOnFondoClaro,
-                    ),
-                    backgroundColor: WidgetStateProperty.resolveWith(
-                      (s) => s.contains(WidgetState.selected)
-                          ? ColoresLocales.acentoVioleta.withOpacity(0.2)
-                          : ColoresLocales.chipInactivo,
-                    ),
-                  ),
-                  onSelectionChanged: (set) {
-                    final v = set.first;
-                    setState(() {
-                      _esEnLocal = v;
-                      if (_esEnLocal) {
-                        _direccionEventoCtrl.clear();
-                        _ciudadEventoCtrl.clear();
-                        _provinciaEventoCtrl.clear();
-                        _urlMapsEventoCtrl.clear();
-                      }
-                    });
-                  },
-                ),
-                if (_esEnLocal) ...[
-                  SizedBox(height: 8),
-                  Text(
-                    'Se usará la ubicación de tu perfil: ${_nombreLocal ?? 'tu local'}',
-                    style: GoogleFonts.baloo2(
-                      color: ColoresLocales.textoSecundarioOnFondoClaro,
-                      fontSize: 12,
-                    ),
-                  ),
-                ],
-                if (!_esEnLocal) ...[
-                  SizedBox(height: 10),
-                  TextFormField(
-                    controller: _direccionEventoCtrl,
-                    style: GoogleFonts.baloo2(
-                      color: ColoresLocales.textoOnFondoClaro,
-                    ),
-                    decoration: _inputUnaLinea('Dirección del evento'),
-                    validator: (v) =>
-                        !_esEnLocal && (v == null || v.trim().isEmpty)
-                        ? 'Completá la dirección del evento'
-                        : null,
-                  ),
-                  SizedBox(height: 10),
-                  _campoUbicacionConAutofiltro(
-                    controller: _ciudadEventoCtrl,
-                    label: 'Ciudad del evento',
-                    opciones: _ciudadesCordobaEvento,
-                    validator: (v) =>
-                        !_esEnLocal && (v == null || v.trim().isEmpty)
-                        ? 'Completá la ciudad del evento'
-                        : null,
-                  ),
-                  const SizedBox(height: 10),
-                  _campoUbicacionConAutofiltro(
-                    controller: _provinciaEventoCtrl,
-                    label: 'Provincia',
-                    opciones: _provinciasEvento,
-                    validator: (v) =>
-                        !_esEnLocal && (v == null || v.trim().isEmpty)
-                        ? 'Completá la provincia del evento'
-                        : null,
-                  ),
-                  SizedBox(height: 10),
-                  TextFormField(
-                    controller: _urlMapsEventoCtrl,
-                    style: GoogleFonts.baloo2(
-                      color: ColoresLocales.textoOnFondoClaro,
-                    ),
-                    decoration: _inputUnaLinea('URL de Google Maps'),
-                    validator: (v) =>
-                        !_esEnLocal && (v == null || v.trim().isEmpty)
-                        ? 'Completá la URL de Google Maps'
-                        : null,
-                  ),
-                ],
-              ],
+            _cardOpcionalColapsable(
+              pregunta: '¿Realizás el evento fuera de tu local?',
+              ayudaColapsada: 'Por defecto usamos la ubicación de tu perfil.',
+              expandido: _expandUbicacionExterna,
+              resumenActivo: _resumenUbicacionExterna,
+              onExpandidoChanged: (v) =>
+                  setState(() => _expandUbicacionExterna = v),
+              child: _contenidoUbicacionEvento(),
             ),
-          ),
-          if (!_esSimple)
-          _card(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Sistema de ingreso / lista',
-                  style: GoogleFonts.baloo2(
-                    color: ColoresLocales.textoOnFondoClaro,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _chipSeleccionEvento(
-                        label: 'Auto',
-                        subtitle: 'Sin revisión',
-                        selected: _modoLista == 'auto',
-                        height: 42,
-                        onTap: () => setState(() => _modoLista = 'auto'),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: _chipSeleccionEvento(
-                        label: 'Manual',
-                        subtitle: 'Aprobación manual',
-                        selected: _modoLista == 'manual',
-                        height: 42,
-                        onTap: () => setState(() => _modoLista = 'manual'),
-                      ),
-                    ),
-                  ],
-                ),
-                SizedBox(height: 8),
-                _switchFilaCompacta(
-                  label: '¿Permitir squads?',
-                  valor: _permiteSquads,
-                  onChanged: (v) => setState(() => _permiteSquads = v),
-                ),
-                SizedBox(height: 6),
-                _switchFilaCompacta(
-                  label: '¿Cupo máximo de lista?',
-                  valor: _limitarCupoLista,
-                  onChanged: (v) => setState(() => _limitarCupoLista = v),
-                ),
-                if (_limitarCupoLista)
-                  TextFormField(
-                    controller: _cupoListaCtrl,
-                    keyboardType: TextInputType.number,
-                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                    style: GoogleFonts.baloo2(
-                      color: ColoresLocales.textoOnFondoClaro,
-                    ),
-                    decoration: _inputUnaLinea(
-                      'Número máximo de personas en lista',
-                    ),
-                    validator: (v) {
-                      if (!_limitarCupoLista) return null;
-                      final n = int.tryParse((v ?? '').trim());
-                      return (n == null || n <= 0)
-                          ? 'Ingresá un cupo válido'
-                          : null;
-                    },
-                  ),
-              ],
+            _cardOpcionalColapsable(
+              pregunta: '¿Querés personalizar la lista de ingreso?',
+              ayudaColapsada: '',
+              expandido: _expandSistemaIngreso,
+              resumenEstado: _resumenSistemaIngreso,
+              resumenEstadoDestacado: _sistemaIngresoPersonalizado,
+              onExpandidoChanged: (v) =>
+                  setState(() => _expandSistemaIngreso = v),
+              child: _contenidoSistemaIngreso(),
             ),
-          ),
-          if (!_esSimple)
-          _card(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Advertencias extra (opcional)',
-                  style: GoogleFonts.baloo2(
-                    color: ColoresLocales.textoOnFondoClaro,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                SizedBox(height: 8),
-                TextFormField(
-                  controller: _advertenciasCtrl,
-                  minLines: 3,
-                  maxLines: 5,
-                  style: GoogleFonts.baloo2(
-                    color: ColoresLocales.textoOnFondoClaro,
-                  ),
-                  decoration: _inputMultiLinea(
-                    'Ej: código de vestimenta, llevar DNI, comportamiento esperado...',
-                  ),
-                ),
-                SizedBox(height: 6),
-                Text(
-                  'Agregá aquí anotaciones extra como código de vestimenta, restricciones, obligatoriedad de llevar documento o cualquier aclaración importante.',
-                  style: GoogleFonts.baloo2(
-                    color: ColoresLocales.textoSecundarioOnFondoClaro,
-                    fontSize: 12,
-                  ),
-                ),
-              ],
+            _cardOpcionalColapsable(
+              pregunta: '¿Tenés advertencias o requisitos extras?',
+              ayudaColapsada: 'Código de vestimenta, edad, DNI, etc.',
+              expandido: _expandAdvertenciasExtras,
+              resumenActivo: _resumenAdvertenciasExtras,
+              onExpandidoChanged: (v) =>
+                  setState(() => _expandAdvertenciasExtras = v),
+              child: _contenidoAdvertenciasExtras(),
             ),
-          ),
+          ],
         ],
       ),
     );
@@ -2459,14 +2906,17 @@ class _LocalesCrearEventoState extends State<LocalesCrearEvento> {
                 }),
                 const SizedBox(height: 8),
                 Center(
-                  child: OutlinedButton.icon(
+                  child: TextButton.icon(
                     onPressed: _agregarPromo,
                     icon: Icon(Icons.add),
                     label: Text(
-                      'Agregar promo',
+                      'Agregar otra promo',
                       style: GoogleFonts.baloo2(fontWeight: FontWeight.w700),
                     ),
-                    style: OutlinedButton.styleFrom(
+                    style: TextButton.styleFrom(
+                      foregroundColor: ColoresLocales.acentoVioleta,
+                      backgroundColor:
+                          ColoresLocales.acentoVioleta.withValues(alpha: 0.1),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(50),
                       ),
@@ -2482,135 +2932,28 @@ class _LocalesCrearEventoState extends State<LocalesCrearEvento> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Text(
-                'Visibilidad',
+                'Cartelera',
                 style: GoogleFonts.baloo2(
                   color: ColoresLocales.textoOnFondoClaro,
                   fontWeight: FontWeight.w900,
                   fontSize: 20,
                 ),
               ),
-              SizedBox(height: 6),
+              const SizedBox(height: 6),
               Text(
-                'Elegí tu posicionamiento en cartelera.',
-                textAlign: TextAlign.center,
+                'Elegí el nivel y publicá en un toque.',
                 style: GoogleFonts.baloo2(
                   color: ColoresLocales.textoSecundarioOnFondoClaro,
                   fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  height: 1.25,
+                  height: 1.3,
                 ),
               ),
-              SizedBox(height: 14),
+              const SizedBox(height: 16),
               _buildPanelCuentaCreditosCrear(),
-              SizedBox(height: 18),
-              Text(
-                'Publicar en:',
-                textAlign: TextAlign.center,
-                style: GoogleFonts.baloo2(
-                  color: ColoresLocales.textoOnFondoClaro,
-                  fontWeight: FontWeight.w900,
-                  fontSize: 16,
-                ),
-              ),
+              const SizedBox(height: 20),
+              _encabezadoPublicarEn(),
               const SizedBox(height: 12),
-              _botonZonaEstandar(),
-              const SizedBox(height: 10),
-              Opacity(
-                opacity: _localVerificado ? 1 : 0.45,
-                child: IgnorePointer(
-                  ignoring: !_localVerificado,
-                  child: Column(
-                    children: [
-                      _botonOpcionRecTop(
-                        icono: CupertinoIcons.hand_thumbsup_fill,
-                        titulo: 'Recomendado Fernecito',
-                        costoLabel: '-1 rec.',
-                        color: _violetRec,
-                        seleccionado:
-                            _intencionPublicacion ==
-                            _IntencionPublicacion.recFernecito,
-                        onTap: () => setState(
-                          () => _intencionPublicacion =
-                              _IntencionPublicacion.recFernecito,
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                      _botonOpcionRecTop(
-                        icono: CupertinoIcons.star_fill,
-                        titulo: 'Top Cartelera',
-                        costoLabel: '-1 top',
-                        color: _amberTop,
-                        seleccionado:
-                            _intencionPublicacion ==
-                            _IntencionPublicacion.topCartelera,
-                        onTap: () => setState(
-                          () => _intencionPublicacion =
-                              _IntencionPublicacion.topCartelera,
-                        ),
-                      ),
-                      SizedBox(height: 10),
-                      _botonOpcionRecTop(
-                        icono: CupertinoIcons.flame_fill,
-                        titulo: 'Top Ultra — Stories',
-                        costoLabel: '-1 ultra',
-                        color: _rosaUltra,
-                        seleccionado:
-                            _intencionPublicacion ==
-                            _IntencionPublicacion.topUltra,
-                        onTap: () => setState(
-                          () => _intencionPublicacion =
-                              _IntencionPublicacion.topUltra,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              if (!_localVerificado)
-                Padding(
-                  padding: EdgeInsets.only(top: 8),
-                  child: Text(
-                    'Verificá tu cuenta para desbloquear Recomendado Fernecito, Top Cartelera y Top Ultra.',
-                    textAlign: TextAlign.center,
-                    style: GoogleFonts.baloo2(
-                      color: ColoresLocales.textoSecundarioOnFondoClaro,
-                      fontSize: 12,
-                    ),
-                  ),
-                ),
-              SizedBox(height: 18),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: _guardando ? null : _onBotonDoradoPublicar,
-                  style: ElevatedButton.styleFrom(
-                    minimumSize: Size.fromHeight(58),
-                    backgroundColor: _mostaza,
-                    foregroundColor: ColoresLocales.acentoVioleta,
-                    elevation: 4,
-                    shadowColor: _mostaza.withOpacity(0.5),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(50),
-                    ),
-                  ),
-                  child: _guardando
-                      ? SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: ColoresLocales.textoEnBoton,
-                          ),
-                        )
-                      : Text(
-                          _textoBotonDoradoPublicar,
-                          style: GoogleFonts.baloo2(
-                            fontWeight: FontWeight.w900,
-                            fontSize: 18,
-                          ),
-                        ),
-                ),
-              ),
+              _buildBotonesPublicarEn(),
             ],
           ),
         ),
@@ -2622,27 +2965,20 @@ class _LocalesCrearEventoState extends State<LocalesCrearEvento> {
     if (_paso == 2) {
       return Container(
         padding: EdgeInsets.fromLTRB(16, 10, 16, 16),
-        decoration: BoxDecoration(
-          color: ColoresLocales.fondoClaro,
-          border: Border(
-            top: BorderSide(
-              color: ColoresLocales.acentoVioleta.withOpacity(0.12),
-            ),
-          ),
-        ),
+        color: ColoresLocales.fondoClaro,
         child: SafeArea(
           top: false,
           child: Center(
             child: ConstrainedBox(
               constraints: BoxConstraints(maxWidth: 760),
-              child: OutlinedButton.icon(
+              child: TextButton.icon(
                 onPressed: _guardando ? null : () => _irAPaso(1),
                 icon: Icon(CupertinoIcons.chevron_left, size: 18),
-                style: OutlinedButton.styleFrom(
+                style: TextButton.styleFrom(
                   minimumSize: Size.fromHeight(52),
-                  side: BorderSide(
-                    color: ColoresLocales.acentoVioleta.withOpacity(0.35),
-                  ),
+                  foregroundColor: ColoresLocales.acentoVioleta,
+                  backgroundColor:
+                      ColoresLocales.acentoVioleta.withValues(alpha: 0.1),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(50),
                   ),
@@ -2662,14 +2998,7 @@ class _LocalesCrearEventoState extends State<LocalesCrearEvento> {
     }
     return Container(
       padding: EdgeInsets.fromLTRB(16, 10, 16, 16),
-      decoration: BoxDecoration(
-        color: ColoresLocales.fondoClaro,
-        border: Border(
-          top: BorderSide(
-            color: ColoresLocales.acentoVioleta.withOpacity(0.12),
-          ),
-        ),
-      ),
+      color: ColoresLocales.fondoClaro,
       child: SafeArea(
         top: false,
         child: Center(
@@ -2699,7 +3028,7 @@ class _LocalesCrearEventoState extends State<LocalesCrearEvento> {
                       ),
                     )
                   : Text(
-                      'Siguiente',
+                      _esSimple ? 'Elegir visibilidad' : 'Siguiente',
                       style: GoogleFonts.baloo2(
                         fontWeight: FontWeight.w800,
                         fontSize: 17,
@@ -2708,59 +3037,6 @@ class _LocalesCrearEventoState extends State<LocalesCrearEvento> {
             ),
           ),
         ),
-      ),
-    );
-  }
-}
-
-class _CreditoTextoCrear extends StatelessWidget {
-  final IconData icono;
-  final String label;
-  final int valor;
-  final Color color;
-  final VoidCallback onTap;
-
-  const _CreditoTextoCrear({
-    required this.icono,
-    required this.label,
-    required this.valor,
-    required this.color,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    TemaLocalesScope.of(context);
-    return GestureDetector(
-      onTap: onTap,
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icono, size: 12, color: color),
-          const SizedBox(width: 4),
-          RichText(
-            text: TextSpan(
-              children: [
-                TextSpan(
-                  text: '$label ',
-                  style: GoogleFonts.baloo2(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    color: color,
-                  ),
-                ),
-                TextSpan(
-                  text: '$valor',
-                  style: GoogleFonts.baloo2(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w900,
-                    color: color,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
       ),
     );
   }
@@ -2843,11 +3119,6 @@ class _PromoCardState extends State<_PromoCard> {
               ? ColoresLocales.acentoVioleta
               : ColoresLocales.cardLavanda,
           borderRadius: BorderRadius.circular(50),
-          border: selected
-              ? null
-              : Border.all(
-                  color: ColoresLocales.acentoVioleta.withOpacity(0.25),
-                ),
         ),
         child: Center(
           child: Text(
@@ -2870,13 +3141,7 @@ class _PromoCardState extends State<_PromoCard> {
     return Container(
       margin: EdgeInsets.only(bottom: 10),
       padding: EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(18),
-        color: ColoresLocales.superficie,
-        border: Border.all(
-          color: ColoresLocales.acentoVioleta.withOpacity(0.2),
-        ),
-      ),
+      decoration: ColoresLocales.decoracionCard(radius: 18, sinBorde: true),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -3033,10 +3298,6 @@ class _FechaHoraField extends StatelessWidget {
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(12),
           color: ColoresLocales.cardLavanda,
-          border: Border.all(
-            color: ColoresLocales.acentoVioleta.withOpacity(0.35),
-            width: 1.1,
-          ),
         ),
         child: Row(
           children: [
@@ -3088,12 +3349,6 @@ class _IndicadorPasoConectado extends StatelessWidget {
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               color: activo ? ColoresLocales.acentoVioleta : ColoresLocales.chipInactivo,
-              border: Border.all(
-                color: activo
-                    ? ColoresLocales.acentoVioleta
-                    : ColoresLocales.acentoVioleta.withOpacity(0.3),
-                width: 1.5,
-              ),
             ),
             child: Center(
               child: Text(
@@ -3143,39 +3398,5 @@ class _IndicadorPasoConectado extends StatelessWidget {
         nodo(paso: 2, label: 'Promos y visibilidad', activo: actual >= 2),
       ],
     );
-  }
-}
-
-class _DashedRoundedRectPainter extends CustomPainter {
-  final Color color;
-
-  const _DashedRoundedRectPainter({required this.color});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final rect = Offset.zero & size;
-    final rrect = RRect.fromRectAndRadius(rect, const Radius.circular(16));
-    final path = Path()..addRRect(rrect);
-    final paint = Paint()
-      ..color = color
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.5
-      ..strokeCap = StrokeCap.round;
-
-    for (final metric in path.computeMetrics()) {
-      double distance = 0;
-      const dash = 4.5;
-      const gap = 4.5;
-      while (distance < metric.length) {
-        final next = distance + dash;
-        canvas.drawPath(metric.extractPath(distance, next), paint);
-        distance = next + gap;
-      }
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant _DashedRoundedRectPainter oldDelegate) {
-    return oldDelegate.color != color;
   }
 }

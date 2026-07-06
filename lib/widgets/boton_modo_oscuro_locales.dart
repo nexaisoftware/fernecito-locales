@@ -24,21 +24,15 @@ class BotonModoOscuroLocales extends StatelessWidget {
         child: InkWell(
           onTap: TemaAppLocales.instancia.toggle,
           customBorder: const CircleBorder(),
-          child: Container(
+          child: SizedBox(
             width: 32,
             height: 32,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: ColoresLocales.superficie.withOpacity(0.75),
-              shape: BoxShape.circle,
-              border: Border.all(
-                color: ColoresLocales.acentoVioleta.withOpacity(0.3),
+            child: Center(
+              child: Icon(
+                oscuro ? CupertinoIcons.sun_max_fill : CupertinoIcons.moon_fill,
+                size: 20,
+                color: ColoresLocales.acentoVioleta,
               ),
-            ),
-            child: Icon(
-              oscuro ? CupertinoIcons.sun_max_fill : CupertinoIcons.moon_fill,
-              size: 15,
-              color: ColoresLocales.acentoVioleta,
             ),
           ),
         ),

@@ -6,15 +6,15 @@ import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:http/http.dart' as http;
-import 'package:path_provider/path_provider.dart';
-import 'package:share_plus/share_plus.dart';
 
 import '../core/constants.dart';
 import '../core/crear_evento_desde_flyer_args.dart';
+import '../core/guardar_imagen_dispositivo.dart';
+import '../widgets/feedback_locales.dart';
 import '../widgets/badge_etiqueta_locales.dart';
 import '../widgets/tema_locales_scope.dart';
 import '../services/flyer_cache_service.dart';
@@ -321,6 +321,55 @@ class LocalesFlyerGeneracion {
     }
     return resultado;
   }
+
+  int get cantidadOriginales {
+    final n = urlsLocales.length > urlsRemotas.length
+        ? urlsLocales.length
+        : urlsRemotas.length;
+    return n.clamp(0, 2);
+  }
+
+  int get cantidadReintento {
+    final n = urlsLocalesRetry.length > urlsRemotasRetry.length
+        ? urlsLocalesRetry.length
+        : urlsRemotasRetry.length;
+    return n.clamp(0, 2);
+  }
+
+  /// Cuatro slots fijos: Original A/B + Reintento A/B (null = vacío).
+  List<FlyerPieza?> get slotsCuatro {
+    final all = todasLasPiezas;
+    final orig =
+        all.where((p) => !p.label.startsWith('Reintento')).toList(growable: false);
+    final retry =
+        all.where((p) => p.label.startsWith('Reintento')).toList(growable: false);
+    return [
+      orig.isNotEmpty ? orig[0] : null,
+      orig.length > 1 ? orig[1] : null,
+      retry.isNotEmpty ? retry[0] : null,
+      retry.length > 1 ? retry[1] : null,
+    ];
+  }
+
+  /// Índice en [todasLasPiezas] para cada slot (0–3), o -1 si vacío.
+  int indiceGlobalDesdeSlot(int slot) {
+    final o = cantidadOriginales;
+    final r = cantidadReintento;
+    switch (slot) {
+      case 0:
+        return o >= 1 ? 0 : -1;
+      case 1:
+        return o >= 2 ? 1 : -1;
+      case 2:
+        return r >= 1 ? o : -1;
+      case 3:
+        return r >= 2 ? o + 1 : -1;
+      default:
+        return -1;
+    }
+  }
+
+  bool get esFlyerLibre => formularioAlGenerar?.esLibre == true;
 }
 
 class LocalesFlyerIaHistorial extends ChangeNotifier {
@@ -692,79 +741,74 @@ class _LocalesFlyerIaState extends State<LocalesFlyerIa> {
     return cortos[_mesIdx];
   }
 
-  InputDecoration _dec(String hint, {String? helper}) => InputDecoration(
-        hintText: hint,
-        helperText: helper,
-        hintStyle: GoogleFonts.baloo2(
-          color: ColoresLocales.textoSecundarioOnFondoClaro,
-          fontWeight: FontWeight.w500,
-          fontSize: 14,
-        ),
-        helperStyle: GoogleFonts.baloo2(
-          fontSize: 12,
-          color: ColoresLocales.textoSecundarioOnFondoClaro,
-        ),
-        filled: true,
-        fillColor: ColoresLocales.rellenoInput,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(50),
-          borderSide: BorderSide(color: ColoresLocales.acentoVioleta, width: 1.5),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(50),
-          borderSide: BorderSide(color: ColoresLocales.acentoVioleta.withOpacity(0.28), width: 1.5),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(50),
-          borderSide: BorderSide(color: ColoresLocales.acentoVioleta, width: 2),
-        ),
-        contentPadding: EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-      );
+  InputDecoration _dec(String hint, {String? helper}) {
+    const radius = BorderRadius.all(Radius.circular(50));
+    return InputDecoration(
+      hintText: hint,
+      helperText: helper,
+      hintStyle: GoogleFonts.baloo2(
+        color: ColoresLocales.textoSecundarioOnFondoClaro,
+        fontWeight: FontWeight.w500,
+        fontSize: 14,
+      ),
+      helperStyle: GoogleFonts.baloo2(
+        fontSize: 12,
+        color: ColoresLocales.textoSecundarioOnFondoClaro,
+      ),
+      filled: true,
+      fillColor: ColoresLocales.rellenoInput,
+      border: const OutlineInputBorder(
+        borderRadius: radius,
+        borderSide: BorderSide.none,
+      ),
+      enabledBorder: const OutlineInputBorder(
+        borderRadius: radius,
+        borderSide: BorderSide.none,
+      ),
+      focusedBorder: const OutlineInputBorder(
+        borderRadius: radius,
+        borderSide: BorderSide.none,
+      ),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+    );
+  }
 
-  InputDecoration _decMultilinea(String hint, {String? helper}) => InputDecoration(
-        hintText: hint,
-        helperText: helper,
-        hintStyle: GoogleFonts.baloo2(
-          color: ColoresLocales.textoSecundarioOnFondoClaro,
-          fontWeight: FontWeight.w500,
-          fontSize: 14,
-        ),
-        helperStyle: GoogleFonts.baloo2(
-          fontSize: 12,
-          color: ColoresLocales.textoSecundarioOnFondoClaro,
-        ),
-        filled: true,
-        fillColor: ColoresLocales.rellenoInput,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(18),
-          borderSide: BorderSide(color: ColoresLocales.acentoVioleta, width: 1.5),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(18),
-          borderSide: BorderSide(color: ColoresLocales.acentoVioleta.withOpacity(0.28), width: 1.5),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(18),
-          borderSide: BorderSide(color: ColoresLocales.acentoVioleta, width: 2),
-        ),
-        contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      );
+  InputDecoration _decMultilinea(String hint, {String? helper}) {
+    const radius = BorderRadius.all(Radius.circular(18));
+    return InputDecoration(
+      hintText: hint,
+      helperText: helper,
+      hintStyle: GoogleFonts.baloo2(
+        color: ColoresLocales.textoSecundarioOnFondoClaro,
+        fontWeight: FontWeight.w500,
+        fontSize: 14,
+      ),
+      helperStyle: GoogleFonts.baloo2(
+        fontSize: 12,
+        color: ColoresLocales.textoSecundarioOnFondoClaro,
+      ),
+      filled: true,
+      fillColor: ColoresLocales.rellenoInput,
+      border: const OutlineInputBorder(
+        borderRadius: radius,
+        borderSide: BorderSide.none,
+      ),
+      enabledBorder: const OutlineInputBorder(
+        borderRadius: radius,
+        borderSide: BorderSide.none,
+      ),
+      focusedBorder: const OutlineInputBorder(
+        borderRadius: radius,
+        borderSide: BorderSide.none,
+      ),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+    );
+  }
 
   Widget _card({required Widget child, EdgeInsets? padding}) => Container(
         width: double.infinity,
-        padding: padding ?? EdgeInsets.all(18),
-        decoration: BoxDecoration(
-          color: ColoresLocales.superficie,
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: ColoresLocales.acentoVioleta.withOpacity(0.14)),
-          boxShadow: [
-            BoxShadow(
-              color: ColoresLocales.acentoVioleta.withOpacity(0.07),
-              blurRadius: 20,
-              offset: Offset(0, 6),
-            ),
-          ],
-        ),
+        padding: padding ?? const EdgeInsets.all(18),
+        decoration: ColoresLocales.decoracionCard(radius: 24, sinBorde: true),
         child: child,
       );
 
@@ -965,7 +1009,6 @@ class _LocalesFlyerIaState extends State<LocalesFlyerIa> {
           decoration: BoxDecoration(
             color: ColoresLocales.cardAlt,
             borderRadius: BorderRadius.circular(50),
-            border: Border.all(color: ColoresLocales.acentoVioleta.withOpacity(0.3), width: 1.5),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
@@ -1166,6 +1209,7 @@ class _LocalesFlyerIaState extends State<LocalesFlyerIa> {
       await Future<void>.delayed(const Duration(milliseconds: 700));
       if (!mounted) return;
       Navigator.of(context, rootNavigator: true).pop(); // cierra overlay
+      completadoNotifier.dispose();
 
       setState(() {
         _generando = false;
@@ -1185,7 +1229,9 @@ class _LocalesFlyerIaState extends State<LocalesFlyerIa> {
       } else {
         Navigator.of(context).push<void>(
           MaterialPageRoute<void>(
-            builder: (_) => LocalesFlyerIaResultados(),
+            builder: (_) => LocalesFlyerIaResultados(
+              abrirGeneracionId: resultado.generacionId,
+            ),
           ),
         );
       }
@@ -1197,13 +1243,16 @@ class _LocalesFlyerIaState extends State<LocalesFlyerIa> {
         _generando = false;
         _errorGeneracion = e.mensaje;
       });
-    } catch (e) {
+    } catch (e, st) {
+      debugPrint('_confirmarGeneracion error: $e\n$st');
       completadoNotifier.dispose();
       if (!mounted) return;
       Navigator.of(context, rootNavigator: true).pop(); // cierra overlay
       setState(() {
         _generando = false;
-        _errorGeneracion = 'Error inesperado. Intentá de nuevo.';
+        _errorGeneracion = kIsWeb
+            ? 'No se pudieron mostrar los flyers. Revisá «Mis flyers» o intentá de nuevo.'
+            : 'Error inesperado. Intentá de nuevo.';
       });
     }
   }
@@ -1332,7 +1381,7 @@ class _LocalesFlyerIaState extends State<LocalesFlyerIa> {
         borderRadius: BorderRadius.circular(20),
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 20),
-          decoration: ColoresLocales.decoracionCard(),
+          decoration: ColoresLocales.decoracionCard(sinBorde: true),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -1342,7 +1391,6 @@ class _LocalesFlyerIaState extends State<LocalesFlyerIa> {
                 decoration: BoxDecoration(
                   color: ColoresLocales.superficieElevada,
                   borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: ColoresLocales.bordeSuave),
                 ),
                 child: Icon(
                   icon,
@@ -1403,9 +1451,8 @@ class _LocalesFlyerIaState extends State<LocalesFlyerIa> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
-        color: ColoresFeaturesLocales.flyersIa.withOpacity(0.1),
+        color: ColoresFeaturesLocales.flyersIa.withOpacity(0.12),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: ColoresFeaturesLocales.flyersIa.withOpacity(0.3)),
       ),
       child: Row(
         children: [
@@ -1507,7 +1554,6 @@ class _LocalesFlyerIaState extends State<LocalesFlyerIa> {
                   decoration: BoxDecoration(
                     color: const Color(0xFFFFF0F0),
                     borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: const Color(0xFFFFCDD2)),
                   ),
                   child: Row(
                     children: [
@@ -1554,12 +1600,8 @@ class _LocalesFlyerIaState extends State<LocalesFlyerIa> {
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                         decoration: BoxDecoration(
-                          color: ColoresFeaturesLocales.flyersIa.withOpacity(0.22),
+                          color: ColoresFeaturesLocales.flyersIa.withOpacity(0.28),
                           borderRadius: BorderRadius.circular(50),
-                          border: Border.all(
-                            color: ColoresFeaturesLocales.flyersIa.withOpacity(0.5),
-                            width: 1.2,
-                          ),
                         ),
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
@@ -1616,9 +1658,8 @@ class _LocalesFlyerIaState extends State<LocalesFlyerIa> {
                   Container(
                     padding: EdgeInsets.symmetric(horizontal: 14, vertical: 7),
                     decoration: BoxDecoration(
-                      color: ColoresFeaturesLocales.flyersIa.withOpacity(0.1),
+                      color: ColoresFeaturesLocales.flyersIa.withOpacity(0.12),
                       borderRadius: BorderRadius.circular(50),
-                      border: Border.all(color: ColoresFeaturesLocales.flyersIa.withOpacity(0.3)),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
@@ -1705,18 +1746,10 @@ class _LocalesFlyerIaState extends State<LocalesFlyerIa> {
                         fontWeight: FontWeight.w600,
                       ),
                       decoration: _dec('Título del evento *').copyWith(
-                        fillColor:
-                            _tituloBloqueado ? ColoresLocales.cardAlt : ColoresLocales.chipInactivo,
+                        fillColor: _tituloBloqueado
+                            ? Colors.red.withOpacity(0.1)
+                            : ColoresLocales.chipInactivo,
                         filled: true,
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(50),
-                          borderSide: BorderSide(
-                            color: _tituloBloqueado
-                                ? Colors.red.shade400
-                                : ColoresLocales.acentoVioleta.withOpacity(0.28),
-                            width: _tituloBloqueado ? 1.8 : 1.5,
-                          ),
-                        ),
                       ),
                     ),
                     if (_tituloBloqueado) ...[
@@ -1726,9 +1759,8 @@ class _LocalesFlyerIaState extends State<LocalesFlyerIa> {
                         padding: const EdgeInsets.symmetric(
                             horizontal: 12, vertical: 10),
                         decoration: BoxDecoration(
-                          color: Colors.red.withOpacity(0.12),
+                          color: Colors.red.withOpacity(0.14),
                           borderRadius: BorderRadius.circular(14),
-                          border: Border.all(color: Colors.red.shade200),
                         ),
                         child: Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -1878,10 +1910,9 @@ class _LocalesFlyerIaState extends State<LocalesFlyerIa> {
                             curve: Curves.easeOut,
                             decoration: BoxDecoration(
                               borderRadius: BorderRadius.circular(16),
-                              border: Border.all(
-                                color: active ? ColoresLocales.acentoVioleta : Colors.black.withOpacity(0.08),
-                                width: active ? 2.5 : 1,
-                              ),
+                              color: active
+                                  ? ColoresLocales.acentoVioleta.withOpacity(0.1)
+                                  : ColoresLocales.superficieElevada.withOpacity(0.6),
                               boxShadow: active
                                   ? [
                                       BoxShadow(
@@ -2152,7 +2183,6 @@ class _LocalesFlyerIaState extends State<LocalesFlyerIa> {
                   decoration: BoxDecoration(
                     color: const Color(0xFFFFF0F0),
                     borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: const Color(0xFFFFCDD2)),
                   ),
                   child: Row(
                     children: [
@@ -2201,9 +2231,8 @@ class _LocalesFlyerIaState extends State<LocalesFlyerIa> {
                             Container(
                               padding: EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                               decoration: BoxDecoration(
-                                color: ColoresFeaturesLocales.flyersIa.withOpacity(0.22),
+                                color: ColoresFeaturesLocales.flyersIa.withOpacity(0.28),
                                 borderRadius: BorderRadius.circular(50),
-                                border: Border.all(color: ColoresFeaturesLocales.flyersIa.withOpacity(0.5), width: 1.2),
                               ),
                               child: Row(
                                 mainAxisSize: MainAxisSize.min,
@@ -2335,10 +2364,7 @@ class _FlyerEstiloHintPill extends StatelessWidget {
       color: Colors.transparent,
       child: Container(
         padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-        decoration: BoxDecoration(
-          color: ColoresLocales.superficie,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: ColoresLocales.acentoVioleta.withOpacity(0.2), width: 1.2),
+        decoration: ColoresLocales.decoracionCard(radius: 16, sinBorde: true).copyWith(
           boxShadow: [
             BoxShadow(
               color: ColoresLocales.acentoVioleta.withOpacity(0.1),
@@ -2416,10 +2442,6 @@ class _FlyerEstiloPreviewAmpliado extends StatelessWidget {
           height: size.height,
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(
-              color: ColoresLocales.superficie,
-              width: 2.5,
-            ),
             boxShadow: [
               BoxShadow(
                 color: Colors.black.withValues(alpha: 0.28),
@@ -2547,7 +2569,7 @@ class _FlyerLoadingOverlayState extends State<_FlyerLoadingOverlay>
     return PopScope(
       canPop: false, // no se puede cerrar con back
       child: Material(
-        color: ColoresLocales.acentoVioleta,
+        color: ColoresLocales.violetaLogoMarca,
         child: SafeArea(
           child: Padding(
             padding: EdgeInsets.symmetric(horizontal: 32),
@@ -2561,13 +2583,13 @@ class _FlyerLoadingOverlayState extends State<_FlyerLoadingOverlay>
                     width: 80,
                     height: 80,
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.15),
+                      color: Colors.white.withOpacity(0.18),
                       shape: BoxShape.circle,
                     ),
-                    child: Icon(
+                    child: const Icon(
                       CupertinoIcons.sparkles,
                       size: 40,
-                      color: ColoresLocales.textoEnBoton,
+                      color: Colors.white,
                     ),
                   ),
                 ),
@@ -2582,7 +2604,7 @@ class _FlyerLoadingOverlayState extends State<_FlyerLoadingOverlay>
                   style: GoogleFonts.baloo2(
                     fontSize: 26,
                     fontWeight: FontWeight.w900,
-                    color: ColoresLocales.textoEnBoton,
+                    color: Colors.white,
                     height: 1.2,
                   ),
                 ),
@@ -2594,7 +2616,7 @@ class _FlyerLoadingOverlayState extends State<_FlyerLoadingOverlay>
                   style: GoogleFonts.baloo2(
                     fontSize: 14,
                     fontWeight: FontWeight.w500,
-                    color: Colors.white70,
+                    color: Colors.white.withOpacity(0.85),
                   ),
                 ),
                 SizedBox(height: 40),
@@ -2616,7 +2638,7 @@ class _FlyerLoadingOverlayState extends State<_FlyerLoadingOverlay>
                               widthFactor: progress,
                               child: Container(
                                 decoration: BoxDecoration(
-                                  color: ColoresLocales.textoEnBoton,
+                                  color: Colors.white,
                                   borderRadius: BorderRadius.circular(99),
                                 ),
                               ),
@@ -2629,7 +2651,7 @@ class _FlyerLoadingOverlayState extends State<_FlyerLoadingOverlay>
                           style: GoogleFonts.baloo2(
                             fontSize: 12,
                             fontWeight: FontWeight.w700,
-                            color: Colors.white60,
+                            color: Colors.white.withOpacity(0.75),
                           ),
                         ),
                       ],
@@ -2656,16 +2678,19 @@ class _FlyerLoadingOverlayState extends State<_FlyerLoadingOverlay>
                     padding: EdgeInsets.symmetric(
                         horizontal: 18, vertical: 14),
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.12),
+                      color: Colors.white.withOpacity(0.14),
                       borderRadius: BorderRadius.circular(18),
                     ),
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Padding(
-                          padding: EdgeInsets.only(top: 2),
-                          child: Icon(CupertinoIcons.info_circle,
-                              size: 16, color: Colors.white70),
+                        Padding(
+                          padding: const EdgeInsets.only(top: 2),
+                          child: Icon(
+                            CupertinoIcons.info_circle,
+                            size: 16,
+                            color: Colors.white.withOpacity(0.85),
+                          ),
                         ),
                         const SizedBox(width: 10),
                         Expanded(
@@ -2674,7 +2699,7 @@ class _FlyerLoadingOverlayState extends State<_FlyerLoadingOverlay>
                             style: GoogleFonts.baloo2(
                               fontSize: 13,
                               fontWeight: FontWeight.w600,
-                              color: ColoresLocales.textoEnBoton,
+                              color: Colors.white,
                               height: 1.4,
                             ),
                           ),

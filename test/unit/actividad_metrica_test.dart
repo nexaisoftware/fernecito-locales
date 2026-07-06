@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import '../../lib/models/actividad_metrica.dart';
+import 'package:frontend_locales/models/actividad_metrica.dart';
 
 void main() {
   group('inferirCategoriaActividadMetrica — eventos', () {
@@ -114,7 +114,7 @@ void main() {
   });
 
   group('ActividadMetricaItem.lineaActor', () {
-    ActividadMetricaItem _item({String? etiquetaActor, String? nombreActor}) =>
+    ActividadMetricaItem item0({String? etiquetaActor, String? nombreActor}) =>
         ActividadMetricaItem(
           id: 'act-1',
           tipo: TipoActividadMetrica.asistencia,
@@ -129,27 +129,27 @@ void main() {
         );
 
     test('usa etiquetaActor si está disponible', () {
-      final item = _item(etiquetaActor: 'Autoaceptada por mi local');
+      final item = item0(etiquetaActor: 'Autoaceptada por mi local');
       expect(item.lineaActor, 'Autoaceptada por mi local');
     });
 
     test('usa "Por nombreActor" si etiquetaActor es null', () {
-      final item = _item(nombreActor: 'Juan Staff');
+      final item = item0(nombreActor: 'Juan Staff');
       expect(item.lineaActor, 'Por Juan Staff');
     });
 
     test('null si ni etiquetaActor ni nombreActor disponibles', () {
-      final item = _item();
+      final item = item0();
       expect(item.lineaActor, isNull);
     });
 
     test('etiquetaActor vacío → usa nombreActor como fallback', () {
-      final item = _item(etiquetaActor: '   ', nombreActor: 'Carlos');
+      final item = item0(etiquetaActor: '   ', nombreActor: 'Carlos');
       expect(item.lineaActor, 'Por Carlos');
     });
 
     test('nombreActor vacío → null', () {
-      final item = _item(nombreActor: '');
+      final item = item0(nombreActor: '');
       expect(item.lineaActor, isNull);
     });
   });

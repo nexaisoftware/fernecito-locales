@@ -5,6 +5,8 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'barra_sistema_locales.dart';
+
 /// Servicio de tema claro/oscuro — mismo patrón que [TemaFernecito] en usuarios.
 class TemaAppLocales {
   TemaAppLocales._();
@@ -20,6 +22,7 @@ class TemaAppLocales {
     try {
       final prefs = await SharedPreferences.getInstance();
       modoOscuro.value = prefs.getBool(_prefsKey) ?? false;
+      BarraSistemaLocales.aplicar(modoOscuro.value);
     } catch (e) {
       debugPrint('⚠️ TemaAppLocales.cargar: $e');
     }
@@ -29,6 +32,7 @@ class TemaAppLocales {
   void establecerModoOscuro(bool value) {
     if (modoOscuro.value == value) return;
     modoOscuro.value = value;
+    BarraSistemaLocales.aplicar(value);
     unawaited(_persistir(value));
   }
 

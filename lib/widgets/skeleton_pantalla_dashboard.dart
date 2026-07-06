@@ -17,16 +17,7 @@ class SkeletonPantallaDashboard extends StatelessWidget {
         children: [
           Positioned.fill(
             child: DecoratedBox(
-              decoration: TemaAppLocales.instancia.esOscuro
-                  ? BoxDecoration(color: ColoresLocales.fondoClaro)
-                  : BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: ColoresLocales.degradadoHome,
-                        stops: const [0.0, 0.22, 0.55, 1.0],
-                      ),
-                    ),
+              decoration: ColoresLocales.decoracionFondoPantalla,
             ),
           ),
           SafeArea(

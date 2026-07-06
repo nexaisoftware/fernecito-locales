@@ -12,8 +12,9 @@ import '../widgets/tema_locales_scope.dart';
 import '../core/formato_metricas.dart';
 import '../core/servicio_metricas_locales.dart';
 import '../models/actividad_metrica.dart';
+import '../models/datos_impresiones.dart';
 
-enum _PestanaMetricas { actividad, rendimientos }
+enum _PestanaMetricas { actividad, alcance, rendimientos }
 
 class LocalesMetricas extends StatefulWidget {
   const LocalesMetricas({super.key});
@@ -25,19 +26,25 @@ class LocalesMetricas extends StatefulWidget {
 class _LocalesMetricasState extends State<LocalesMetricas> {
   final _servicio = ServicioMetricasLocales();
 
-  _PestanaMetricas _pestana = _PestanaMetricas.actividad;
+  _PestanaMetricas _pestana = _PestanaMetricas.alcance;
   final Set<CategoriaActividadMetrica> _categoriasFiltro = {};
   String? _actorFiltroId;
   List<ActorMetricaOpcion> _actores = const [ActorMetricaOpcion.todos];
   int _rangoDias = 30;
+  int _rangoAlcanceDias = 7;
+  AlcanceFiltroMetricas _filtroAlcance = const AlcanceFiltroMetricas();
 
   List<ActividadMetricaItem> _actividad = const [];
   DatosRendimientoMetricas _rendimiento = DatosRendimientoMetricas.vacio;
+  DatosImpresionesMetricas _alcance = DatosImpresionesMetricas.vacio;
+  List<EventoImpresionResumen> _catalogoEventosAlcance = const [];
 
   bool _cargandoActividad = true;
   bool _cargandoRendimiento = true;
+  bool _cargandoAlcance = true;
   String? _errorActividad;
   String? _errorRendimiento;
+  String? _errorAlcance;
   int _visibleActividad = 30;
 
   @override
@@ -47,7 +54,11 @@ class _LocalesMetricasState extends State<LocalesMetricas> {
   }
 
   Future<void> _cargarTodo() async {
-    await Future.wait([_cargarActividad(resetVisible: true), _cargarRendimiento()]);
+    await Future.wait([
+      _cargarActividad(resetVisible: true),
+      _cargarRendimiento(),
+      _cargarAlcance(),
+    ]);
   }
 
   Future<void> _cargarActividad({bool resetVisible = false}) async {
@@ -74,6 +85,172 @@ class _LocalesMetricasState extends State<LocalesMetricas> {
         _cargandoActividad = false;
       });
     }
+  }
+
+  Future<void> _cargarAlcance() async {
+    setState(() {
+      _cargandoAlcance = true;
+      _errorAlcance = null;
+    });
+    try {
+      final datos = await _servicio.cargarImpresiones(
+        dias: _rangoAlcanceDias,
+        filtro: _filtroAlcance,
+      );
+      if (!mounted) return;
+      setState(() {
+        _alcance = datos;
+        if (_filtroAlcance.tipo == AlcanceFiltroTipo.todas) {
+          _catalogoEventosAlcance = datos.eventos;
+        }
+        _cargandoAlcance = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _errorAlcance = 'No se pudieron cargar las impresiones.';
+        _cargandoAlcance = false;
+      });
+    }
+  }
+
+  Future<void> _abrirFiltroAlcance() async {
+    if (_catalogoEventosAlcance.isEmpty &&
+        _filtroAlcance.tipo != AlcanceFiltroTipo.todas) {
+      try {
+        final todas = await _servicio.cargarImpresiones(
+          dias: _rangoAlcanceDias,
+        );
+        _catalogoEventosAlcance = todas.eventos;
+      } catch (_) {}
+    }
+    if (!mounted) return;
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: ColoresLocales.superficie,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
+                child: Text(
+                  'Filtrar impresiones',
+                  style: GoogleFonts.baloo2(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w900,
+                    color: ColoresLocales.acentoVioleta,
+                  ),
+                ),
+              ),
+              ListTile(
+                title: Text(
+                  'Todas',
+                  style: GoogleFonts.baloo2(fontWeight: FontWeight.w800),
+                ),
+                trailing: _filtroAlcance.tipo == AlcanceFiltroTipo.todas
+                    ? Icon(
+                        CupertinoIcons.checkmark,
+                        color: ColoresLocales.acentoVioleta,
+                      )
+                    : null,
+                onTap: () {
+                  Navigator.pop(ctx);
+                  setState(
+                    () => _filtroAlcance = const AlcanceFiltroMetricas(),
+                  );
+                  _cargarAlcance();
+                },
+              ),
+              ListTile(
+                title: Text(
+                  'Mi perfil',
+                  style: GoogleFonts.baloo2(fontWeight: FontWeight.w800),
+                ),
+                trailing: _filtroAlcance.tipo == AlcanceFiltroTipo.perfil
+                    ? Icon(
+                        CupertinoIcons.checkmark,
+                        color: ColoresLocales.acentoVioleta,
+                      )
+                    : null,
+                onTap: () {
+                  Navigator.pop(ctx);
+                  setState(
+                    () => _filtroAlcance = const AlcanceFiltroMetricas(
+                      tipo: AlcanceFiltroTipo.perfil,
+                    ),
+                  );
+                  _cargarAlcance();
+                },
+              ),
+              if (_catalogoEventosAlcance.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      'Por evento',
+                      style: GoogleFonts.baloo2(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                        color: ColoresLocales.textoSecundarioOnFondoClaro,
+                      ),
+                    ),
+                  ),
+                ),
+              Flexible(
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: _catalogoEventosAlcance.length,
+                  itemBuilder: (ctx, i) {
+                    final ev = _catalogoEventosAlcance[i];
+                    final sel =
+                        _filtroAlcance.tipo == AlcanceFiltroTipo.evento &&
+                        _filtroAlcance.idEvento == ev.idEvento;
+                    return ListTile(
+                      title: Text(
+                        ev.titulo,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.baloo2(fontWeight: FontWeight.w700),
+                      ),
+                      subtitle: Text(
+                        '${formatoMetricaCompacto(ev.conteo)} impresiones',
+                        style: GoogleFonts.baloo2(
+                          fontSize: 12,
+                          color: ColoresLocales.textoSecundarioOnFondoClaro,
+                        ),
+                      ),
+                      trailing: sel
+                          ? Icon(
+                              CupertinoIcons.checkmark,
+                              color: ColoresLocales.acentoVioleta,
+                            )
+                          : null,
+                      onTap: () {
+                        Navigator.pop(ctx);
+                        setState(
+                          () => _filtroAlcance = AlcanceFiltroMetricas(
+                            tipo: AlcanceFiltroTipo.evento,
+                            idEvento: ev.idEvento,
+                            etiquetaEvento: ev.titulo,
+                          ),
+                        );
+                        _cargarAlcance();
+                      },
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
   }
 
   Future<void> _cargarRendimiento() async {
@@ -158,9 +335,11 @@ class _LocalesMetricasState extends State<LocalesMetricas> {
             child: RefreshIndicator(
               color: ColoresLocales.acentoVioleta,
               onRefresh: _cargarTodo,
-              child: _pestana == _PestanaMetricas.actividad
-                  ? _buildPestanaActividad()
-                  : _buildPestanaRendimientos(),
+              child: switch (_pestana) {
+                _PestanaMetricas.actividad => _buildPestanaActividad(),
+                _PestanaMetricas.alcance => _buildPestanaAlcance(),
+                _PestanaMetricas.rendimientos => _buildPestanaRendimientos(),
+              },
             ),
           ),
         ],
@@ -174,21 +353,21 @@ class _LocalesMetricasState extends State<LocalesMetricas> {
       decoration: BoxDecoration(
         color: ColoresLocales.superficie,
         borderRadius: BorderRadius.circular(50),
-        border: Border.all(color: ColoresLocales.acentoVioleta.withOpacity(0.18)),
       ),
       child: LayoutBuilder(
         builder: (context, c) {
           final w = c.maxWidth;
-          final esActividad = _pestana == _PestanaMetricas.actividad;
+          final idx = _pestana.index;
+          final tabW = w / 3;
           return Stack(
             children: [
               AnimatedPositioned(
                 duration: Duration(milliseconds: 220),
                 curve: Curves.easeOutCubic,
-                left: esActividad ? 4 : w / 2 + 2,
+                left: 4 + idx * tabW,
                 top: 4,
                 bottom: 4,
-                width: w / 2 - 6,
+                width: tabW - 6,
                 child: Container(
                   decoration: BoxDecoration(
                     color: ColoresLocales.acentoVioleta,
@@ -202,16 +381,27 @@ class _LocalesMetricasState extends State<LocalesMetricas> {
                     child: _opcionPestana(
                       'Actividad',
                       CupertinoIcons.list_bullet,
-                      esActividad,
-                      () => setState(() => _pestana = _PestanaMetricas.actividad),
+                      _pestana == _PestanaMetricas.actividad,
+                      () =>
+                          setState(() => _pestana = _PestanaMetricas.actividad),
                     ),
                   ),
                   Expanded(
                     child: _opcionPestana(
-                      'Rendimientos',
+                      'Alcance',
+                      CupertinoIcons.eye_fill,
+                      _pestana == _PestanaMetricas.alcance,
+                      () => setState(() => _pestana = _PestanaMetricas.alcance),
+                    ),
+                  ),
+                  Expanded(
+                    child: _opcionPestana(
+                      'Rendim.',
                       CupertinoIcons.chart_bar_alt_fill,
-                      !esActividad,
-                      () => setState(() => _pestana = _PestanaMetricas.rendimientos),
+                      _pestana == _PestanaMetricas.rendimientos,
+                      () => setState(
+                        () => _pestana = _PestanaMetricas.rendimientos,
+                      ),
                     ),
                   ),
                 ],
@@ -236,12 +426,16 @@ class _LocalesMetricasState extends State<LocalesMetricas> {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 15, color: activo ? Colors.white : ColoresLocales.acentoVioleta),
+            Icon(
+              icon,
+              size: 15,
+              color: activo ? Colors.white : ColoresLocales.acentoVioleta,
+            ),
             SizedBox(width: 5),
             Text(
               label,
               style: GoogleFonts.baloo2(
-                fontSize: 12.5,
+                fontSize: 11,
                 fontWeight: FontWeight.w800,
                 color: activo ? Colors.white : ColoresLocales.acentoVioleta,
               ),
@@ -259,7 +453,9 @@ class _LocalesMetricasState extends State<LocalesMetricas> {
         slivers: [
           SliverFillRemaining(
             child: Center(
-              child: CircularProgressIndicator(color: ColoresLocales.acentoVioleta),
+              child: CircularProgressIndicator(
+                color: ColoresLocales.acentoVioleta,
+              ),
             ),
           ),
         ],
@@ -270,7 +466,9 @@ class _LocalesMetricasState extends State<LocalesMetricas> {
       return CustomScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
         slivers: [
-          SliverFillRemaining(child: _buildError(_errorActividad!, _cargarActividad)),
+          SliverFillRemaining(
+            child: _buildError(_errorActividad!, _cargarActividad),
+          ),
         ],
       );
     }
@@ -354,11 +552,8 @@ class _LocalesMetricasState extends State<LocalesMetricas> {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
             decoration: BoxDecoration(
-              color: ColoresLocales.superficie,
+              color: ColoresLocales.rellenoInput,
               borderRadius: BorderRadius.circular(14),
-              border: Border.all(
-                color: ColoresLocales.acentoVioleta.withValues(alpha: 0.22),
-              ),
             ),
             child: DropdownButtonHideUnderline(
               child: DropdownButton<String?>(
@@ -451,11 +646,7 @@ class _LocalesMetricasState extends State<LocalesMetricas> {
         },
         selectedColor: ColoresLocales.acentoVioleta,
         backgroundColor: ColoresLocales.superficie,
-        side: BorderSide(
-          color: activo
-              ? ColoresLocales.acentoVioleta
-              : ColoresLocales.acentoVioleta.withValues(alpha: 0.25),
-        ),
+        side: BorderSide.none,
         showCheckmark: false,
       ),
     );
@@ -487,11 +678,7 @@ class _LocalesMetricasState extends State<LocalesMetricas> {
         },
         selectedColor: ColoresLocales.acentoVioleta,
         backgroundColor: ColoresLocales.superficie,
-        side: BorderSide(
-          color: activo
-              ? ColoresLocales.acentoVioleta
-              : ColoresLocales.acentoVioleta.withValues(alpha: 0.25),
-        ),
+        side: BorderSide.none,
         showCheckmark: false,
       ),
     );
@@ -543,7 +730,9 @@ class _LocalesMetricasState extends State<LocalesMetricas> {
         slivers: [
           SliverFillRemaining(
             child: Center(
-              child: CircularProgressIndicator(color: ColoresLocales.acentoVioleta),
+              child: CircularProgressIndicator(
+                color: ColoresLocales.acentoVioleta,
+              ),
             ),
           ),
         ],
@@ -554,7 +743,9 @@ class _LocalesMetricasState extends State<LocalesMetricas> {
       return CustomScrollView(
         physics: AlwaysScrollableScrollPhysics(),
         slivers: [
-          SliverFillRemaining(child: _buildError(_errorRendimiento!, _cargarRendimiento)),
+          SliverFillRemaining(
+            child: _buildError(_errorRendimiento!, _cargarRendimiento),
+          ),
         ],
       );
     }
@@ -619,6 +810,264 @@ class _LocalesMetricasState extends State<LocalesMetricas> {
     );
   }
 
+  Widget _buildPestanaAlcance() {
+    if (_cargandoAlcance) {
+      return CustomScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        slivers: [
+          SliverFillRemaining(
+            child: Center(
+              child: CircularProgressIndicator(
+                color: ColoresLocales.acentoVioleta,
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+
+    if (_errorAlcance != null) {
+      return CustomScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        slivers: [
+          SliverFillRemaining(
+            child: _buildError(_errorAlcance!, _cargarAlcance),
+          ),
+        ],
+      );
+    }
+
+    final a = _alcance;
+    final unidad = _rangoAlcanceDias == 1 ? 'hoy' : 'día';
+
+    return CustomScrollView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      slivers: [
+        SliverToBoxAdapter(child: _buildChipsRangoAlcance()),
+        SliverPadding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+          sliver: SliverList(
+            delegate: SliverChildListDelegate([
+              Material(
+                color: ColoresLocales.superficie,
+                borderRadius: BorderRadius.circular(16),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(16),
+                  onTap: _abrirFiltroAlcance,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 12,
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          CupertinoIcons.slider_horizontal_3,
+                          size: 18,
+                          color: ColoresLocales.acentoVioleta,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            _filtroAlcance.etiquetaUi,
+                            style: GoogleFonts.baloo2(
+                              fontWeight: FontWeight.w800,
+                              fontSize: 13.5,
+                              color: ColoresLocales.textoOnFondoClaro,
+                            ),
+                          ),
+                        ),
+                        Icon(
+                          CupertinoIcons.chevron_down,
+                          size: 14,
+                          color: ColoresLocales.textoSecundarioOnFondoClaro,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 14),
+              if (_rangoAlcanceDias == 1)
+                _ResumenImpresionesHoy(
+                  total: a.totalImpresiones,
+                  perfil: a.totalPerfil,
+                  clicks: a.totalClicks,
+                )
+              else
+                _GraficoLineaMetricas(
+                  titulo: 'Impresiones',
+                  subtitulo: 'Vistas en cartelera, perfil y clicks · por $unidad',
+                  color: const Color(0xFF0891B2),
+                  puntos: a.seriePorDia,
+                  rangoDias: _rangoAlcanceDias,
+                ),
+              const SizedBox(height: 14),
+              Row(
+                children: [
+                  Expanded(
+                    child: _KpiCard(
+                      label: 'Total',
+                      valor: formatoMetricaCompacto(a.totalImpresiones),
+                      icon: CupertinoIcons.eye_fill,
+                      color: const Color(0xFF0891B2),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _KpiCard(
+                      label: 'Perfil',
+                      valor: formatoMetricaCompacto(a.totalPerfil),
+                      icon: CupertinoIcons.person_crop_circle_fill,
+                      color: ColoresLocales.acentoVioleta,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _KpiCard(
+                      label: 'Clicks',
+                      valor: formatoMetricaCompacto(a.totalClicks),
+                      icon: CupertinoIcons.hand_point_right_fill,
+                      color: ColoresMetricas.canje,
+                    ),
+                  ),
+                ],
+              ),
+              if (_filtroAlcance.tipo == AlcanceFiltroTipo.todas &&
+                  a.eventos.isNotEmpty) ...[
+                const SizedBox(height: 18),
+                Text(
+                  'Por evento',
+                  style: GoogleFonts.baloo2(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w900,
+                    color: ColoresLocales.tituloAcento,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                ...a.eventos
+                    .take(12)
+                    .map(
+                      (ev) => Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: Material(
+                          color: ColoresLocales.superficie,
+                          borderRadius: BorderRadius.circular(14),
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(14),
+                            onTap: () {
+                              setState(
+                                () => _filtroAlcance = AlcanceFiltroMetricas(
+                                  tipo: AlcanceFiltroTipo.evento,
+                                  idEvento: ev.idEvento,
+                                  etiquetaEvento: ev.titulo,
+                                ),
+                              );
+                              _cargarAlcance();
+                            },
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 14,
+                                vertical: 12,
+                              ),
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      ev.titulo,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: GoogleFonts.baloo2(
+                                        fontWeight: FontWeight.w800,
+                                        fontSize: 13.5,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Icon(
+                                    CupertinoIcons.eye_fill,
+                                    size: 14,
+                                    color: ColoresLocales.acentoVioleta,
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    formatoMetricaCompacto(ev.conteo),
+                                    style: GoogleFonts.baloo2(
+                                      fontWeight: FontWeight.w900,
+                                      fontSize: 13,
+                                      color: ColoresLocales.acentoVioleta,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+              ] else if (a.totalImpresiones == 0)
+                Padding(
+                  padding: const EdgeInsets.only(top: 24),
+                  child: Center(
+                    child: Text(
+                      'Todavía no hay impresiones en este período.\nCuando usuarios vean tu cartelera o perfil, lo vas a ver acá.',
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.baloo2(
+                        fontSize: 13,
+                        color: ColoresLocales.textoSecundarioOnFondoClaro,
+                        height: 1.35,
+                      ),
+                    ),
+                  ),
+                ),
+            ]),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildChipsRangoAlcance() {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+      child: Row(
+        children: [
+          _chipRangoAlcance('Hoy', 1),
+          _chipRangoAlcance('7 días', 7),
+          _chipRangoAlcance('30 días', 30),
+        ],
+      ),
+    );
+  }
+
+  Widget _chipRangoAlcance(String label, int dias) {
+    final activo = _rangoAlcanceDias == dias;
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: FilterChip(
+        label: Text(
+          label,
+          style: GoogleFonts.baloo2(
+            fontWeight: FontWeight.w700,
+            fontSize: 12,
+            color: activo ? Colors.white : ColoresLocales.acentoVioleta,
+          ),
+        ),
+        selected: activo,
+        onSelected: (_) {
+          setState(() => _rangoAlcanceDias = dias);
+          _cargarAlcance();
+        },
+        selectedColor: ColoresLocales.acentoVioleta,
+        backgroundColor: ColoresLocales.superficie,
+        checkmarkColor: ColoresLocales.textoEnBoton,
+        side: BorderSide.none,
+        showCheckmark: false,
+      ),
+    );
+  }
+
   Widget _buildChipsRango() {
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
@@ -654,11 +1103,7 @@ class _LocalesMetricasState extends State<LocalesMetricas> {
         selectedColor: ColoresLocales.acentoVioleta,
         backgroundColor: ColoresLocales.superficie,
         checkmarkColor: ColoresLocales.textoEnBoton,
-        side: BorderSide(
-          color: activo
-              ? ColoresLocales.acentoVioleta
-              : ColoresLocales.acentoVioleta.withOpacity(0.25),
-        ),
+        side: BorderSide.none,
         showCheckmark: false,
       ),
     );
@@ -680,7 +1125,7 @@ class _LocalesMetricasState extends State<LocalesMetricas> {
           child: _KpiCard(
             label: 'Reservas',
             valor: formatoMetricaCompacto(r.totalReservas),
-            icon: CupertinoIcons.checkmark_seal_fill,
+            icon: IconosLocales.exito,
             color: ColoresMetricas.aceptado,
           ),
         ),
@@ -713,13 +1158,28 @@ class _LocalesMetricasState extends State<LocalesMetricas> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(msg, textAlign: TextAlign.center, style: GoogleFonts.baloo2()),
-            SizedBox(height: 12),
+            Text(
+              msg,
+              textAlign: TextAlign.center,
+              style: GoogleFonts.baloo2(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: ColoresLocales.textoOnFondoClaro,
+              ),
+            ),
+            const SizedBox(height: 12),
             CupertinoButton(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
               color: ColoresLocales.acentoVioleta,
               borderRadius: BorderRadius.circular(50),
-              onPressed: retry,
-              child: Text('Reintentar', style: GoogleFonts.baloo2(fontWeight: FontWeight.w800)),
+              onPressed: () => retry(),
+              child: Text(
+                'Reintentar',
+                style: GoogleFonts.baloo2(
+                  fontWeight: FontWeight.w800,
+                  color: Colors.white,
+                ),
+              ),
             ),
           ],
         ),
@@ -758,18 +1218,7 @@ class _TileActividad extends StatelessWidget {
     final lineaActor = item.lineaActor;
 
     return Container(
-      decoration: BoxDecoration(
-        color: ColoresLocales.superficie,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: item.colorEstado.withOpacity(0.22)),
-        boxShadow: [
-          BoxShadow(
-            color: ColoresLocales.sombraCard,
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
+      decoration: ColoresLocales.decoracionCard(sinBorde: true, radius: 16),
       child: Padding(
         padding: const EdgeInsets.all(14),
         child: Row(
@@ -792,7 +1241,10 @@ class _TileActividad extends StatelessWidget {
                   Row(
                     children: [
                       Container(
-                        padding: EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 7,
+                          vertical: 2,
+                        ),
                         decoration: BoxDecoration(
                           color: item.colorEstado.withOpacity(0.12),
                           borderRadius: BorderRadius.circular(50),
@@ -859,7 +1311,9 @@ class _TileActividad extends StatelessWidget {
                       style: GoogleFonts.baloo2(
                         fontSize: 11,
                         fontWeight: FontWeight.w700,
-                        color: ColoresLocales.acentoVioleta.withValues(alpha: 0.85),
+                        color: ColoresLocales.acentoVioleta.withValues(
+                          alpha: 0.85,
+                        ),
                       ),
                     ),
                   ],
@@ -874,6 +1328,201 @@ class _TileActividad extends StatelessWidget {
 }
 
 // ─── KPI + gráficos ──────────────────────────────────────────────────────────
+
+/// Vista de un solo día: la DB guarda agregados diarios (sin desglose por hora).
+class _ResumenImpresionesHoy extends StatelessWidget {
+  const _ResumenImpresionesHoy({
+    required this.total,
+    required this.perfil,
+    required this.clicks,
+  });
+
+  final int total;
+  final int perfil;
+  final int clicks;
+
+  int get _cartelera => math.max(0, total - perfil - clicks);
+
+  @override
+  Widget build(BuildContext context) {
+    TemaLocalesScope.of(context);
+    final hoy = DateTime.now();
+    final fechaLabel = '${hoy.day}/${hoy.month}';
+    const colorCartelera = Color(0xFF0891B2);
+    final colorPerfil = ColoresLocales.acentoVioleta;
+    const colorClicks = ColoresMetricas.canje;
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
+      decoration: ColoresLocales.decoracionCard(sinBorde: true, radius: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Impresiones de hoy',
+            style: GoogleFonts.baloo2(
+              fontSize: 15,
+              fontWeight: FontWeight.w900,
+              color: ColoresLocales.textoOnFondoClaro,
+            ),
+          ),
+          Text(
+            'Acumulado $fechaLabel · datos por día (sin desglose horario)',
+            style: GoogleFonts.baloo2(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: ColoresLocales.textoSecundarioOnFondoClaro,
+            ),
+          ),
+          const SizedBox(height: 16),
+          if (total <= 0)
+            SizedBox(
+              height: 120,
+              child: Center(
+                child: Text(
+                  'Sin impresiones registradas hoy',
+                  style: GoogleFonts.baloo2(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: ColoresLocales.textoSecundarioOnFondoClaro,
+                  ),
+                ),
+              ),
+            )
+          else ...[
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Icon(
+                  CupertinoIcons.eye_fill,
+                  size: 28,
+                  color: colorCartelera.withValues(alpha: 0.85),
+                ),
+                const SizedBox(width: 10),
+                Text(
+                  formatoMetricaCompacto(total),
+                  style: GoogleFonts.baloo2(
+                    fontSize: 44,
+                    fontWeight: FontWeight.w900,
+                    height: 0.95,
+                    letterSpacing: -1,
+                    color: ColoresLocales.textoOnFondoClaro,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 6),
+                  child: Text(
+                    'impresiones',
+                    style: GoogleFonts.baloo2(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: ColoresLocales.textoSecundarioOnFondoClaro,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(999),
+              child: SizedBox(
+                height: 8,
+                child: Row(
+                  children: [
+                    if (_cartelera > 0)
+                      Expanded(
+                        flex: _cartelera,
+                        child: ColoredBox(color: colorCartelera),
+                      ),
+                    if (perfil > 0)
+                      Expanded(
+                        flex: perfil,
+                        child: ColoredBox(color: colorPerfil),
+                      ),
+                    if (clicks > 0)
+                      Expanded(
+                        flex: clicks,
+                        child: ColoredBox(color: colorClicks),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 12,
+              runSpacing: 6,
+              children: [
+                _LeyendaResumenHoy(
+                  color: colorCartelera,
+                  label: 'Cartelera',
+                  valor: _cartelera,
+                ),
+                _LeyendaResumenHoy(
+                  color: colorPerfil,
+                  label: 'Perfil',
+                  valor: perfil,
+                ),
+                _LeyendaResumenHoy(
+                  color: colorClicks,
+                  label: 'Clicks',
+                  valor: clicks,
+                ),
+              ],
+            ),
+          ],
+          const SizedBox(height: 8),
+          Text(
+            'Para ver la tendencia diaria, usá 7 o 30 días.',
+            style: GoogleFonts.baloo2(
+              fontSize: 10.5,
+              fontWeight: FontWeight.w600,
+              color: ColoresLocales.textoSecundarioOnFondoClaro.withValues(
+                alpha: 0.85,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _LeyendaResumenHoy extends StatelessWidget {
+  const _LeyendaResumenHoy({
+    required this.color,
+    required this.label,
+    required this.valor,
+  });
+
+  final Color color;
+  final String label;
+  final int valor;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 8,
+          height: 8,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        ),
+        const SizedBox(width: 5),
+        Text(
+          '$label · ${formatoMetricaCompacto(valor)}',
+          style: GoogleFonts.baloo2(
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+            color: ColoresLocales.textoSecundarioOnFondoClaro,
+          ),
+        ),
+      ],
+    );
+  }
+}
 
 class _KpiCard extends StatelessWidget {
   const _KpiCard({
@@ -893,11 +1542,7 @@ class _KpiCard extends StatelessWidget {
     TemaLocalesScope.of(context);
     return Container(
       padding: EdgeInsets.symmetric(horizontal: 10, vertical: 12),
-      decoration: BoxDecoration(
-        color: ColoresLocales.superficie,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: color.withOpacity(0.2)),
-      ),
+      decoration: ColoresLocales.decoracionCard(sinBorde: true, radius: 14),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -959,11 +1604,7 @@ class _GraficoLineaMetricas extends StatelessWidget {
     TemaLocalesScope.of(context);
     return Container(
       padding: EdgeInsets.fromLTRB(14, 14, 14, 12),
-      decoration: BoxDecoration(
-        color: ColoresLocales.superficie,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: ColoresLocales.acentoVioleta.withOpacity(0.12)),
-      ),
+      decoration: ColoresLocales.decoracionCard(sinBorde: true, radius: 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1003,7 +1644,7 @@ class _GraficoLineaMetricas extends StatelessWidget {
               child: LineChart(
                 LineChartData(
                   minX: 0,
-                  maxX: math.max(puntos.length - 1, 1).toDouble(),
+                  maxX: math.max(puntos.length - 1, 0).toDouble(),
                   minY: 0,
                   maxY: _maxY,
                   gridData: FlGridData(
@@ -1047,8 +1688,9 @@ class _GraficoLineaMetricas extends StatelessWidget {
                       sideTitles: SideTitles(
                         showTitles: true,
                         reservedSize: 28,
+                        interval: puntos.length <= 8 ? 1 : 5,
                         getTitlesWidget: (value, meta) {
-                          final i = value.toInt();
+                          final i = value.round();
                           if (i < 0 ||
                               i >= puntos.length ||
                               !_mostrarEtiquetaEje(i)) {
@@ -1061,7 +1703,8 @@ class _GraficoLineaMetricas extends StatelessWidget {
                               style: GoogleFonts.baloo2(
                                 fontSize: 9,
                                 fontWeight: FontWeight.w600,
-                                color: ColoresLocales.textoSecundarioOnFondoClaro,
+                                color:
+                                    ColoresLocales.textoSecundarioOnFondoClaro,
                               ),
                             ),
                           );
@@ -1217,7 +1860,8 @@ class _GraficoBarrasMetricas extends StatelessWidget {
       barTouchData: BarTouchData(
         enabled: puntos.isNotEmpty,
         touchTooltipData: BarTouchTooltipData(
-          getTooltipColor: (_) => ColoresLocales.textoOnFondoClaro.withOpacity(0.92),
+          getTooltipColor: (_) =>
+              ColoresLocales.textoOnFondoClaro.withOpacity(0.92),
           getTooltipItem: (group, groupIndex, rod, rodIndex) {
             final i = group.x.toInt();
             if (i < 0 || i >= puntos.length) return null;
@@ -1236,7 +1880,9 @@ class _GraficoBarrasMetricas extends StatelessWidget {
       titlesData: FlTitlesData(
         show: true,
         topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-        rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+        rightTitles: const AxisTitles(
+          sideTitles: SideTitles(showTitles: false),
+        ),
         leftTitles: AxisTitles(
           sideTitles: SideTitles(
             showTitles: true,
@@ -1306,7 +1952,9 @@ class _GraficoBarrasMetricas extends StatelessWidget {
                 fromY: 0,
                 width: barWidth,
                 color: color.withOpacity(0.9),
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(5)),
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(5),
+                ),
               ),
             ],
           ),
@@ -1347,11 +1995,7 @@ class _GraficoBarrasMetricas extends StatelessWidget {
 
     return Container(
       padding: EdgeInsets.fromLTRB(14, 14, 14, 12),
-      decoration: BoxDecoration(
-        color: ColoresLocales.superficie,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: ColoresLocales.acentoVioleta.withOpacity(0.12)),
-      ),
+      decoration: ColoresLocales.decoracionCard(sinBorde: true, radius: 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1378,7 +2022,9 @@ class _GraficoBarrasMetricas extends StatelessWidget {
               style: GoogleFonts.baloo2(
                 fontSize: 10,
                 fontWeight: FontWeight.w600,
-                color: ColoresLocales.textoSecundarioOnFondoClaro.withOpacity(0.8),
+                color: ColoresLocales.textoSecundarioOnFondoClaro.withOpacity(
+                  0.8,
+                ),
               ),
             ),
           ],

@@ -1,6 +1,12 @@
 library;
 
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/material.dart';
+
+import '../core/constants.dart';
+
+/// Tono semántico del color de acento (no leídas).
+enum TonoNotificacion { positiva, negativa, advertencia, informativa }
 
 /// Notificación in-app para el local (tabla `notificaciones_locales`).
 class Notificacion {
@@ -58,15 +64,27 @@ class Notificacion {
     );
   }
 
-  /// Mapea `icono_key` (string del backend) → IconData de Cupertino.
-  /// Si no matchea, retorna bell genérico. Centralizado acá para que
-  /// la UI no tenga que mapear strings sueltos.
+  /// Mapea `tipo` e `icono_key` → IconData de Cupertino.
+  /// Nunca usar [IconosLocales.verificado] acá: ese sello es solo verificación de cuenta.
+  /// Pagos/planes aprobados usan [IconosLocales.exito] (check en círculo).
   IconData get icono {
+    switch (tipo) {
+      case 'pago_aprobado':
+      case 'pago_agendado':
+      case 'plan_renovado':
+      case 'suscripcion_activa':
+      case 'jerarquia_activada':
+        return IconosLocales.exito;
+      default:
+        break;
+    }
+
     switch (iconoKey) {
       case 'list_bullet':
         return CupertinoIcons.list_bullet;
       case 'checkmark_seal_fill':
-        return CupertinoIcons.checkmark_seal_fill;
+      case 'checkmark_circle_fill':
+        return IconosLocales.exito;
       case 'star_fill':
         return CupertinoIcons.star_fill;
       case 'star_lefthalf_fill':
@@ -83,8 +101,6 @@ class Notificacion {
         return CupertinoIcons.person_3_fill;
       case 'xmark_circle_fill':
         return CupertinoIcons.xmark_circle_fill;
-      case 'checkmark_circle_fill':
-        return CupertinoIcons.checkmark_circle_fill;
       default:
         return CupertinoIcons.bell_fill;
     }
@@ -101,6 +117,62 @@ class Notificacion {
     if (diff.inDays < 7) return 'Hace ${diff.inDays} días';
     final l = fechaCreacion.toLocal();
     return '${l.day.toString().padLeft(2, '0')}/${l.month.toString().padLeft(2, '0')}';
+  }
+
+  /// Clasifica el tono según `tipo` (independiente de `prioridad`).
+  TonoNotificacion get tono {
+    switch (tipo) {
+      case 'pago_aprobado':
+      case 'pago_agendado':
+      case 'plan_renovado':
+      case 'suscripcion_activa':
+      case 'jerarquia_activada':
+      case 'pionero_activado':
+        return TonoNotificacion.positiva;
+      case 'pago_rechazado':
+      case 'plan_vencido':
+      case 'suscripcion_vencida':
+      case 'suscripcion_finalizada':
+        return TonoNotificacion.negativa;
+      case 'suscripcion_por_vencer':
+      case 'suscripcion_por_vencer_urgente':
+      case 'jerarquia_por_vencer':
+      case 'lista_pendiente_5':
+      case 'cupo_lleno':
+        return TonoNotificacion.advertencia;
+      default:
+        return TonoNotificacion.informativa;
+    }
+  }
+
+  /// Color de acento de la card: gris si ya fue vista.
+  Color colorAcento({required bool leida}) {
+    if (leida) {
+      return ColoresLocales.textoSecundarioOnFondoClaro;
+    }
+    switch (tono) {
+      case TonoNotificacion.positiva:
+        return ColoresLocales.verdeFernet;
+      case TonoNotificacion.negativa:
+        return const Color(0xFFEF4444);
+      case TonoNotificacion.advertencia:
+        return ColoresLocales.mostazaDestacado;
+      case TonoNotificacion.informativa:
+        return ColoresLocales.acentoVioleta;
+    }
+  }
+
+  /// Texto legible sobre el botón CTA cuando la notif no está leída.
+  Color colorTextoBoton({required bool leida}) {
+    if (leida) return ColoresLocales.textoSecundarioOnFondoClaro;
+    if (tono == TonoNotificacion.advertencia) {
+      return ColoresLocales.textoSobreMostaza;
+    }
+    if (tono == TonoNotificacion.positiva &&
+        ColoresLocales.verdeFernet.computeLuminance() > 0.55) {
+      return const Color(0xFF14532D);
+    }
+    return ColoresLocales.textoEnBoton;
   }
 
   Notificacion copyWith({bool? leida, DateTime? fechaLectura}) {

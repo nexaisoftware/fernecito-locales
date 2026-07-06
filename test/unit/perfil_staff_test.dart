@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 
-import '../../lib/models/perfil_staff.dart';
+import 'package:frontend_locales/models/perfil_staff.dart';
 
 void main() {
   group('PerfilStaff.fromMap — campos básicos', () {

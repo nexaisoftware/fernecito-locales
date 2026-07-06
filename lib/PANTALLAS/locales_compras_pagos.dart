@@ -14,7 +14,10 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/constants.dart';
 import '../widgets/tema_locales_scope.dart';
 import '../core/navegacion_locales.dart';
+import '../core/programa_pioneros.dart';
 import '../core/servicio_edges_eventos.dart';
+import '../core/suscripcion_locales.dart';
+import '../widgets/programa_pioneros_ui.dart';
 
 /// Genera un UUID v4 criptográficamente seguro. Usado como idempotency key.
 String _uuidV4() {
@@ -56,6 +59,10 @@ class _LocalesComprasPagosState extends State<LocalesComprasPagos> {
   Map<String, dynamic>? _solicitudDiferida;  // aprobado_pendiente + renov/downgrade
   String? _planActualLocal;                  // plan_suscripcion actual
   DateTime? _vencimientoLocal;               // fecha_vencimiento_suscripcion
+  bool _esPionero = false;
+  bool _pioneroBeneficiosActivo = false;
+  int? _pioneroMesBeneficio;
+  String _tipoPlanEfectivo = 'Standard';
 
   // ── Idempotency key — uno por intención. Se regenera DESPUÉS de un envío
   // exitoso o cuando el usuario abre un sheet de plan distinto. Mientras el
@@ -88,12 +95,32 @@ class _LocalesComprasPagosState extends State<LocalesComprasPagos> {
       // Perfil del local (plan + vencimiento)
       final perfil = await sb
           .from('perfiles_locales')
-          .select('plan_suscripcion, fecha_vencimiento_suscripcion')
+          .select(
+            'plan_suscripcion, fecha_vencimiento_suscripcion, es_pionero, '
+            'pionero_beneficios_fin, pionero_mes_beneficio, local_verificado',
+          )
           .eq('id', uid)
           .maybeSingle();
       _planActualLocal = (perfil?['plan_suscripcion'] as String?)?.toLowerCase();
       final venc = perfil?['fecha_vencimiento_suscripcion'];
       _vencimientoLocal = venc != null ? DateTime.tryParse(venc.toString()) : null;
+      _esPionero = perfil?['es_pionero'] == true;
+      final pioneroFinRaw = perfil?['pionero_beneficios_fin'];
+      final pioneroFin = pioneroFinRaw != null
+          ? DateTime.tryParse(pioneroFinRaw.toString())?.toLocal()
+          : null;
+      _pioneroMesBeneficio = (perfil?['pionero_mes_beneficio'] as num?)?.toInt();
+      _pioneroBeneficiosActivo = _esPionero &&
+          pioneroFin != null &&
+          pioneroFin.isAfter(DateTime.now());
+      _tipoPlanEfectivo = SuscripcionLocales.tipoPlanEfectivo(
+        rawDb: _planActualLocal,
+        localVerificado: perfil?['local_verificado'] == true,
+        esPionero: _esPionero,
+        pioneroBeneficiosActivo: _pioneroBeneficiosActivo,
+        pioneroMesBeneficio: _pioneroMesBeneficio,
+        fechaVencimiento: _vencimientoLocal,
+      );
 
       // Solicitudes activas del local
       final solicitudes = await sb
@@ -135,6 +162,22 @@ class _LocalesComprasPagosState extends State<LocalesComprasPagos> {
   /// Devuelve null si el plan se puede pagar, o un motivo legible si está bloqueado.
   String? _motivoBloqueo(String planRaw) {
     if (_cargandoEstado) return 'Cargando estado...';
+
+    if (_esPionero && _pioneroBeneficiosActivo) {
+      final reglas = ProgramaPioneros.reglas(
+        esPionero: _esPionero,
+        beneficiosActivos: _pioneroBeneficiosActivo,
+        mesBeneficio: _pioneroMesBeneficio,
+        planActual: _tipoPlanEfectivo,
+        premiumPagoActivo: ProgramaPioneros.premiumPagoActivo(
+          planRaw: _planActualLocal,
+          fechaVencimiento: _vencimientoLocal,
+        ),
+      );
+      final motivoPionero = reglas.motivoBloqueoPlan(planRaw);
+      if (motivoPionero != null) return motivoPionero;
+    }
+
     if (_solicitudPendiente != null) {
       return 'Ya tenés un pago pendiente de aprobación.';
     }
@@ -449,7 +492,7 @@ class _LocalesComprasPagosState extends State<LocalesComprasPagos> {
                                   color: ColoresLocales.chipInactivo,
                                 ),
                               )
-                            : const Icon(Icons.verified_rounded, size: 21),
+                            : Icon(IconosLocales.exito, size: 21),
                         label: Text(
                           _enviandoComprobante
                               ? 'Enviando...'
@@ -645,6 +688,23 @@ class _LocalesComprasPagosState extends State<LocalesComprasPagos> {
                     ),
                     const SizedBox(height: 18),
                   ],
+
+                  if (_esPionero && _pioneroBeneficiosActivo)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 14),
+                      child: BannerInfoPioneroSuscripcion(
+                        reglas: ProgramaPioneros.reglas(
+                          esPionero: _esPionero,
+                          beneficiosActivos: _pioneroBeneficiosActivo,
+                          mesBeneficio: _pioneroMesBeneficio,
+                          planActual: _tipoPlanEfectivo,
+                          premiumPagoActivo: ProgramaPioneros.premiumPagoActivo(
+                            planRaw: _planActualLocal,
+                            fechaVencimiento: _vencimientoLocal,
+                          ),
+                        ),
+                      ),
+                    ),
 
                   // ── Card de transferencia ─────────────────────────────────
                   _transferCard(

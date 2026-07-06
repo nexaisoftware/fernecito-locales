@@ -96,6 +96,7 @@ class FlyerCacheGeneracion {
     required this.titulo,
     required this.estiloNombre,
     required this.localPaths,
+    this.remoteUrls = const [],
     required this.esRetry,
     required this.retryUsado,
     required this.createdAt,
@@ -106,8 +107,11 @@ class FlyerCacheGeneracion {
   final String titulo;
   final String estiloNombre;
 
-  /// Rutas absolutas en el dispositivo de cada imagen (0–3).
+  /// Rutas absolutas en el dispositivo de cada imagen (0–3). Vacío en web/PWA.
   final List<String> localPaths;
+
+  /// URLs remotas persistidas (web/PWA y fallback si falla la descarga).
+  final List<String> remoteUrls;
   final bool esRetry;
   final bool retryUsado;
   final DateTime createdAt;
@@ -132,6 +136,7 @@ class FlyerCacheGeneracion {
         'titulo': titulo,
         'estilo_nombre': estiloNombre,
         'local_paths': localPaths,
+        'remote_urls': remoteUrls,
         'es_retry': esRetry,
         'retry_usado': retryUsado,
         'created_at': createdAt.toIso8601String(),
@@ -144,6 +149,7 @@ class FlyerCacheGeneracion {
         titulo: m['titulo'] as String? ?? '',
         estiloNombre: m['estilo_nombre'] as String? ?? '',
         localPaths: List<String>.from(m['local_paths'] as List? ?? []),
+        remoteUrls: List<String>.from(m['remote_urls'] as List? ?? []),
         esRetry: m['es_retry'] as bool? ?? false,
         retryUsado: m['retry_usado'] as bool? ?? false,
         createdAt: DateTime.tryParse(m['created_at'] as String? ?? '') ?? DateTime.now(),
@@ -211,6 +217,19 @@ class FlyerCacheService {
     required DateTime createdAt,
     FlyerCacheFormulario? formulario,
   }) async {
+    if (kIsWeb) {
+      return _guardarGeneracionWeb(
+        id: id,
+        titulo: titulo,
+        estiloNombre: estiloNombre,
+        urls: urls,
+        esRetry: esRetry,
+        retryUsado: retryUsado,
+        createdAt: createdAt,
+        formulario: formulario,
+      );
+    }
+
     final dir = await _dirBase();
     final genDir = Directory('${dir.path}/$id');
     if (!await genDir.exists()) await genDir.create(recursive: true);
@@ -236,6 +255,7 @@ class FlyerCacheService {
       titulo: titulo,
       estiloNombre: estiloNombre,
       localPaths: localPaths,
+      remoteUrls: urls,
       esRetry: esRetry,
       retryUsado: retryUsado,
       createdAt: createdAt,
@@ -267,6 +287,7 @@ class FlyerCacheService {
       titulo: g.titulo,
       estiloNombre: g.estiloNombre,
       localPaths: g.localPaths,
+      remoteUrls: g.remoteUrls,
       esRetry: g.esRetry,
       retryUsado: true,
       createdAt: g.createdAt,
@@ -324,6 +345,7 @@ class FlyerCacheService {
       titulo: g.titulo,
       estiloNombre: g.estiloNombre,
       localPaths: localPaths,
+      remoteUrls: nuevasUrls,
       esRetry: g.esRetry,
       retryUsado: true,
       createdAt: g.createdAt,
@@ -335,6 +357,11 @@ class FlyerCacheService {
   // ── Verificar archivos físicos ───────────────────────────────────────────
 
   Future<bool> tieneImagenesLocales(String id) async {
+    if (kIsWeb) {
+      final todas = await cargarTodas();
+      final gen = todas.where((g) => g.id == id).firstOrNull;
+      return gen != null && gen.remoteUrls.any((u) => u.isNotEmpty);
+    }
     final todas = await cargarTodas();
     final gen = todas.where((g) => g.id == id).firstOrNull;
     if (gen == null) return false;
@@ -342,6 +369,41 @@ class FlyerCacheService {
       if (path.isNotEmpty && await File(path).exists()) return true;
     }
     return false;
+  }
+
+  // ── Web/PWA: solo índice + URLs (sin dart:io) ───────────────────────────
+
+  Future<FlyerCacheGeneracion> _guardarGeneracionWeb({
+    required String id,
+    required String titulo,
+    required String estiloNombre,
+    required List<String> urls,
+    required bool esRetry,
+    required bool retryUsado,
+    required DateTime createdAt,
+    FlyerCacheFormulario? formulario,
+  }) async {
+    final generacion = FlyerCacheGeneracion(
+      id: id,
+      titulo: titulo,
+      estiloNombre: estiloNombre,
+      localPaths: const [],
+      remoteUrls: List<String>.from(urls),
+      esRetry: esRetry,
+      retryUsado: retryUsado,
+      createdAt: createdAt,
+      formulario: formulario,
+    );
+
+    final todas = await cargarTodas();
+    final idx = todas.indexWhere((g) => g.id == id);
+    if (idx >= 0) {
+      todas[idx] = generacion;
+    } else {
+      todas.insert(0, generacion);
+    }
+    await _guardarIndice(todas);
+    return generacion;
   }
 
   // ── Helpers privados ─────────────────────────────────────────────────────

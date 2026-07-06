@@ -3,10 +3,12 @@ library;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'core/constants.dart';
+import 'core/barra_sistema_locales.dart';
 import 'core/tema_app_locales.dart';
 import 'core/modo_app_locales.dart';
 import 'widgets/tema_locales_scope.dart';
@@ -22,6 +24,8 @@ import 'PANTALLAS/locales_staff_home.dart';
 import 'core/servicio_estado_cuenta_locales.dart';
 import 'PANTALLAS/locales_cuenta_bloqueada.dart';
 import 'widgets/skeleton_pantalla_dashboard.dart';
+import 'widgets/control_actualizacion_web.dart';
+import 'widgets/control_instalar_pwa.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -29,10 +33,8 @@ void main() async {
   // Fuerza apagar guías de baseline/debug paint que generan "doble subrayado" en textos.
   debugPaintBaselinesEnabled = false;
 
-  // Cargar .env solo como fallback local. En produccion se usa --dart-define.
-  try {
-    await dotenv.load(fileName: '.env');
-  } catch (_) {}
+  // Fallback local: --dart-define (prod) > assets/.env > .env en raíz.
+  await _cargarEnvLocal();
 
   bool supabaseOk = false;
   String? errorSupabase;
@@ -102,7 +104,8 @@ class _PantallaErrorConfig extends StatelessWidget {
                 ),
                 const SizedBox(height: 24),
                 Text(
-                  'En produccion se configuran con --dart-define. En local podés usar .env.',
+                  'En produccion: --dart-define. En local: copiá assets/.env.ejemplo → assets/.env '
+                  '(o .env en la raíz del proyecto).',
                   style: const TextStyle(color: Colors.white54, fontSize: 12),
                   textAlign: TextAlign.center,
                 ),
@@ -115,15 +118,34 @@ class _PantallaErrorConfig extends StatelessWidget {
   }
 }
 
-String _config(String key) {
+Future<void> _cargarEnvLocal() async {
+  if (_configFromDefine('URL_SUPABASE').isNotEmpty &&
+      _configFromDefine('CLAVE_PUBLICA_SUPABASE').isNotEmpty) {
+    return;
+  }
+
+  for (final path in ['assets/.env', '.env']) {
+    try {
+      await dotenv.load(fileName: path);
+      final url = (dotenv.env['URL_SUPABASE'] ?? '').trim();
+      final clave = (dotenv.env['CLAVE_PUBLICA_SUPABASE'] ?? '').trim();
+      if (url.isNotEmpty && clave.isNotEmpty) return;
+    } catch (_) {}
+  }
+}
+
+String _configFromDefine(String key) {
   const urlSupabase = String.fromEnvironment('URL_SUPABASE');
   const clavePublicaSupabase = String.fromEnvironment('CLAVE_PUBLICA_SUPABASE');
-
-  final fromDefine = switch (key) {
+  return switch (key) {
     'URL_SUPABASE' => urlSupabase,
     'CLAVE_PUBLICA_SUPABASE' => clavePublicaSupabase,
     _ => '',
   };
+}
+
+String _config(String key) {
+  final fromDefine = _configFromDefine(key);
   return fromDefine.isNotEmpty ? fromDefine : (dotenv.env[key] ?? '').trim();
 }
 
@@ -219,6 +241,14 @@ class _AppLocalesState extends State<AppLocales> {
           return AuthGateLocales(
             child: MaterialApp(
               navigatorKey: navigatorKeyLocales,
+              builder: (context, child) => AnnotatedRegion<SystemUiOverlayStyle>(
+                value: BarraSistemaLocales.estilo(oscuro),
+                child: ControlInstalarPwa(
+                  child: ControlActualizacionWeb(
+                    child: child ?? const SizedBox.shrink(),
+                  ),
+                ),
+              ),
               title: 'Fernecito Locales',
               debugShowCheckedModeBanner: false,
               themeMode: oscuro ? ThemeMode.dark : ThemeMode.light,

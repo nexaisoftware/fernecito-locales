@@ -337,74 +337,32 @@ class _CardNotif extends StatelessWidget {
     required this.onBoton,
   });
 
-  Color _colorPrioridad() {
-    switch (notif.prioridad) {
-      case 'alta':
-        return Colors.red.shade400;
-      case 'baja':
-        return ColoresLocales.textoSecundarioOnFondoClaro;
-      default:
-        return ColoresLocales.acentoVioleta;
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     TemaLocalesScope.of(context);
     final leida = notif.leida;
-    final colorAccent = _colorPrioridad();
+    final colorAccent = notif.colorAcento(leida: leida);
+    final colorBotonTexto = notif.colorTextoBoton(leida: leida);
 
     return GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(
         duration: Duration(milliseconds: 300),
-        decoration: BoxDecoration(
-          color: ColoresLocales.superficie,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: leida
-                ? colorAccent.withOpacity(0.1)
-                : colorAccent.withOpacity(0.35),
-            width: leida ? 1 : 1.5,
-          ),
-          boxShadow: leida
-              ? [
-                  BoxShadow(
-                    color: ColoresLocales.sombraCard,
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-                ]
-              : [
-                  BoxShadow(
-                    color: colorAccent.withOpacity(0.18),
-                    blurRadius: 18,
-                    spreadRadius: 0,
-                    offset: Offset(0, 4),
-                  ),
-                ],
-        ),
+        decoration: ColoresLocales.decoracionCard(sinBorde: true),
         child: Padding(
           padding: EdgeInsets.all(16),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Indicador circular: relleno si no leída, contorno si leída
-              Container(
+              SizedBox(
                 width: 36,
                 height: 36,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: leida
-                      ? colorAccent.withOpacity(0.08)
-                      : colorAccent.withOpacity(0.16),
-                ),
                 child: Icon(
                   notif.icono,
                   color: leida
                       ? ColoresLocales.textoSecundarioOnFondoClaro
                       : colorAccent,
-                  size: 18,
+                  size: 22,
                 ),
               ),
               SizedBox(width: 12),
@@ -474,11 +432,10 @@ class _CardNotif extends StatelessWidget {
                             child: Container(
                               padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                               decoration: BoxDecoration(
-                                color: leida ? Colors.transparent : colorAccent,
+                                color: leida
+                                    ? colorAccent.withValues(alpha: 0.1)
+                                    : colorAccent,
                                 borderRadius: BorderRadius.circular(50),
-                                border: leida
-                                    ? Border.all(color: colorAccent.withOpacity(0.4))
-                                    : null,
                               ),
                               child: Text(
                                 notif.ctaTexto!,
@@ -487,7 +444,7 @@ class _CardNotif extends StatelessWidget {
                                   fontWeight: FontWeight.w700,
                                   color: leida
                                       ? ColoresLocales.textoSecundarioOnFondoClaro
-                                      : ColoresLocales.textoEnBoton,
+                                      : colorBotonTexto,
                                 ),
                               ),
                             ),

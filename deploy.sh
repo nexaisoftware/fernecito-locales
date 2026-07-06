@@ -33,6 +33,29 @@ flutter build web --release --base-href / \
   --dart-define=URL_SUPABASE="$URL_SUPABASE" \
   --dart-define=CLAVE_PUBLICA_SUPABASE="$CLAVE_PUBLICA_SUPABASE"
 
+echo "==> [1b/3] deploy_id en build/web/version.json"
+python3 - <<'PY'
+import json, os, subprocess, time
+
+path = "build/web/version.json"
+with open(path, encoding="utf-8") as f:
+    data = json.load(f)
+
+git_ref = (os.environ.get("VERCEL_GIT_COMMIT_SHA") or "").strip()
+if not git_ref:
+    try:
+        git_ref = subprocess.check_output(
+            ["git", "rev-parse", "HEAD"], text=True, stderr=subprocess.DEVNULL
+        ).strip()
+    except Exception:
+        git_ref = "local"
+
+# Un id único por deploy (mismo commit ≠ mismo deploy).
+data["deploy_id"] = f"{git_ref[:12]}-{int(time.time())}"
+with open(path, "w", encoding="utf-8") as f:
+    json.dump(data, f, separators=(",", ":"))
+PY
+
 echo "==> [2/3] escribiendo build/web/vercel.json"
 cat > build/web/vercel.json <<'JSON'
 {

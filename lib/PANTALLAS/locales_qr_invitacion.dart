@@ -172,12 +172,15 @@ class _SheetQrInvitacionState extends State<_SheetQrInvitacion> {
           ),
           const SizedBox(height: 16),
           CupertinoButton(
-            color: ColoresLocales.acentoVioleta,
+            color: ColoresLocales.botonVioletaFondo,
             borderRadius: BorderRadius.circular(14),
             onPressed: _generar,
             child: Text(
               'Reintentar',
-              style: GoogleFonts.baloo2(fontWeight: FontWeight.w800),
+              style: GoogleFonts.baloo2(
+                fontWeight: FontWeight.w800,
+                color: ColoresLocales.botonVioletaTexto,
+              ),
             ),
           ),
         ],
@@ -188,11 +191,7 @@ class _SheetQrInvitacionState extends State<_SheetQrInvitacion> {
       children: [
         Container(
           padding: const EdgeInsets.all(18),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(22),
-            boxShadow: ColoresLocales.sombrasCard(acento: ColoresLocales.acentoVioleta),
-          ),
+          decoration: ColoresLocales.decoracionCard(radius: 22, sinBorde: true),
           child: QrImageView(
             data: _payload,
             version: QrVersions.auto,
@@ -222,7 +221,7 @@ class _SheetQrInvitacionState extends State<_SheetQrInvitacion> {
             children: [
               Icon(
                 _pasarCupo
-                    ? CupertinoIcons.checkmark_seal_fill
+                    ? IconosLocales.exito
                     : CupertinoIcons.person_2_fill,
                 size: 15,
                 color: _pasarCupo
@@ -260,9 +259,7 @@ class _SheetQrInvitacionState extends State<_SheetQrInvitacion> {
         const SizedBox(height: 16),
         SizedBox(
           width: double.infinity,
-          child: CupertinoButton(
-            color: ColoresLocales.acentoVioleta,
-            borderRadius: BorderRadius.circular(16),
+          child: FilledButton.icon(
             onPressed: () {
               SharePlus.instance.share(
                 ShareParams(
@@ -273,19 +270,21 @@ class _SheetQrInvitacionState extends State<_SheetQrInvitacion> {
                 ),
               );
             },
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(CupertinoIcons.share, size: 18),
-                const SizedBox(width: 8),
-                Text(
-                  'Compartir',
-                  style: GoogleFonts.baloo2(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ],
+            icon: const Icon(CupertinoIcons.share, size: 18),
+            label: Text(
+              'Compartir',
+              style: GoogleFonts.baloo2(
+                fontSize: 15,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            style: FilledButton.styleFrom(
+              backgroundColor: ColoresLocales.botonVioletaFondo,
+              foregroundColor: ColoresLocales.botonVioletaTexto,
+              minimumSize: const Size.fromHeight(48),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
             ),
           ),
         ),

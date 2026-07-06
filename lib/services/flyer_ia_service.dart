@@ -89,7 +89,7 @@ class FlyerIaService {
         if (sponsors != null && sponsors.isNotEmpty) 'sponsors': sponsors,
         if (dresscode != null && dresscode.isNotEmpty) 'dresscode': dresscode,
       },
-      if (generacionPadreId != null) 'generacion_padre_id': generacionPadreId,
+      'generacion_padre_id': ?generacionPadreId,
     };
 
     final resp = await http.post(

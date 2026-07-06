@@ -8,7 +8,6 @@ import 'flujo_recuperacion.dart';
 import 'modo_app_locales.dart';
 import 'servicio_staff_locales.dart';
 import 'servicio_estado_cuenta_locales.dart';
-
 final GlobalKey<NavigatorState> navigatorKeyLocales = GlobalKey<NavigatorState>();
 
 const String _tablaPerfilesLocales = 'perfiles_locales';
@@ -148,5 +147,7 @@ class _AuthGateLocalesState extends State<AuthGateLocales> {
   }
 
   @override
-  Widget build(BuildContext context) => widget.child;
+  Widget build(BuildContext context) {
+    return widget.child;
+  }
 }
