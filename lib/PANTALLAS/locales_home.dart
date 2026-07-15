@@ -9,6 +9,7 @@ import '../core/tema_app_locales.dart';
 import '../widgets/boton_modo_oscuro_locales.dart';
 import '../widgets/badge_etiqueta_locales.dart';
 import '../widgets/badge_plan_suscripcion.dart';
+import '../widgets/dialog_permiso_push_locales.dart';
 import '../widgets/tema_locales_scope.dart';
 import '../core/navegacion_posicionamiento.dart';
 import '../core/servicio_estado_cuenta_locales.dart';
@@ -64,6 +65,10 @@ class _LocalesHomeState extends State<LocalesHome> with WidgetsBindingObserver {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _keyPosicionamiento.currentState?.resaltarEventoPorId(idEvento);
       });
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      DialogPermisoPushLocales.mostrarSiCorresponde(context);
     });
   }
 

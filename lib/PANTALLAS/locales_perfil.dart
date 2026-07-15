@@ -1201,23 +1201,18 @@ class _LocalesPerfilState extends State<LocalesPerfil> {
                           ),
                         ),
                       ),
+                      Positioned(
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        child: Align(
+                          alignment: Alignment.bottomCenter,
+                          child: BadgeMegustaLocalLectura(
+                            cantidad: _cantidadMegusta,
+                          ),
+                        ),
+                      ),
                     ],
-                  ),
-                ),
-              ),
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: EdgeInsets.fromLTRB(
-                    horizontalPadding,
-                    2,
-                    horizontalPadding,
-                    0,
-                  ),
-                  child: Align(
-                    alignment: Alignment.centerRight,
-                    child: BadgeMegustaLocalLectura(
-                      cantidad: _cantidadMegusta,
-                    ),
                   ),
                 ),
               ),
@@ -2282,7 +2277,7 @@ class _ResumenSuscripcionPerfil extends StatelessWidget {
     final String boton;
     final bool botonPrimario;
     if (esGratis) {
-      boton = pendiente ? 'Pago en revisión' : 'Ver planes';
+      boton = pendiente ? 'Pago en revisión' : 'Administrar suscripción';
       botonPrimario = true;
     } else if (pendiente) {
       boton = 'Ver estado del pago';
@@ -2409,9 +2404,7 @@ class _ResumenSuscripcionPerfil extends StatelessWidget {
                       backgroundColor: esGratis
                           ? ColoresMiLocalPerfil.principalMarca
                           : ColoresMiLocalPerfil.acentoVioleta,
-                      foregroundColor: esGratis
-                          ? ColoresMiLocalPerfil.principalMarca
-                          : Colors.white,
+                      foregroundColor: Colors.white,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(50),
                       ),

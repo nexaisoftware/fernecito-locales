@@ -53,9 +53,9 @@ class _LocalesCrearCuentaState extends State<LocalesCrearCuenta> {
     setState(() => _cargandoGoogle = true);
     try {
       await ServicioSupabase().cliente.auth.signInWithOAuth(
-            OAuthProvider.google,
-            redirectTo: authRedirectUrlLocales,
-          );
+        OAuthProvider.google,
+        redirectTo: authRedirectUrlLocales,
+      );
     } catch (e) {
       if (mounted) {
         _mostrarError(
@@ -86,6 +86,18 @@ class _LocalesCrearCuentaState extends State<LocalesCrearCuenta> {
         password: _contrasena.text,
         emailRedirectTo: authRedirectUrlLocales,
       );
+      final identidades = respuesta.user?.identities;
+      if (respuesta.user != null &&
+          respuesta.session == null &&
+          identidades != null &&
+          identidades.isEmpty) {
+        if (mounted) {
+          _mostrarError(
+            TraductorErroresAuth.mensajeCuentaExistenteEnFernecito(),
+          );
+        }
+        return;
+      }
       if (respuesta.user != null) {
         if (respuesta.session == null) {
           if (mounted) {
@@ -119,7 +131,10 @@ class _LocalesCrearCuentaState extends State<LocalesCrearCuenta> {
   /// Si la función no existe o falla, devuelve false para no bloquear el signUp.
   Future<bool> _emailYaRegistrado(dynamic cliente, String email) async {
     try {
-      final res = await cliente.rpc('email_ya_registrado', params: {'p_email': email});
+      final res = await cliente.rpc(
+        'email_ya_registrado',
+        params: {'p_email': email},
+      );
       if (res == true) return true;
       if (res is List && res.isNotEmpty && res.first == true) return true;
       return false;
@@ -128,16 +143,13 @@ class _LocalesCrearCuentaState extends State<LocalesCrearCuenta> {
     }
   }
 
-  void _mostrarExito(String mensaje) => _mostrarDialogoAuth(
-        titulo: '¡Listo!',
-        mensaje: mensaje,
-        esError: false,
-      );
+  void _mostrarExito(String mensaje) =>
+      _mostrarDialogoAuth(titulo: '¡Listo!', mensaje: mensaje, esError: false);
 
   void _mostrarError(String mensaje) => _mostrarDialogoAuth(
-        titulo: 'No se pudo crear la cuenta',
-        mensaje: mensaje,
-      );
+    titulo: 'No se pudo crear la cuenta',
+    mensaje: mensaje,
+  );
 
   void _mostrarDialogoAuth({
     required String titulo,
@@ -152,7 +164,9 @@ class _LocalesCrearCuentaState extends State<LocalesCrearCuenta> {
         title: Text(
           titulo,
           style: GoogleFonts.baloo2(
-            color: esError ? const Color(0xFFFF8A80) : ColoresOnboardingLocales.texto,
+            color: esError
+                ? const Color(0xFFFF8A80)
+                : ColoresOnboardingLocales.texto,
             fontWeight: FontWeight.w900,
           ),
         ),
@@ -184,261 +198,266 @@ class _LocalesCrearCuentaState extends State<LocalesCrearCuenta> {
     return Scaffold(
       backgroundColor: ColoresOnboardingLocales.violeta,
       body: SafeArea(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 28),
-              child: Form(
-                key: _formKey,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    SizedBox(height: 32),
-                    Center(
-                      child: Image.asset(
-                        _assetLogo,
-                        height: 80,
-                        fit: BoxFit.contain,
-                        errorBuilder: (_, __, ___) => Icon(
-                          Icons.person_add_rounded,
-                          size: 64,
-                          color: ColoresLocales.textoOnFondoClaro,
-                        ),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 28),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                SizedBox(height: 32),
+                Center(
+                  child: Image.asset(
+                    _assetLogo,
+                    height: 80,
+                    fit: BoxFit.contain,
+                    errorBuilder: (_, __, ___) => Icon(
+                      Icons.person_add_rounded,
+                      size: 64,
+                      color: ColoresLocales.textoOnFondoClaro,
+                    ),
+                  ),
+                ),
+                SizedBox(height: 24),
+                Text(
+                  'Crear cuenta',
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.baloo2(
+                    fontSize: 24,
+                    fontWeight: FontWeight.w800,
+                    color: ColoresOnboardingLocales.texto,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  '¿Ya usás Fernecito con Google? Entrá con el mismo email.',
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.baloo2(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    color: ColoresOnboardingLocales.textoSecundario,
+                  ),
+                ),
+                const SizedBox(height: 24),
+                SizedBox(
+                  height: 50,
+                  child: OutlinedButton(
+                    onPressed: (_cargando || _cargandoGoogle)
+                        ? null
+                        : _crearCuentaGoogle,
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: ColoresOnboardingLocales.violetaOscuro,
+                      backgroundColor: Colors.white,
+                      side: const BorderSide(color: Colors.white),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
                       ),
                     ),
-                    SizedBox(height: 24),
-                    Text(
-                      'Crear cuenta',
-                      textAlign: TextAlign.center,
-                      style: GoogleFonts.baloo2(
-                        fontSize: 24,
-                        fontWeight: FontWeight.w800,
-                        color: ColoresOnboardingLocales.texto,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      '¿Ya usás Fernecito con Google? Entrá con el mismo email.',
-                      textAlign: TextAlign.center,
-                      style: GoogleFonts.baloo2(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                        color: ColoresOnboardingLocales.textoSecundario,
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-                    SizedBox(
-                      height: 50,
-                      child: OutlinedButton(
-                        onPressed: (_cargando || _cargandoGoogle) ? null : _crearCuentaGoogle,
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: ColoresOnboardingLocales.violetaOscuro,
-                          backgroundColor: Colors.white,
-                          side: const BorderSide(color: Colors.white),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14),
-                          ),
-                        ),
-                        child: _cargandoGoogle
-                            ? const SizedBox(
-                                height: 20,
-                                width: 20,
-                                child: CircularProgressIndicator(strokeWidth: 2),
-                              )
-                            : Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  const FaIcon(FontAwesomeIcons.google, size: 18),
-                                  const SizedBox(width: 10),
-                                  Text(
-                                    'Continuar con Google',
-                                    style: GoogleFonts.baloo2(
-                                      fontSize: 15,
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                      ),
-                    ),
-                    const SizedBox(height: 18),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Divider(color: Colors.white.withValues(alpha: 0.35)),
-                        ),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 12),
-                          child: Text(
-                            'o con email',
-                            style: GoogleFonts.baloo2(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: ColoresOnboardingLocales.textoSuave,
-                            ),
-                          ),
-                        ),
-                        Expanded(
-                          child: Divider(color: Colors.white.withValues(alpha: 0.35)),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 18),
-                    TextFormField(
-                      controller: _email,
-                      keyboardType: TextInputType.emailAddress,
-                      autocorrect: false,
-                      validator: (value) {
-                        if (value == null || value.trim().isEmpty) {
-                          return 'Ingresá un email';
-                        }
-                        if (!_esEmailValido(value)) {
-                          return 'Ingresá un email válido';
-                        }
-                        return null;
-                      },
-                      style: GoogleFonts.baloo2(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                        color: ColoresOnboardingLocales.texto,
-                      ),
-                      decoration: _decoration(
-                        hint: 'Email',
-                        prefixIcon: Icons.email_outlined,
-                      ),
-                    ),
-                    SizedBox(height: 16),
-                    TextFormField(
-                      controller: _contrasena,
-                      obscureText: _ocultarContrasena,
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Ingresá una contraseña';
-                        }
-                        if (value.length < 6) {
-                          return 'Mínimo 6 caracteres';
-                        }
-                        return null;
-                      },
-                      style: GoogleFonts.baloo2(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                        color: ColoresOnboardingLocales.texto,
-                      ),
-                      decoration: _decoration(
-                        hint: 'Contraseña',
-                        prefixIcon: Icons.lock_outline_rounded,
-                        suffixIcon: IconButton(
-                          icon: Icon(
-                            _ocultarContrasena
-                                ? Icons.visibility_outlined
-                                : Icons.visibility_off_outlined,
-                            color: ColoresOnboardingLocales.textoSecundario,
-                            size: 22,
-                          ),
-                          onPressed: () => setState(
-                            () => _ocultarContrasena = !_ocultarContrasena,
-                          ),
-                        ),
-                      ),
-                    ),
-                    SizedBox(height: 16),
-                    TextFormField(
-                      controller: _repetirContrasena,
-                      obscureText: _ocultarRepetir,
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Repetí la contraseña';
-                        }
-                        if (value != _contrasena.text) {
-                          return 'Las contraseñas no coinciden';
-                        }
-                        return null;
-                      },
-                      style: GoogleFonts.baloo2(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                        color: ColoresOnboardingLocales.texto,
-                      ),
-                      decoration: _decoration(
-                        hint: 'Repetir contraseña',
-                        prefixIcon: Icons.lock_outline_rounded,
-                        suffixIcon: IconButton(
-                          icon: Icon(
-                            _ocultarRepetir
-                                ? Icons.visibility_outlined
-                                : Icons.visibility_off_outlined,
-                            color: ColoresOnboardingLocales.textoSecundario,
-                            size: 22,
-                          ),
-                          onPressed: () => setState(
-                            () => _ocultarRepetir = !_ocultarRepetir,
-                          ),
-                        ),
-                      ),
-                    ),
-                    SizedBox(height: 28),
-                    SizedBox(
-                      height: 52,
-                      child: ElevatedButton(
-                        onPressed: _cargando ? null : _crearCuenta,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.white,
-                          foregroundColor: ColoresOnboardingLocales.violetaOscuro,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(50),
-                          ),
-                          elevation: 0,
-                        ),
-                        child: _cargando
-                            ? SizedBox(
-                                height: 24,
-                                width: 24,
-                                child: CircularProgressIndicator(
-                                  color: ColoresLocales.chipInactivo,
-                                  strokeWidth: 2,
-                                ),
-                              )
-                            : Text(
-                          'Crear cuenta',
-                          style: GoogleFonts.baloo2(
-                            fontSize: 17,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                      ),
-                    ),
-                    SizedBox(height: 20),
-                    Center(
-                      child: GestureDetector(
-                        onTap: () => Navigator.pop(context),
-                        child: RichText(
-                          textAlign: TextAlign.center,
-                          text: TextSpan(
-                            style: GoogleFonts.baloo2(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                              color: ColoresOnboardingLocales.textoSecundario,
-                            ),
+                    child: _cargandoGoogle
+                        ? const SizedBox(
+                            height: 20,
+                            width: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              TextSpan(text: '¿Ya tenés cuenta? '),
-                              TextSpan(
-                                text: 'Iniciar sesión',
+                              const FaIcon(FontAwesomeIcons.google, size: 18),
+                              const SizedBox(width: 10),
+                              Text(
+                                'Continuar con Google',
                                 style: GoogleFonts.baloo2(
-                                  fontSize: 14,
-                                  color: ColoresOnboardingLocales.mostaza,
-                                  fontWeight: FontWeight.w800,
-                                  decoration: TextDecoration.underline,
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w700,
                                 ),
                               ),
                             ],
                           ),
+                  ),
+                ),
+                const SizedBox(height: 18),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Divider(
+                        color: Colors.white.withValues(alpha: 0.35),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      child: Text(
+                        'o con email',
+                        style: GoogleFonts.baloo2(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: ColoresOnboardingLocales.textoSuave,
                         ),
                       ),
                     ),
-                    SizedBox(height: 48),
+                    Expanded(
+                      child: Divider(
+                        color: Colors.white.withValues(alpha: 0.35),
+                      ),
+                    ),
                   ],
                 ),
-              ),
+                const SizedBox(height: 18),
+                TextFormField(
+                  controller: _email,
+                  keyboardType: TextInputType.emailAddress,
+                  autocorrect: false,
+                  validator: (value) {
+                    if (value == null || value.trim().isEmpty) {
+                      return 'Ingresá un email';
+                    }
+                    if (!_esEmailValido(value)) {
+                      return 'Ingresá un email válido';
+                    }
+                    return null;
+                  },
+                  style: GoogleFonts.baloo2(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: ColoresOnboardingLocales.texto,
+                  ),
+                  decoration: _decoration(
+                    hint: 'Email',
+                    prefixIcon: Icons.email_outlined,
+                  ),
+                ),
+                SizedBox(height: 16),
+                TextFormField(
+                  controller: _contrasena,
+                  obscureText: _ocultarContrasena,
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Ingresá una contraseña';
+                    }
+                    if (value.length < 6) {
+                      return 'Mínimo 6 caracteres';
+                    }
+                    return null;
+                  },
+                  style: GoogleFonts.baloo2(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: ColoresOnboardingLocales.texto,
+                  ),
+                  decoration: _decoration(
+                    hint: 'Contraseña',
+                    prefixIcon: Icons.lock_outline_rounded,
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                        _ocultarContrasena
+                            ? Icons.visibility_outlined
+                            : Icons.visibility_off_outlined,
+                        color: ColoresOnboardingLocales.textoSecundario,
+                        size: 22,
+                      ),
+                      onPressed: () => setState(
+                        () => _ocultarContrasena = !_ocultarContrasena,
+                      ),
+                    ),
+                  ),
+                ),
+                SizedBox(height: 16),
+                TextFormField(
+                  controller: _repetirContrasena,
+                  obscureText: _ocultarRepetir,
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Repetí la contraseña';
+                    }
+                    if (value != _contrasena.text) {
+                      return 'Las contraseñas no coinciden';
+                    }
+                    return null;
+                  },
+                  style: GoogleFonts.baloo2(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: ColoresOnboardingLocales.texto,
+                  ),
+                  decoration: _decoration(
+                    hint: 'Repetir contraseña',
+                    prefixIcon: Icons.lock_outline_rounded,
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                        _ocultarRepetir
+                            ? Icons.visibility_outlined
+                            : Icons.visibility_off_outlined,
+                        color: ColoresOnboardingLocales.textoSecundario,
+                        size: 22,
+                      ),
+                      onPressed: () =>
+                          setState(() => _ocultarRepetir = !_ocultarRepetir),
+                    ),
+                  ),
+                ),
+                SizedBox(height: 28),
+                SizedBox(
+                  height: 52,
+                  child: ElevatedButton(
+                    onPressed: _cargando ? null : _crearCuenta,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.white,
+                      foregroundColor: ColoresOnboardingLocales.violetaOscuro,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(50),
+                      ),
+                      elevation: 0,
+                    ),
+                    child: _cargando
+                        ? SizedBox(
+                            height: 24,
+                            width: 24,
+                            child: CircularProgressIndicator(
+                              color: ColoresLocales.chipInactivo,
+                              strokeWidth: 2,
+                            ),
+                          )
+                        : Text(
+                            'Crear cuenta',
+                            style: GoogleFonts.baloo2(
+                              fontSize: 17,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                  ),
+                ),
+                SizedBox(height: 20),
+                Center(
+                  child: GestureDetector(
+                    onTap: () => Navigator.pop(context),
+                    child: RichText(
+                      textAlign: TextAlign.center,
+                      text: TextSpan(
+                        style: GoogleFonts.baloo2(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: ColoresOnboardingLocales.textoSecundario,
+                        ),
+                        children: [
+                          TextSpan(text: '¿Ya tenés cuenta? '),
+                          TextSpan(
+                            text: 'Iniciar sesión',
+                            style: GoogleFonts.baloo2(
+                              fontSize: 14,
+                              color: ColoresOnboardingLocales.mostaza,
+                              fontWeight: FontWeight.w800,
+                              decoration: TextDecoration.underline,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                SizedBox(height: 48),
+              ],
             ),
+          ),
+        ),
       ),
     );
   }
@@ -469,11 +488,15 @@ class _LocalesCrearCuentaState extends State<LocalesCrearCuenta> {
       fillColor: ColoresOnboardingLocales.inputFill,
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(14),
-        borderSide: const BorderSide(color: ColoresOnboardingLocales.inputBorde),
+        borderSide: const BorderSide(
+          color: ColoresOnboardingLocales.inputBorde,
+        ),
       ),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(14),
-        borderSide: const BorderSide(color: ColoresOnboardingLocales.inputBorde),
+        borderSide: const BorderSide(
+          color: ColoresOnboardingLocales.inputBorde,
+        ),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(14),

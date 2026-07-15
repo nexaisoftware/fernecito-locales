@@ -2,6 +2,7 @@
 library;
 
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
 
@@ -10,7 +11,9 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:image_picker/image_picker.dart';
 
+import '../core/comprimir_imagen_storage.dart';
 import '../core/constants.dart';
 import '../core/crear_evento_desde_flyer_args.dart';
 import '../core/guardar_imagen_dispositivo.dart';
@@ -24,8 +27,17 @@ part 'locales_flyer_ia_resultados.dart';
 
 const String _kTituloAppBar = 'Generar flyer AI';
 const int _kMaxPromptLibre = 1000;
+const int _kMaxFotosFlyer = 2;
 
 enum _FlyerModoCreacion { libre, estructurado }
+
+/// Foto de referencia subida por el local para incluir en el flyer.
+/// Vive en memoria hasta la generación (se sube a un bucket temporal al enviar).
+class _FotoFlyer {
+  _FotoFlyer({required this.bytes, required this.contentType});
+  final Uint8List bytes;
+  final String contentType;
+}
 
 // ─── Catálogo de estilos ──────────────────────────────────────────────────────
 
@@ -445,6 +457,14 @@ class _LocalesFlyerIaState extends State<LocalesFlyerIa> {
   bool _mostrarSponsors  = false;
   bool _mostrarDresscode = false;
 
+  // ── Assets del flyer: logo del local + fotos de referencia (básico y pro) ────
+  bool _incluirLogo = false;
+  String? _logoLocalUrl;          // preview del logo del local (foto_perfil_url)
+  bool _mostrarFotos = false;     // desplegable "Usar imágenes"
+  bool _cargandoFoto = false;
+  final List<_FotoFlyer> _fotos = [];
+  final ImagePicker _picker = ImagePicker();
+
   // Segunda fecha opcional
   bool _mostrarSegundaFecha = false;
   int _diaIdx2  = 5; // sábado
@@ -538,6 +558,10 @@ class _LocalesFlyerIaState extends State<LocalesFlyerIa> {
     final servicio = FlyerIaService();
     final creditos = await servicio.obtenerCreditos();
     if (mounted) setState(() => _creditos = creditos);
+
+    // Logo del local para el checkbox "Incluir mi logo en el flyer"
+    final logo = await servicio.obtenerLogoLocal();
+    if (mounted) setState(() => _logoLocalUrl = logo);
 
     // Solo verificar pendiente si no es un retry (evitar confusión)
     if (widget.retry == null) {
@@ -1099,6 +1123,349 @@ class _LocalesFlyerIaState extends State<LocalesFlyerIa> {
         ),
       );
 
+  // ── Assets del flyer: logo del local + fotos de referencia ───────────────────
+  // Bloque compartido por el modo profesional y el modo libre.
+
+  Future<void> _agregarFoto() async {
+    if (_fotos.length >= _kMaxFotosFlyer || _cargandoFoto) return;
+    try {
+      final XFile? x = await _picker.pickImage(source: ImageSource.gallery);
+      if (x == null) return;
+      if (mounted) setState(() => _cargandoFoto = true);
+      final comprimida = await comprimirDesdeXFile(
+        x,
+        perfil: PerfilImagenStorage.flyerEvento,
+      );
+      if (!mounted) return;
+      setState(() {
+        _fotos.add(_FotoFlyer(
+          bytes: comprimida.bytes,
+          contentType: comprimida.contentType,
+        ));
+        _cargandoFoto = false;
+      });
+      HapticFeedback.selectionClick();
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _cargandoFoto = false);
+      FeedbackLocales.mostrarError(context, 'No se pudo agregar la imagen.');
+    }
+  }
+
+  void _quitarFoto(int i) {
+    if (i < 0 || i >= _fotos.length) return;
+    setState(() => _fotos.removeAt(i));
+  }
+
+  /// El logo solo se incluye si el checkbox está activo Y el local tiene logo.
+  bool get _incluirLogoEfectivo =>
+      _incluirLogo &&
+      _logoLocalUrl != null &&
+      _logoLocalUrl!.trim().isNotEmpty;
+
+  /// Convierte las fotos en memoria a data URIs base64 para enviar a la edge.
+  List<String> _fotosDataUris() => _fotos
+      .map((f) => 'data:${f.contentType};base64,${base64Encode(f.bytes)}')
+      .toList();
+
+  Widget _checkCuadrado(bool activo) => AnimatedContainer(
+        duration: const Duration(milliseconds: 160),
+        width: 24,
+        height: 24,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(7),
+          color: activo ? ColoresLocales.acentoVioleta : Colors.transparent,
+          border: Border.all(
+            color: activo
+                ? ColoresLocales.acentoVioleta
+                : ColoresLocales.textoSecundarioOnFondoClaro.withOpacity(0.5),
+            width: 2,
+          ),
+        ),
+        child: activo
+            ? Icon(CupertinoIcons.checkmark_alt,
+                size: 15, color: ColoresLocales.textoEnBoton)
+            : null,
+      );
+
+  Widget _miniaturaFoto(int i) => Stack(
+        clipBehavior: Clip.none,
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(14),
+            child: Image.memory(
+              _fotos[i].bytes,
+              width: 78,
+              height: 78,
+              fit: BoxFit.cover,
+            ),
+          ),
+          Positioned(
+            top: -6,
+            right: -6,
+            child: GestureDetector(
+              onTap: () => _quitarFoto(i),
+              child: Container(
+                width: 24,
+                height: 24,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: const Color(0xFFDC2626),
+                  border: Border.all(color: Colors.white, width: 2),
+                ),
+                child: const Icon(CupertinoIcons.xmark,
+                    size: 12, color: Colors.white),
+              ),
+            ),
+          ),
+        ],
+      );
+
+  Widget _tileAgregarFoto() => GestureDetector(
+        onTap: _cargandoFoto ? null : _agregarFoto,
+        child: Container(
+          width: 78,
+          height: 78,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            color: ColoresLocales.acentoVioleta.withOpacity(0.06),
+            border: Border.all(
+              color: ColoresLocales.acentoVioleta.withOpacity(0.35),
+              width: 1.5,
+            ),
+          ),
+          child: _cargandoFoto
+              ? const Center(
+                  child: SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                )
+              : Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(CupertinoIcons.add,
+                        size: 22, color: ColoresLocales.acentoVioleta),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Agregar',
+                      style: GoogleFonts.baloo2(
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w700,
+                        color: ColoresLocales.acentoVioleta,
+                      ),
+                    ),
+                  ],
+                ),
+        ),
+      );
+
+  Widget _buildFotosExpandido() => Padding(
+        padding: const EdgeInsets.fromLTRB(2, 0, 2, 8),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+              decoration: BoxDecoration(
+                color: ColoresLocales.acentoVioleta.withOpacity(0.08),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(CupertinoIcons.info_circle_fill,
+                      size: 15, color: ColoresLocales.acentoVioleta),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Describí en tu texto cómo querés que se usen estas imágenes '
+                      'en el flyer (de fondo, como protagonista, etc.).',
+                      style: GoogleFonts.baloo2(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w600,
+                        color: ColoresLocales.acentoVioleta,
+                        height: 1.25,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                for (int i = 0; i < _fotos.length; i++) ...[
+                  _miniaturaFoto(i),
+                  const SizedBox(width: 10),
+                ],
+                if (_fotos.length < _kMaxFotosFlyer) _tileAgregarFoto(),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Text(
+              '${_fotos.length}/$_kMaxFotosFlyer imágenes',
+              style: GoogleFonts.baloo2(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: ColoresLocales.textoSecundarioOnFondoClaro,
+              ),
+            ),
+          ],
+        ),
+      );
+
+  Widget _buildAssetsFlyer() {
+    final tieneLogo = _logoLocalUrl != null && _logoLocalUrl!.trim().isNotEmpty;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // ── Checkbox: incluir logo del local ──
+        InkWell(
+          onTap: tieneLogo
+              ? () {
+                  setState(() => _incluirLogo = !_incluirLogo);
+                  HapticFeedback.selectionClick();
+                }
+              : null,
+          borderRadius: BorderRadius.circular(14),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 2),
+            child: Row(
+              children: [
+                Container(
+                  width: 42,
+                  height: 42,
+                  clipBehavior: Clip.antiAlias,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: ColoresLocales.chipInactivo,
+                    image: tieneLogo
+                        ? DecorationImage(
+                            image: NetworkImage(_logoLocalUrl!),
+                            fit: BoxFit.cover,
+                          )
+                        : null,
+                  ),
+                  child: tieneLogo
+                      ? null
+                      : Icon(CupertinoIcons.photo,
+                          size: 18,
+                          color:
+                              ColoresLocales.textoSecundarioOnFondoClaro),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Incluir mi logo en el flyer',
+                        style: GoogleFonts.baloo2(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w800,
+                          color: tieneLogo
+                              ? ColoresLocales.textoOnFondoClaro
+                              : ColoresLocales.textoSecundarioOnFondoClaro,
+                        ),
+                      ),
+                      if (!tieneLogo)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 2),
+                          child: Text(
+                            'Cargá el logo de tu local en tu perfil para usarlo.',
+                            style: GoogleFonts.baloo2(
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w600,
+                              color:
+                                  ColoresLocales.textoSecundarioOnFondoClaro,
+                              height: 1.2,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                _checkCuadrado(_incluirLogo && tieneLogo),
+              ],
+            ),
+          ),
+        ),
+        _extraDivider(),
+        // ── Desplegable: usar imágenes ──
+        InkWell(
+          onTap: () {
+            setState(() => _mostrarFotos = !_mostrarFotos);
+            HapticFeedback.selectionClick();
+          },
+          borderRadius: BorderRadius.circular(14),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 2),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(CupertinoIcons.photo_on_rectangle,
+                    size: 18,
+                    color: _mostrarFotos
+                        ? ColoresLocales.acentoVioleta
+                        : ColoresLocales.textoSecundarioOnFondoClaro),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Usar imágenes',
+                        style: GoogleFonts.baloo2(
+                          fontSize: 14,
+                          fontWeight:
+                              _mostrarFotos ? FontWeight.w800 : FontWeight.w700,
+                          color: _mostrarFotos
+                              ? ColoresLocales.acentoVioleta
+                              : ColoresLocales.textoOnFondoClaro,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Utilizá imágenes de artistas, tu comida o elementos que '
+                        'quieras que aparezcan en tu flyer.',
+                        style: GoogleFonts.baloo2(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w600,
+                          color: ColoresLocales.textoSecundarioOnFondoClaro,
+                          height: 1.25,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Padding(
+                  padding: const EdgeInsets.only(top: 2),
+                  child: Icon(
+                    _mostrarFotos
+                        ? CupertinoIcons.chevron_up
+                        : CupertinoIcons.plus,
+                    size: 14,
+                    color: _mostrarFotos
+                        ? ColoresLocales.acentoVioleta
+                        : ColoresLocales.textoSecundarioOnFondoClaro,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        if (_mostrarFotos) _buildFotosExpandido(),
+      ],
+    );
+  }
+
   // ── Generación real con Grok ─────────────────────────────────────────────────
 
   Future<void> _confirmarGeneracion() async {
@@ -1129,6 +1496,11 @@ class _LocalesFlyerIaState extends State<LocalesFlyerIa> {
       ),
     );
 
+    // Assets del flyer: logo (checkbox) + fotos (base64 data URIs, máx 2).
+    // Las fotos van directas cliente → edge → Grok; nunca se persisten.
+    final bool incluirLogo = _incluirLogoEfectivo;
+    final List<String> fotosDataUris = _fotosDataUris();
+
     try {
       final FlyerIaResultado resultado;
       if (snap.esLibre) {
@@ -1137,6 +1509,8 @@ class _LocalesFlyerIaState extends State<LocalesFlyerIa> {
           titulo: titulo,
           promptLibre: snap.promptLibre,
           generacionPadreId: eraReintento ? padreId : null,
+          incluirLogo: incluirLogo,
+          fotos: fotosDataUris,
         );
       } else {
         resultado = await FlyerIaService().generar(
@@ -1154,6 +1528,8 @@ class _LocalesFlyerIaState extends State<LocalesFlyerIa> {
           lineup: snap.lineup,
           sponsors: snap.sponsors,
           dresscode: snap.dresscode,
+          incluirLogo: incluirLogo,
+          fotos: fotosDataUris,
         );
       }
 
@@ -1547,6 +1923,8 @@ class _LocalesFlyerIaState extends State<LocalesFlyerIa> {
                   ],
                 ),
               ),
+              const SizedBox(height: 16),
+              _card(child: _buildAssetsFlyer()),
               const SizedBox(height: 24),
               if (_errorGeneracion != null) ...[
                 Container(
@@ -1856,6 +2234,8 @@ class _LocalesFlyerIaState extends State<LocalesFlyerIa> {
                         helper: 'Cuanto más concreto, mejor resultado.',
                       ),
                     ),
+                    const SizedBox(height: 14),
+                    _buildAssetsFlyer(),
                     SizedBox(height: 18),
                     Row(
                       children: [

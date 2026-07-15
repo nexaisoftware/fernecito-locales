@@ -1,4 +1,5 @@
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -107,12 +108,18 @@ Future<void> mostrarSheetCanjePionero(
   BuildContext context, {
   VoidCallback? onCanjeado,
 }) async {
+  if (kIsWeb) {
+    await _mostrarDialogoCanjePionero(context, onCanjeado: onCanjeado);
+    return;
+  }
+
   final controller = TextEditingController();
   var enviando = false;
 
   await showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
+    useRootNavigator: true,
     backgroundColor: ColoresLocales.superficie,
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
@@ -129,7 +136,12 @@ Future<void> mostrarSheetCanjePionero(
               await ServicioEdgesEventos().canjearCodigoPionero(codigo: codigo);
               if (!ctx.mounted) return;
               Navigator.pop(ctx);
-              FeedbackLocales.mostrarExito(context, '¡Programa Pioneros activado!');
+              if (context.mounted) {
+                FeedbackLocales.mostrarExito(
+                  context,
+                  '¡Programa Pioneros activado!',
+                );
+              }
               onCanjeado?.call();
             } catch (e) {
               if (!ctx.mounted) return;
@@ -142,70 +154,174 @@ Future<void> mostrarSheetCanjePionero(
           final bottom = MediaQuery.viewInsetsOf(ctx).bottom;
           return Padding(
             padding: EdgeInsets.fromLTRB(20, 16, 20, 20 + bottom),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Center(
-                  child: Container(
-                    width: 40,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: ColoresLocales.textoSecundarioOnFondoClaro.withValues(alpha: 0.35),
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  'Canjear código Pioneros',
-                  style: GoogleFonts.baloo2(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w900,
-                    color: ColoresLocales.textoOnFondoClaro,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: controller,
-                  textCapitalization: TextCapitalization.characters,
-                  decoration: InputDecoration(
-                    hintText: 'Código de invitación',
-                    filled: true,
-                    fillColor: ColoresLocales.cardInput.withValues(alpha: 0.6),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(14),
-                      borderSide: BorderSide.none,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                ElevatedButton(
-                  onPressed: enviando ? null : enviar,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: ProgramaPioneros.dorado,
-                    foregroundColor: Colors.black87,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(50)),
-                  ),
-                  child: enviando
-                      ? const SizedBox(
-                          width: 22,
-                          height: 22,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : Text(
-                          'Activar cuenta Pionero',
-                          style: GoogleFonts.baloo2(fontWeight: FontWeight.w900, fontSize: 15),
-                        ),
-                ),
-              ],
+            child: _FormularioCanjePionero(
+              controller: controller,
+              enviando: enviando,
+              onEnviar: enviar,
             ),
           );
         },
       );
     },
   );
+  controller.dispose();
+}
+
+Future<void> _mostrarDialogoCanjePionero(
+  BuildContext context, {
+  VoidCallback? onCanjeado,
+}) async {
+  final controller = TextEditingController();
+  var enviando = false;
+
+  await showDialog<void>(
+    context: context,
+    useRootNavigator: true,
+    barrierDismissible: !enviando,
+    builder: (ctx) {
+      return StatefulBuilder(
+        builder: (ctx, setDialog) {
+          Future<void> enviar() async {
+            if (enviando) return;
+            final codigo = controller.text.trim();
+            if (codigo.isEmpty) return;
+            setDialog(() => enviando = true);
+            try {
+              await ServicioEdgesEventos().canjearCodigoPionero(codigo: codigo);
+              if (!ctx.mounted) return;
+              Navigator.pop(ctx);
+              if (context.mounted) {
+                FeedbackLocales.mostrarExito(
+                  context,
+                  '¡Programa Pioneros activado!',
+                );
+              }
+              onCanjeado?.call();
+            } catch (e) {
+              if (!ctx.mounted) return;
+              FeedbackLocales.mostrarError(context, e.toString());
+            } finally {
+              if (ctx.mounted) setDialog(() => enviando = false);
+            }
+          }
+
+          return AlertDialog(
+            backgroundColor: ColoresLocales.superficie,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            title: Text(
+              'Canjear código Pioneros',
+              style: GoogleFonts.baloo2(
+                fontSize: 20,
+                fontWeight: FontWeight.w900,
+                color: ColoresLocales.textoOnFondoClaro,
+              ),
+            ),
+            content: _FormularioCanjePionero(
+              controller: controller,
+              enviando: enviando,
+              onEnviar: enviar,
+              compacto: true,
+            ),
+            actions: [
+              TextButton(
+                onPressed: enviando ? null : () => Navigator.pop(ctx),
+                child: Text(
+                  'Cancelar',
+                  style: GoogleFonts.baloo2(
+                    fontWeight: FontWeight.w700,
+                    color: ColoresLocales.textoSecundarioOnFondoClaro,
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
+      );
+    },
+  );
+  controller.dispose();
+}
+
+class _FormularioCanjePionero extends StatelessWidget {
+  const _FormularioCanjePionero({
+    required this.controller,
+    required this.enviando,
+    required this.onEnviar,
+    this.compacto = false,
+  });
+
+  final TextEditingController controller;
+  final bool enviando;
+  final Future<void> Function() onEnviar;
+  final bool compacto;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (!compacto) ...[
+          Center(
+            child: Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: ColoresLocales.textoSecundarioOnFondoClaro
+                    .withValues(alpha: 0.35),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'Canjear código Pioneros',
+            style: GoogleFonts.baloo2(
+              fontSize: 20,
+              fontWeight: FontWeight.w900,
+              color: ColoresLocales.textoOnFondoClaro,
+            ),
+          ),
+          const SizedBox(height: 8),
+        ],
+        TextField(
+          controller: controller,
+          autofocus: true,
+          textCapitalization: TextCapitalization.characters,
+          decoration: InputDecoration(
+            hintText: 'Código de invitación',
+            filled: true,
+            fillColor: ColoresLocales.cardInput.withValues(alpha: 0.6),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: BorderSide.none,
+            ),
+          ),
+          onSubmitted: enviando ? null : (_) => onEnviar(),
+        ),
+        const SizedBox(height: 16),
+        ElevatedButton(
+          onPressed: enviando ? null : onEnviar,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: ProgramaPioneros.dorado,
+            foregroundColor: Colors.black87,
+            padding: const EdgeInsets.symmetric(vertical: 14),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(50)),
+          ),
+          child: enviando
+              ? const SizedBox(
+                  width: 22,
+                  height: 22,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : Text(
+                  'Activar cuenta Pionero',
+                  style: GoogleFonts.baloo2(fontWeight: FontWeight.w900, fontSize: 15),
+                ),
+        ),
+      ],
+    );
+  }
 }
 
 /// Chip "Pionero" debajo del nombre en la app de locales.

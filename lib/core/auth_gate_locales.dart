@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'flujo_recuperacion.dart';
 import 'modo_app_locales.dart';
+import 'servicio_push.dart';
 import 'servicio_staff_locales.dart';
 import 'servicio_estado_cuenta_locales.dart';
 final GlobalKey<NavigatorState> navigatorKeyLocales = GlobalKey<NavigatorState>();
@@ -46,6 +47,11 @@ class _AuthGateLocalesState extends State<AuthGateLocales> {
         if (!mounted) return;
 
         switch (event) {
+          case AuthChangeEvent.initialSession:
+            if (session != null) {
+              unawaited(ServicioPush.instancia.sincronizarSiAutorizado());
+            }
+            break;
           case AuthChangeEvent.signedIn:
             _handleSignedIn(session);
             break;
@@ -69,6 +75,10 @@ class _AuthGateLocalesState extends State<AuthGateLocales> {
     if (_lastUserId == session.user.id && _currentRoute != null) return;
 
     _lastUserId = session.user.id;
+
+    // Si ya tenía permiso, registrar token sin pedir de nuevo.
+    unawaited(ServicioPush.instancia.sincronizarSiAutorizado());
+
     await ModoAppLocales.instancia.cargar();
 
     if (!mounted) return;
@@ -126,6 +136,7 @@ class _AuthGateLocalesState extends State<AuthGateLocales> {
 
   void _handleSignedOut() {
     ServicioEstadoCuentaLocales.instancia.limpiar();
+    ServicioPush.instancia.olvidarLocal();
     _lastUserId = null;
     _currentRoute = null;
     _navigateTo(

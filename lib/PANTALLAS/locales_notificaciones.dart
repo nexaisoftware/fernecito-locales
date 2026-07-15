@@ -8,6 +8,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../core/constants.dart';
 import '../widgets/tema_locales_scope.dart';
 import '../core/servicio_notificaciones_locales.dart';
+import '../core/servicio_push.dart';
 import '../core/navegacion_locales.dart';
 import '../models/notificacion.dart';
 
@@ -25,11 +26,37 @@ class _LocalesNotificacionesState extends State<LocalesNotificaciones> {
   List<Notificacion> _notifs = const [];
   bool _cargando = true;
   String? _error;
+  bool _pushRevisado = false;
+  bool _pushPermitido = false;
+  bool _pushActivando = false;
 
   @override
   void initState() {
     super.initState();
+    _revisarPush();
     _cargar();
+  }
+
+  Future<void> _revisarPush() async {
+    final permitido = await ServicioPush.instancia.tienePermiso();
+    if (!mounted) return;
+    setState(() {
+      _pushPermitido = permitido;
+      _pushRevisado = true;
+    });
+  }
+
+  Future<void> _activarPush() async {
+    if (_pushActivando) return;
+    HapticFeedback.lightImpact();
+    setState(() => _pushActivando = true);
+    final ok = await ServicioPush.instancia.registrarParaUsuario();
+    if (!mounted) return;
+    setState(() {
+      _pushPermitido = ok;
+      _pushRevisado = true;
+      _pushActivando = false;
+    });
   }
 
   Future<void> _cargar() async {
@@ -230,7 +257,7 @@ class _LocalesNotificacionesState extends State<LocalesNotificaciones> {
             Container(
               padding: EdgeInsets.symmetric(horizontal: 12, vertical: 4),
               decoration: BoxDecoration(
-                color: ColoresLocales.acentoVioleta.withOpacity(0.1),
+                color: ColoresLocales.acentoVioleta.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(50),
               ),
               child: Text(
@@ -243,7 +270,76 @@ class _LocalesNotificacionesState extends State<LocalesNotificaciones> {
               ),
             ),
           ],
+          if (_pushRevisado &&
+              !_pushPermitido &&
+              ServicioPush.instancia.soportado) ...[
+            const SizedBox(height: 12),
+            _buildBannerActivarPush(),
+          ],
         ],
+      ),
+    );
+  }
+
+  Widget _buildBannerActivarPush() {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: _pushActivando ? null : _activarPush,
+        borderRadius: BorderRadius.circular(16),
+        child: Ink(
+          decoration: BoxDecoration(
+            color: ColoresLocales.cardLavanda,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: ColoresLocales.acentoVioleta.withValues(alpha: 0.22),
+            ),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            child: Row(
+              children: [
+                Icon(
+                  CupertinoIcons.bell_fill,
+                  size: 22,
+                  color: ColoresLocales.acentoVioleta,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Activá las notificaciones push',
+                        style: GoogleFonts.baloo2(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w900,
+                          color: ColoresLocales.textoOnFondoClaro,
+                        ),
+                      ),
+                      Text(
+                        'Recibí alertas aunque no tengas la app abierta.',
+                        style: GoogleFonts.baloo2(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: ColoresLocales.textoSecundarioOnFondoClaro,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (_pushActivando)
+                  const CupertinoActivityIndicator(radius: 9)
+                else
+                  Icon(
+                    CupertinoIcons.chevron_right,
+                    size: 18,
+                    color: ColoresLocales.acentoVioleta.withValues(alpha: 0.6),
+                  ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }

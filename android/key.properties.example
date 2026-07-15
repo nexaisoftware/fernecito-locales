@@ -1,0 +1,13 @@
+# Plantilla de firma release. COPIAR a `android/key.properties` y completar con tus datos reales.
+# El archivo real (key.properties) y el .jks están en .gitignore — NUNCA se suben a Git.
+#
+# Generá el keystore con (desde la carpeta android/):
+#   keytool -genkey -v -keystore upload-keystore.jks -keyalg RSA -keysize 2048 -validity 10000 -alias upload
+#
+# Guardá el .jks y estas contraseñas en un lugar seguro (gestor de contraseñas + backup).
+# Si perdés este keystore no vas a poder volver a actualizar la app en Google Play.
+
+storePassword=TU_STORE_PASSWORD
+keyPassword=TU_KEY_PASSWORD
+keyAlias=upload
+storeFile=upload-keystore.jks

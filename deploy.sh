@@ -31,7 +31,14 @@ fi
 echo "==> [1/3] flutter build web --release --base-href /"
 flutter build web --release --base-href / \
   --dart-define=URL_SUPABASE="$URL_SUPABASE" \
-  --dart-define=CLAVE_PUBLICA_SUPABASE="$CLAVE_PUBLICA_SUPABASE"
+  --dart-define=CLAVE_PUBLICA_SUPABASE="$CLAVE_PUBLICA_SUPABASE" \
+  --dart-define=FIREBASE_WEB_API_KEY="${FIREBASE_WEB_API_KEY:-}" \
+  --dart-define=FIREBASE_WEB_APP_ID="${FIREBASE_WEB_APP_ID:-}" \
+  --dart-define=FIREBASE_WEB_MESSAGING_SENDER_ID="${FIREBASE_WEB_MESSAGING_SENDER_ID:-}" \
+  --dart-define=FIREBASE_WEB_PROJECT_ID="${FIREBASE_WEB_PROJECT_ID:-}" \
+  --dart-define=FIREBASE_WEB_AUTH_DOMAIN="${FIREBASE_WEB_AUTH_DOMAIN:-}" \
+  --dart-define=FIREBASE_WEB_STORAGE_BUCKET="${FIREBASE_WEB_STORAGE_BUCKET:-}" \
+  --dart-define=FCM_WEB_VAPID_KEY="${FCM_WEB_VAPID_KEY:-}"
 
 echo "==> [1b/3] deploy_id en build/web/version.json"
 python3 - <<'PY'
@@ -56,13 +63,45 @@ with open(path, "w", encoding="utf-8") as f:
     json.dump(data, f, separators=(",", ":"))
 PY
 
+echo "==> [2a/3] push web: firebase-messaging-sw.js + firebase-config-sw.js"
+cp web/firebase-messaging-sw.js build/web/firebase-messaging-sw.js
+if [ -n "${FIREBASE_WEB_API_KEY:-}" ] && [ -n "${FIREBASE_WEB_APP_ID:-}" ] && [ -n "${FIREBASE_WEB_MESSAGING_SENDER_ID:-}" ] && [ -n "${FIREBASE_WEB_PROJECT_ID:-}" ]; then
+  python3 - <<'PY'
+import json, os
+cfg = {
+    "apiKey": os.environ.get("FIREBASE_WEB_API_KEY", ""),
+    "appId": os.environ.get("FIREBASE_WEB_APP_ID", ""),
+    "messagingSenderId": os.environ.get("FIREBASE_WEB_MESSAGING_SENDER_ID", ""),
+    "projectId": os.environ.get("FIREBASE_WEB_PROJECT_ID", ""),
+}
+auth_domain = os.environ.get("FIREBASE_WEB_AUTH_DOMAIN", "")
+storage_bucket = os.environ.get("FIREBASE_WEB_STORAGE_BUCKET", "")
+if auth_domain:
+    cfg["authDomain"] = auth_domain
+if storage_bucket:
+    cfg["storageBucket"] = storage_bucket
+with open("build/web/firebase-config-sw.js", "w", encoding="utf-8") as f:
+    f.write("self.fernecitoFirebaseConfig = ")
+    json.dump(cfg, f, separators=(",", ":"))
+    f.write(";\n")
+PY
+else
+  echo "==> push web desactivado: faltan FIREBASE_WEB_*"
+  cat > build/web/firebase-config-sw.js <<'JS'
+self.fernecitoFirebaseConfig = null;
+JS
+fi
+
 echo "==> [2/3] escribiendo build/web/vercel.json"
 cat > build/web/vercel.json <<'JSON'
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "cleanUrls": true,
   "rewrites": [
-    { "source": "/(.*)", "destination": "/index.html" }
+    {
+      "source": "/((?!firebase-messaging-sw\\.js|firebase-config-sw\\.js|flutter_service_worker\\.js|flutter_bootstrap\\.js|main\\.dart\\.js|version\\.json|manifest\\.json|favicon\\.png|assets/|icons/|splash/|canvaskit/).*)",
+      "destination": "/index.html"
+    }
   ],
   "headers": [
     {
@@ -70,6 +109,12 @@ cat > build/web/vercel.json <<'JSON'
       "headers": [
         { "key": "Cache-Control", "value": "no-store" },
         { "key": "X-Robots-Tag", "value": "noindex" }
+      ]
+    },
+    {
+      "source": "/(firebase-messaging-sw.js|firebase-config-sw.js)",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }
       ]
     },
     {

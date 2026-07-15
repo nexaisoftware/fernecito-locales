@@ -1,12 +1,19 @@
 /// Punto de entrada Fernecito Locales — inicializa configuracion y Supabase.
 library;
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
+import 'core/config_push_web.dart';
+import 'core/servicio_push.dart';
 import 'core/constants.dart';
 import 'core/barra_sistema_locales.dart';
 import 'core/tema_app_locales.dart';
@@ -26,6 +33,16 @@ import 'PANTALLAS/locales_cuenta_bloqueada.dart';
 import 'widgets/skeleton_pantalla_dashboard.dart';
 import 'widgets/control_actualizacion_web.dart';
 import 'widgets/control_instalar_pwa.dart';
+
+/// Handler de mensajes push con la app en background/cerrada (top-level).
+@pragma('vm:entry-point')
+Future<void> _fcmBackgroundHandler(RemoteMessage message) async {}
+
+bool get _pushSoportado =>
+    (kIsWeb && ConfigPushWeb.habilitada) ||
+    (!kIsWeb &&
+        (defaultTargetPlatform == TargetPlatform.android ||
+            defaultTargetPlatform == TargetPlatform.iOS));
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -58,6 +75,19 @@ void main() async {
         msg.contains('NotInitializedError') || msg.contains('Instance of')
         ? 'Supabase no pudo inicializarse. Revisá las credenciales.'
         : msg;
+  }
+
+  // Firebase + push: nativo (Android/iOS) y PWA web. Nunca bloquea el arranque.
+  if (supabaseOk && _pushSoportado) {
+    try {
+      await Firebase.initializeApp(
+        options: kIsWeb ? ConfigPushWeb.options : null,
+      );
+      FirebaseMessaging.onBackgroundMessage(_fcmBackgroundHandler);
+      await ServicioPush.instancia.inicializar();
+    } catch (e) {
+      debugPrint('⚠️ Firebase/push locales no inicializado: $e');
+    }
   }
 
   if (supabaseOk) {
@@ -173,6 +203,7 @@ class _AppLocalesState extends State<AppLocales> {
     try {
       final usuario = Supabase.instance.client.auth.currentUser;
       if (usuario != null) {
+        unawaited(ServicioPush.instancia.sincronizarSiAutorizado());
         if (ModoAppLocales.instancia.esStaff) {
           final completo = await ServicioStaffLocales().perfilStaffCompleto();
           setState(() {

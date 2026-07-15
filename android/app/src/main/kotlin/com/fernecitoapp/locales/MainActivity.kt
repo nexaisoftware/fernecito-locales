@@ -1,4 +1,4 @@
-package com.example.frontend_locales
+package com.fernecitoapp.locales
 
 import io.flutter.embedding.android.FlutterActivity
 

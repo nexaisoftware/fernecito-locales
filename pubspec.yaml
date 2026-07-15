@@ -57,6 +57,10 @@ dependencies:
   fl_chart: ^1.2.0
   gal: ^2.3.1
 
+  # Notificaciones push (FCM) — nativo + web/PWA
+  firebase_core: ^3.8.0
+  firebase_messaging: ^15.1.5
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

@@ -49,6 +49,12 @@ app.*.map.json
 .env.local
 assets/.env
 
+# Firma release de Android (SECRETOS — nunca subir a Git)
+android/key.properties
+**/*.jks
+**/*.keystore
+android/upload-keystore.jks
+
 # iOS CocoaPods (dependencias generadas, no se commitean)
 ios/Pods/
 ios/.symlinks/

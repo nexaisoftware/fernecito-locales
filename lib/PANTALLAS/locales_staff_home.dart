@@ -11,6 +11,7 @@ import '../core/permisos_staff_validar.dart';
 import '../models/vinculo_staff_local.dart';
 import '../widgets/scaffold_staff.dart';
 import '../widgets/tema_locales_scope.dart';
+import '../widgets/dialog_permiso_push_locales.dart';
 import '../widgets/icono_local.dart';
 import 'locales_validar.dart';
 
@@ -33,6 +34,10 @@ class _LocalesStaffHomeState extends State<LocalesStaffHome> {
   void initState() {
     super.initState();
     _cargar();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      DialogPermisoPushLocales.mostrarSiCorresponde(context);
+    });
   }
 
   Future<void> _cargar() async {

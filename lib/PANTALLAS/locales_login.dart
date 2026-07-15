@@ -168,9 +168,12 @@ class _LocalesLoginState extends State<LocalesLogin>
                                   ? null
                                   : _iniciarSesionGoogle,
                               style: OutlinedButton.styleFrom(
-                                foregroundColor: ColoresLocales.textoOnFondoClaro,
+                                foregroundColor:
+                                    ColoresLocales.textoOnFondoClaro,
                                 backgroundColor: ColoresLocales.superficie,
-                                side: BorderSide(color: ColoresLocales.bordeSuave),
+                                side: BorderSide(
+                                  color: ColoresLocales.bordeSuave,
+                                ),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(14),
                                 ),
@@ -179,15 +182,19 @@ class _LocalesLoginState extends State<LocalesLogin>
                                   ? const SizedBox(
                                       height: 20,
                                       width: 20,
-                                      child: CircularProgressIndicator(strokeWidth: 2),
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                      ),
                                     )
                                   : Row(
-                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
                                       children: [
                                         FaIcon(
                                           FontAwesomeIcons.google,
                                           size: 18,
-                                          color: ColoresLocales.textoOnFondoClaro,
+                                          color:
+                                              ColoresLocales.textoOnFondoClaro,
                                         ),
                                         const SizedBox(width: 10),
                                         Text(
@@ -209,7 +216,8 @@ class _LocalesLoginState extends State<LocalesLogin>
                                   ? null
                                   : _alternarFormularioEmail,
                               style: FilledButton.styleFrom(
-                                backgroundColor: ColoresLocales.violetaLogoMarca,
+                                backgroundColor:
+                                    ColoresLocales.violetaLogoMarca,
                                 foregroundColor: Colors.white,
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(14),
@@ -240,11 +248,13 @@ class _LocalesLoginState extends State<LocalesLogin>
                           _buildAcordeonEmail(),
                           const SizedBox(height: 12),
                           OutlinedButton(
-                            onPressed: () => Navigator.pushNamed(context, '/crear_cuenta'),
+                            onPressed: () =>
+                                Navigator.pushNamed(context, '/crear_cuenta'),
                             style: OutlinedButton.styleFrom(
                               foregroundColor: ColoresLocales.violetaLogoMarca,
                               side: BorderSide(
-                                color: ColoresLocales.violetaLogoMarca.withValues(alpha: 0.35),
+                                color: ColoresLocales.violetaLogoMarca
+                                    .withValues(alpha: 0.35),
                               ),
                               minimumSize: const Size.fromHeight(48),
                               shape: RoundedRectangleBorder(
@@ -270,7 +280,8 @@ class _LocalesLoginState extends State<LocalesLogin>
                               style: GoogleFonts.baloo2(
                                 fontSize: 14,
                                 fontWeight: FontWeight.w700,
-                                color: ColoresLocales.textoSecundarioOnFondoClaro,
+                                color:
+                                    ColoresLocales.textoSecundarioOnFondoClaro,
                               ),
                             ),
                           ),
@@ -383,9 +394,9 @@ class _LocalesLoginState extends State<LocalesLogin>
     setState(() => _cargandoGoogle = true);
     try {
       await ServicioSupabase().cliente.auth.signInWithOAuth(
-            OAuthProvider.google,
-            redirectTo: authRedirectUrlLocales,
-          );
+        OAuthProvider.google,
+        redirectTo: authRedirectUrlLocales,
+      );
     } catch (e) {
       if (mounted) {
         _mostrarError(
@@ -424,7 +435,8 @@ class _LocalesLoginState extends State<LocalesLogin>
   }
 
   void _mostrarError(String mensaje, {String? email}) {
-    final esEmailSinConfirmar = mensaje.contains('confirmar tu email') ||
+    final esEmailSinConfirmar =
+        mensaje.contains('confirmar tu email') ||
         mensaje.contains('falta confirmar') ||
         mensaje.contains('confirmación');
 
@@ -459,7 +471,9 @@ class _LocalesLoginState extends State<LocalesLogin>
               },
               child: Text(
                 'Ver instrucciones',
-                style: GoogleFonts.baloo2(color: ColoresLocales.violetaLogoMarca),
+                style: GoogleFonts.baloo2(
+                  color: ColoresLocales.violetaLogoMarca,
+                ),
               ),
             ),
             TextButton(
@@ -469,13 +483,18 @@ class _LocalesLoginState extends State<LocalesLogin>
               },
               child: Text(
                 'Reenviar email',
-                style: GoogleFonts.baloo2(color: ColoresLocales.violetaLogoMarca),
+                style: GoogleFonts.baloo2(
+                  color: ColoresLocales.violetaLogoMarca,
+                ),
               ),
             ),
           ],
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: Text('OK', style: GoogleFonts.baloo2(color: ColoresLocales.violetaLogoMarca)),
+            child: Text(
+              'OK',
+              style: GoogleFonts.baloo2(color: ColoresLocales.violetaLogoMarca),
+            ),
           ),
         ],
       ),
@@ -487,6 +506,7 @@ class _LocalesLoginState extends State<LocalesLogin>
       await ServicioSupabase().cliente.auth.resend(
         type: OtpType.signup,
         email: email,
+        emailRedirectTo: authRedirectUrlLocales,
       );
       if (mounted) {
         _mostrarExito(TraductorErroresAuth.mensajeConfirmacionReenviada());
@@ -520,7 +540,10 @@ class _LocalesLoginState extends State<LocalesLogin>
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: Text('OK', style: GoogleFonts.baloo2(color: ColoresLocales.violetaLogoMarca)),
+            child: Text(
+              'OK',
+              style: GoogleFonts.baloo2(color: ColoresLocales.violetaLogoMarca),
+            ),
           ),
         ],
       ),
@@ -577,7 +600,10 @@ class _CampoLogin extends StatelessWidget {
         suffixIcon: suffixIcon,
         filled: true,
         fillColor: ColoresLocales.rellenoInput,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 16,
+        ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
           borderSide: BorderSide.none,
@@ -588,7 +614,10 @@ class _CampoLogin extends StatelessWidget {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: BorderSide(color: ColoresLocales.violetaLogoMarca, width: 1.5),
+          borderSide: BorderSide(
+            color: ColoresLocales.violetaLogoMarca,
+            width: 1.5,
+          ),
         ),
       ),
     );

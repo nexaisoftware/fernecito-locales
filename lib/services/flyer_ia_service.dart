@@ -66,6 +66,9 @@ class FlyerIaService {
     String? lineup,
     String? sponsors,
     String? dresscode,
+    // Assets (aplican a ambos modos)
+    bool incluirLogo = false,
+    List<String> fotos = const [], // data URIs base64 (máx 2)
   }) async {
     final token = await _accessToken();
     final esLibre = modo == 'libre';
@@ -73,6 +76,8 @@ class FlyerIaService {
     final body = <String, dynamic>{
       'modo': esLibre ? 'libre' : 'estructurado',
       'titulo': titulo,
+      if (incluirLogo) 'incluir_logo': true,
+      if (fotos.isNotEmpty) 'fotos': fotos,
       if (esLibre) ...{
         'prompt_libre': promptLibre ?? '',
       } else ...{
@@ -174,6 +179,28 @@ class FlyerIaService {
       return (resp['cupos_flyers_ia'] as num?)?.toInt() ?? 0;
     } catch (_) {
       return 0;
+    }
+  }
+
+  // ── Leer logo del local (para incluirlo en el flyer) ─────────────────────────
+
+  /// URL pública del logo del local (`perfiles_locales.foto_perfil_url`, bucket
+  /// `avatars_locales`) o `null` si el local todavía no cargó su logo.
+  Future<String?> obtenerLogoLocal() async {
+    try {
+      final uid = _cliente.auth.currentUser?.id;
+      if (uid == null) return null;
+      final resp = await _cliente
+          .from('perfiles_locales')
+          .select('foto_perfil_url')
+          .eq('id', uid)
+          .single();
+      final raw = (resp['foto_perfil_url'] as String?)?.trim();
+      if (raw == null || raw.isEmpty) return null;
+      if (raw.startsWith('http')) return raw;
+      return _cliente.storage.from('avatars_locales').getPublicUrl(raw);
+    } catch (_) {
+      return null;
     }
   }
 
