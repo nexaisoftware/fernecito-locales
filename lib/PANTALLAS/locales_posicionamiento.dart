@@ -1355,11 +1355,11 @@ class _TabSinPosicion extends StatelessWidget {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Icon(CupertinoIcons.exclamationmark_triangle_fill, color: Color(0xFFF59E0B), size: 18),
+                const Icon(CupertinoIcons.sparkles, color: Color(0xFFF59E0B), size: 18),
                 SizedBox(width: 10),
                 Expanded(
                   child: Text(
-                    'Verificá tu local para acceder al posicionamiento en cartelera',
+                    'Si tenés créditos, podés posicionar igual. Verificar tu local suma más alcance y confianza.',
                     style: GoogleFonts.baloo2(
                       fontSize: 12,
                       fontWeight: FontWeight.w700,

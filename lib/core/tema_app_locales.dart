@@ -14,14 +14,14 @@ class TemaAppLocales {
 
   static const _prefsKey = 'modo_oscuro_locales';
 
-  final ValueNotifier<bool> modoOscuro = ValueNotifier<bool>(false);
+  final ValueNotifier<bool> modoOscuro = ValueNotifier<bool>(true);
 
   bool get esOscuro => modoOscuro.value;
 
   Future<void> cargar() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      modoOscuro.value = prefs.getBool(_prefsKey) ?? false;
+      modoOscuro.value = prefs.getBool(_prefsKey) ?? true;
       BarraSistemaLocales.aplicar(modoOscuro.value);
     } catch (e) {
       debugPrint('⚠️ TemaAppLocales.cargar: $e');

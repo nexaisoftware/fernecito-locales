@@ -5,7 +5,6 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -16,8 +15,10 @@ import 'core/config_push_web.dart';
 import 'core/servicio_push.dart';
 import 'core/constants.dart';
 import 'core/barra_sistema_locales.dart';
+import 'core/bootstrap_locales.dart';
 import 'core/tema_app_locales.dart';
 import 'core/modo_app_locales.dart';
+import 'core/splash_web.dart';
 import 'widgets/tema_locales_scope.dart';
 import 'core/auth_gate_locales.dart';
 import 'core/rutas_locales.dart';
@@ -30,7 +31,7 @@ import 'PANTALLAS/locales_staff_crear_perfil.dart';
 import 'PANTALLAS/locales_staff_home.dart';
 import 'core/servicio_estado_cuenta_locales.dart';
 import 'PANTALLAS/locales_cuenta_bloqueada.dart';
-import 'widgets/skeleton_pantalla_dashboard.dart';
+import 'widgets/splash_carga_locales.dart';
 import 'widgets/control_actualizacion_web.dart';
 import 'widgets/control_instalar_pwa.dart';
 
@@ -46,9 +47,6 @@ bool get _pushSoportado =>
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
-  // Fuerza apagar guías de baseline/debug paint que generan "doble subrayado" en textos.
-  debugPaintBaselinesEnabled = false;
 
   // Fallback local: --dart-define (prod) > assets/.env > .env en raíz.
   await _cargarEnvLocal();
@@ -93,6 +91,15 @@ void main() async {
   if (supabaseOk) {
     await TemaAppLocales.instancia.cargar();
     await ModoAppLocales.instancia.cargar();
+    try {
+      await GoogleFonts.pendingFonts([
+        GoogleFonts.baloo2(
+          fontSize: 28,
+          fontWeight: FontWeight.w800,
+          decoration: TextDecoration.none,
+        ),
+      ]);
+    } catch (_) {}
     runApp(const AppLocales());
   } else {
     runApp(_PantallaErrorConfig(errorSupabase ?? 'Supabase no inicializado'));
@@ -195,7 +202,22 @@ class _AppLocalesState extends State<AppLocales> {
   @override
   void initState() {
     super.initState();
+    BootstrapLocales.reset();
+    BootstrapLocales.lista.addListener(_onBootstrapLocales);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      quitarSplashHtml();
+    });
     _verificarSesion();
+  }
+
+  @override
+  void dispose() {
+    BootstrapLocales.lista.removeListener(_onBootstrapLocales);
+    super.dispose();
+  }
+
+  void _onBootstrapLocales() {
+    if (mounted) setState(() {});
   }
 
   Future<void> _verificarSesion() async {
@@ -233,7 +255,68 @@ class _AppLocalesState extends State<AppLocales> {
         }
       }
     } catch (_) {}
-    setState(() => _verificando = false);
+    if (mounted) {
+      setState(() => _verificando = false);
+      if (!_debeMostrarSplashInicial()) {
+        BarraSistemaLocales.aplicar(TemaAppLocales.instancia.esOscuro);
+      }
+    }
+  }
+
+  bool _irAHomeLocal() {
+    return !_verificando &&
+        _sesionActiva &&
+        !ModoAppLocales.instancia.esStaff &&
+        !ServicioEstadoCuentaLocales.instancia.suspendida &&
+        _perfilCompleto;
+  }
+
+  bool _irAHomeStaff() {
+    return !_verificando &&
+        _sesionActiva &&
+        ModoAppLocales.instancia.esStaff &&
+        _staffPerfilCompleto;
+  }
+
+  bool _debeMostrarSplashInicial() {
+    return _verificando ||
+        ((_irAHomeLocal() || _irAHomeStaff()) && !BootstrapLocales.lista.value);
+  }
+
+  Widget _pantallaTrasVerificacion() {
+    if (!_sesionActiva) {
+      return ModoAppLocales.instancia.esStaff
+          ? const LocalesStaffLogin()
+          : const LocalesLogin();
+    }
+    if (ModoAppLocales.instancia.esStaff) {
+      return _staffPerfilCompleto
+          ? const LocalesStaffHome()
+          : const LocalesStaffCrearPerfil();
+    }
+    if (ServicioEstadoCuentaLocales.instancia.suspendida) {
+      return const LocalesCuentaBloqueada();
+    }
+    return _perfilCompleto ? const LocalesHome() : const LocalesCrearPerfil();
+  }
+
+  Widget _buildHome() {
+    final mostrarSplash = _debeMostrarSplashInicial();
+    final montarHome =
+        _irAHomeLocal() || _irAHomeStaff();
+
+    if (!_verificando && !montarHome) {
+      return _pantallaTrasVerificacion();
+    }
+
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        if (montarHome) _pantallaTrasVerificacion(),
+        if (mostrarSplash)
+          const SplashCargaLocales(key: ValueKey('splash_locales')),
+      ],
+    );
   }
 
   ThemeData _temaApp({required bool oscuro}) {
@@ -270,13 +353,25 @@ class _AppLocalesState extends State<AppLocales> {
         valueListenable: TemaAppLocales.instancia.modoOscuro,
         builder: (context, oscuro, _) {
           return AuthGateLocales(
-            child: MaterialApp(
+            child: ListenableBuilder(
+              listenable: BootstrapLocales.lista,
+              builder: (context, _) {
+                return MaterialApp(
               navigatorKey: navigatorKeyLocales,
-              builder: (context, child) => AnnotatedRegion<SystemUiOverlayStyle>(
-                value: BarraSistemaLocales.estilo(oscuro),
-                child: ControlInstalarPwa(
-                  child: ControlActualizacionWeb(
-                    child: child ?? const SizedBox.shrink(),
+              builder: (context, child) => Material(
+                color: _debeMostrarSplashInicial()
+                    ? kVioletaSplashLocales
+                    : (oscuro
+                        ? ColoresLocales.fondoClaro
+                        : ColoresLocales.fondoPrincipal),
+                child: AnnotatedRegion<SystemUiOverlayStyle>(
+                  value: _debeMostrarSplashInicial()
+                      ? BarraSistemaLocales.estiloSplash
+                      : BarraSistemaLocales.estilo(oscuro),
+                  child: ControlInstalarPwa(
+                    child: ControlActualizacionWeb(
+                      child: child ?? const SizedBox.shrink(),
+                    ),
                   ),
                 ),
               ),
@@ -288,21 +383,9 @@ class _AppLocalesState extends State<AppLocales> {
               onGenerateRoute: (settings) =>
                   generarRutaLocales(settings) ??
                   rutaDesconocidaLocales(settings),
-              home: _verificando
-                  ? const SkeletonPantallaDashboard()
-                  : _sesionActiva
-                  ? (ModoAppLocales.instancia.esStaff
-                        ? (_staffPerfilCompleto
-                              ? const LocalesStaffHome()
-                              : const LocalesStaffCrearPerfil())
-                        : (ServicioEstadoCuentaLocales.instancia.suspendida
-                              ? const LocalesCuentaBloqueada()
-                              : (_perfilCompleto
-                                    ? const LocalesHome()
-                                    : const LocalesCrearPerfil())))
-                  : (ModoAppLocales.instancia.esStaff
-                        ? const LocalesStaffLogin()
-                        : const LocalesLogin()),
+              home: _buildHome(),
+                );
+              },
             ),
           );
         },

@@ -8,13 +8,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:profile_image_cropper/profile_image_cropper.dart';
+import '../widgets/recorte_web_safe.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/colores_onboarding_locales.dart';
 import '../core/comprimir_imagen_storage.dart';
 import '../core/constants.dart';
 import '../core/supabase_client.dart';
 import '../widgets/onboarding_locales_ui.dart';
+import '../widgets/asistente_perfil_sheet.dart';
 import '../core/auth_gate_locales.dart';
 import '../core/servicio_edges_eventos.dart';
 import '../core/ubicaciones_data.dart';
@@ -29,9 +30,9 @@ class _ImagenLocal {
   _ImagenLocal({required this.file, required this.bytes});
 
   factory _ImagenLocal.fromBytes(Uint8List bytes) => _ImagenLocal(
-        file: XFile.fromData(bytes, mimeType: 'image/png', name: 'cropped.png'),
-        bytes: bytes,
-      );
+    file: XFile.fromData(bytes, mimeType: 'image/png', name: 'cropped.png'),
+    bytes: bytes,
+  );
 }
 
 class LocalesCrearPerfil extends StatefulWidget {
@@ -79,7 +80,12 @@ class _LocalesCrearPerfilState extends State<LocalesCrearPerfil> {
 
   _ImagenLocal? _fotoPerfil;
   _ImagenLocal? _fotoBanner;
-  final List<_ImagenLocal?> _fotosLocales = List<_ImagenLocal?>.filled(5, null);
+  static const int _maxFotosLocales = 10;
+  final List<_ImagenLocal?> _fotosLocales =
+      List<_ImagenLocal?>.filled(_maxFotosLocales, null);
+
+  /// Horarios opcionales (día 0=lunes … 6=domingo). Los carga el asistente IA.
+  Map<String, dynamic>? _horariosJson;
 
   @override
   void initState() {
@@ -139,8 +145,7 @@ class _LocalesCrearPerfilState extends State<LocalesCrearPerfil> {
     });
 
     try {
-      final row = await ServicioSupabase()
-          .cliente
+      final row = await ServicioSupabase().cliente
           .from('perfiles_locales')
           .select('id')
           .eq('local_username', username)
@@ -150,7 +155,9 @@ class _LocalesCrearPerfilState extends State<LocalesCrearPerfil> {
       if (!mounted) return;
       setState(() {
         _usernameDisponible = row == null;
-        _usernameMensaje = row == null ? 'Username disponible.' : 'Ese username ya existe.';
+        _usernameMensaje = row == null
+            ? 'Username disponible.'
+            : 'Ese username ya existe.';
       });
     } catch (_) {
       if (!mounted) return;
@@ -181,11 +188,9 @@ class _LocalesCrearPerfilState extends State<LocalesCrearPerfil> {
         urlMaps.isNotEmpty;
   }
 
-  int get _cantidadFotosLocales =>
-      _fotosLocales.where((e) => e != null).length;
+  int get _cantidadFotosLocales => _fotosLocales.where((e) => e != null).length;
 
-  bool get _paso2Valido =>
-      _fotoPerfil != null && _cantidadFotosLocales >= 1;
+  bool get _paso2Valido => _fotoPerfil != null && _cantidadFotosLocales >= 1;
 
   bool get _paso3Valido => _rubrosSeleccionados.isNotEmpty;
 
@@ -209,14 +214,17 @@ class _LocalesCrearPerfilState extends State<LocalesCrearPerfil> {
     if (comoUrl != null) return comoUrl;
 
     final handle = v.startsWith('@') ? v.substring(1).trim() : v;
-    if (handle.isEmpty || handle.contains(' ') || handle.contains('/')) return null;
+    if (handle.isEmpty || handle.contains(' ') || handle.contains('/'))
+      return null;
 
     return esTiktok
         ? 'https://www.tiktok.com/@$handle'
         : 'https://www.instagram.com/$handle';
   }
 
-  Future<void> _pegarTextoEnControlador(TextEditingController controller) async {
+  Future<void> _pegarTextoEnControlador(
+    TextEditingController controller,
+  ) async {
     final data = await Clipboard.getData('text/plain');
     final pegado = data?.text?.trim() ?? '';
     if (pegado.isEmpty) return;
@@ -323,8 +331,16 @@ class _LocalesCrearPerfilState extends State<LocalesCrearPerfil> {
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               TextButton(
-                                onPressed: isCropping ? null : () => Navigator.pop(ctx),
-                                child: Text('Cancelar', style: GoogleFonts.baloo2(fontSize: 14, color: Colors.grey)),
+                                onPressed: isCropping
+                                    ? null
+                                    : () => Navigator.pop(ctx),
+                                child: Text(
+                                  'Cancelar',
+                                  style: GoogleFonts.baloo2(
+                                    fontSize: 14,
+                                    color: Colors.grey,
+                                  ),
+                                ),
                               ),
                               ElevatedButton(
                                 onPressed: isCropping
@@ -332,17 +348,26 @@ class _LocalesCrearPerfilState extends State<LocalesCrearPerfil> {
                                     : () async {
                                         setModalState(() => isCropping = true);
                                         try {
-                                          final result = await ProfileImageCropper.crop(imageCropperKey: cropperKey);
+                                          final result =
+                                              await capturarRecorteBoundary(
+                                                cropperKey,
+                                              );
                                           if (!ctx.mounted) return;
                                           Navigator.pop(ctx, result);
                                         } catch (_) {
-                                          if (ctx.mounted) setModalState(() => isCropping = false);
+                                          if (ctx.mounted)
+                                            setModalState(
+                                              () => isCropping = false,
+                                            );
                                         }
                                       },
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: Colors.white,
-                                  foregroundColor: ColoresOnboardingLocales.violetaOscuro,
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(50)),
+                                  foregroundColor:
+                                      ColoresOnboardingLocales.violetaOscuro,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(50),
+                                  ),
                                 ),
                                 child: isCropping
                                     ? SizedBox(
@@ -350,14 +375,16 @@ class _LocalesCrearPerfilState extends State<LocalesCrearPerfil> {
                                         height: 20,
                                         child: CircularProgressIndicator(
                                           strokeWidth: 2,
-                                          color: ColoresOnboardingLocales.violetaOscuro,
+                                          color: ColoresOnboardingLocales
+                                              .violetaOscuro,
                                         ),
                                       )
                                     : Text(
                                         'Listo',
                                         style: GoogleFonts.baloo2(
                                           fontSize: 15,
-                                          color: ColoresOnboardingLocales.violetaOscuro,
+                                          color: ColoresOnboardingLocales
+                                              .violetaOscuro,
                                           fontWeight: FontWeight.w700,
                                         ),
                                       ),
@@ -370,11 +397,9 @@ class _LocalesCrearPerfilState extends State<LocalesCrearPerfil> {
                     Expanded(
                       child: Padding(
                         padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
-                        child: ProfileImageCropper(
-                          imageCropperKey: cropperKey,
-                          image: Image.memory(bytes, fit: BoxFit.contain),
-                          aspectRatio: 1,
-                          overlayType: OverlayType.circle,
+                        child: RecorteAreaCircular(
+                          boundaryKey: cropperKey,
+                          bytes: bytes,
                         ),
                       ),
                     ),
@@ -404,7 +429,8 @@ class _LocalesCrearPerfilState extends State<LocalesCrearPerfil> {
         );
       }
     } catch (e) {
-      if (e.toString().contains('multiple_requests') || e.toString().contains('canceled')) {
+      if (e.toString().contains('multiple_requests') ||
+          e.toString().contains('canceled')) {
         _mostrarError(
           'No se pudo recortar. Intentá de nuevo y tocá "Listo" una sola vez. '
           'Si persiste, probá con otra imagen.',
@@ -439,7 +465,9 @@ class _LocalesCrearPerfilState extends State<LocalesCrearPerfil> {
       perfil: _perfilBucket(bucket),
     );
     final path = '$userId/$fileNameBase${comprimida.pathSuffix}';
-    await ServicioSupabase().cliente.storage.from(bucket).uploadBinary(
+    await ServicioSupabase().cliente.storage
+        .from(bucket)
+        .uploadBinary(
           path,
           comprimida.bytes,
           fileOptions: FileOptions(
@@ -450,50 +478,66 @@ class _LocalesCrearPerfilState extends State<LocalesCrearPerfil> {
     return ServicioSupabase().cliente.storage.from(bucket).getPublicUrl(path);
   }
 
+  /// Guardado del form tradicional: muestra diálogo de error y navega a Home
+  /// al terminar bien. Preserva el comportamiento de siempre.
   Future<void> _guardarPerfil({required bool quiereVerificacion}) async {
+    setState(() => _guardando = true);
+    try {
+      final error = await _ejecutarGuardado(quiereVerificacion: quiereVerificacion);
+      if (error != null) {
+        _mostrarError(error);
+        return;
+      }
+      if (!mounted) return;
+      navigatorKeyLocales.currentState?.pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => LocalesHome()),
+        (_) => false,
+      );
+    } finally {
+      if (mounted) setState(() => _guardando = false);
+    }
+  }
+
+  /// Núcleo del guardado (compartido por el form y el asistente IA).
+  /// Sube las imágenes, arma el payload EXACTO y llama al mismo edge.
+  /// Devuelve `null` si guardó OK, o un mensaje de error para mostrar.
+  /// No navega ni muestra diálogos: la UI de cada flujo decide qué hacer.
+  Future<String?> _ejecutarGuardado({required bool quiereVerificacion}) async {
     final userId = ServicioSupabase().usuarioActual?.id;
     if (userId == null) {
-      _mostrarError('No encontramos tu sesion. Volve a iniciar sesion.');
-      return;
+      return 'No encontramos tu sesión. Volvé a iniciar sesión.';
     }
     if (!_paso1Valido || !_paso2Valido) {
-      _mostrarError('Completá los datos obligatorios antes de continuar.');
-      return;
+      return 'Completá los datos obligatorios antes de continuar.';
     }
-
-    setState(() => _guardando = true);
 
     try {
       final urlMaps = _normalizarUrlOpcional(_urlMaps.text);
       if (urlMaps == null) {
-        _mostrarError(
-          'La URL de Google Maps no es válida.\n\n'
-          'Tip: podés pegar sin https y la app lo completa automáticamente.',
-        );
-        return;
+        return 'La URL de Google Maps no es válida.\n\n'
+            'Tip: podés pegar sin https y la app lo completa automáticamente.';
       }
       final urlWebsite = _normalizarUrlOpcional(_urlWebsite.text);
       if (_urlWebsite.text.trim().isNotEmpty && urlWebsite == null) {
-        _mostrarError('La URL del sitio web no es válida.');
-        return;
+        return 'La URL del sitio web no es válida.';
       }
-      final urlTiktok = _normalizarPerfilRedSocial(_urlTiktok.text, esTiktok: true);
+      final urlTiktok = _normalizarPerfilRedSocial(
+        _urlTiktok.text,
+        esTiktok: true,
+      );
       if (_urlTiktok.text.trim().isNotEmpty && urlTiktok == null) {
-        _mostrarError(
-          'La URL de TikTok no es válida.\n\n'
-          'Pegá el link completo de tu perfil (desde Compartir en la app). '
-          'No uses solo el nombre de usuario.',
-        );
-        return;
+        return 'La URL de TikTok no es válida.\n\n'
+            'Pegá el link completo de tu perfil (desde Compartir en la app). '
+            'No uses solo el nombre de usuario.';
       }
-      final urlInstagram = _normalizarPerfilRedSocial(_urlInstagram.text, esTiktok: false);
+      final urlInstagram = _normalizarPerfilRedSocial(
+        _urlInstagram.text,
+        esTiktok: false,
+      );
       if (_urlInstagram.text.trim().isNotEmpty && urlInstagram == null) {
-        _mostrarError(
-          'La URL de Instagram no es válida.\n\n'
-          'Pegá el link completo de tu perfil (desde Compartir en la app). '
-          'No uses solo el @.',
-        );
-        return;
+        return 'La URL de Instagram no es válida.\n\n'
+            'Pegá el link completo de tu perfil (desde Compartir en la app). '
+            'No uses solo el @.';
       }
 
       final fotoPerfilUrl = await _subirImagen(
@@ -515,7 +559,8 @@ class _LocalesCrearPerfilState extends State<LocalesCrearPerfil> {
         );
       }
 
-      final List<String?> fotosLocalesUrl = List<String?>.filled(5, null);
+      final List<String?> fotosLocalesUrl =
+          List<String?>.filled(_maxFotosLocales, null);
       for (var i = 0; i < _fotosLocales.length; i++) {
         final img = _fotosLocales[i];
         if (img == null) continue;
@@ -538,32 +583,84 @@ class _LocalesCrearPerfilState extends State<LocalesCrearPerfil> {
           'rubro': _rubrosSeleccionados.toList(),
           'foto_perfil_url': fotoPerfilUrl,
           'url_foto_banner': bannerUrl,
-          'foto_local_1': fotosLocalesUrl[0],
-          'foto_local_2': fotosLocalesUrl[1],
-          'foto_local_3': fotosLocalesUrl[2],
-          'foto_local_4': fotosLocalesUrl[3],
-          'foto_local_5': fotosLocalesUrl[4],
+          for (var i = 0; i < _maxFotosLocales; i++)
+            'foto_local_${i + 1}': fotosLocalesUrl[i],
           'url_maps': urlMaps,
           'url_website': urlWebsite,
           'url_tiktok': urlTiktok,
           'url_instagram': urlInstagram,
-          'descripcion_local':
-              _descripcion.text.trim().isEmpty ? null : _descripcion.text.trim(),
+          'descripcion_local': _descripcion.text.trim().isEmpty
+              ? null
+              : _descripcion.text.trim(),
+          if (_horariosJson != null && _horariosJson!.isNotEmpty)
+            'horarios_json': _horariosJson,
         },
         modo: 'completo',
         solicitarVerificacion: quiereVerificacion,
       );
-
-      if (!mounted) return;
-      navigatorKeyLocales.currentState?.pushAndRemoveUntil(
-        MaterialPageRoute(builder: (_) => LocalesHome()),
-        (_) => false,
-      );
+      return null;
     } catch (e) {
-      _mostrarError(_mensajeErrorGuardar(e));
-    } finally {
-      if (mounted) setState(() => _guardando = false);
+      return _mensajeErrorGuardar(e);
     }
+  }
+
+  /// Vuelca los datos recolectados por el asistente IA en el estado de esta
+  /// pantalla y ejecuta el MISMO guardado que el form. Devuelve `null` si OK,
+  /// o un mensaje de error. No navega: el chat muestra la felicitación.
+  Future<String?> _guardarDesdeAsistente(DatosPerfilChat d) async {
+    _nombreLocal.text = d.nombreLocal;
+    _localUsername.text = d.localUsername;
+    _direccion.text = d.direccion;
+    _provincia = d.provincia;
+    _ciudad = d.ciudad;
+    _urlMaps.text = d.urlMaps ?? '';
+    _urlWebsite.text = d.urlWebsite ?? '';
+    _urlInstagram.text = d.urlInstagram ?? '';
+    _urlTiktok.text = d.urlTiktok ?? '';
+    _descripcion.text = d.descripcion ?? '';
+    _rubrosSeleccionados
+      ..clear()
+      ..addAll(d.rubros);
+    _horariosJson = (d.horariosJson != null && d.horariosJson!.isNotEmpty)
+        ? d.horariosJson
+        : null;
+    _fotoPerfil = d.fotoPerfilBytes != null
+        ? _ImagenLocal.fromBytes(d.fotoPerfilBytes!)
+        : null;
+    _fotoBanner = d.fotoBannerBytes != null
+        ? _ImagenLocal.fromBytes(d.fotoBannerBytes!)
+        : null;
+    for (var i = 0; i < _maxFotosLocales; i++) {
+      final b = i < d.fotosLocalesBytes.length ? d.fotosLocalesBytes[i] : null;
+      _fotosLocales[i] = b != null ? _ImagenLocal.fromBytes(b) : null;
+    }
+    // El username ya fue validado como disponible dentro del chat.
+    _usernameDisponible = true;
+    return _ejecutarGuardado(quiereVerificacion: false);
+  }
+
+  /// Abre el asistente IA (chatbot) que completa el perfil por árbol de decisión.
+  /// Al confirmar, guarda por el MISMO camino que el form; luego el chat felicita
+  /// y ofrece ir al dashboard.
+  Future<void> _abrirAsistenteIa() async {
+    if (_guardando) return;
+    await mostrarAsistentePerfilSheet(
+      context,
+      onCrearPerfil: (datos) => _guardarDesdeAsistente(datos),
+      onIrADashboard: () {
+        navigatorKeyLocales.currentState?.pushAndRemoveUntil(
+          MaterialPageRoute(builder: (_) => LocalesHome()),
+          (_) => false,
+        );
+      },
+      onVerPlanes: () {
+        navigatorKeyLocales.currentState?.pushAndRemoveUntil(
+          MaterialPageRoute(builder: (_) => LocalesHome()),
+          (_) => false,
+        );
+        navigatorKeyLocales.currentState?.pushNamed('/administrar_subscripciones');
+      },
+    );
   }
 
   String _mensajeErrorGuardar(Object e) {
@@ -584,7 +681,9 @@ class _LocalesCrearPerfilState extends State<LocalesCrearPerfil> {
         title: Text(
           titulo,
           style: GoogleFonts.baloo2(
-            color: esError ? const Color(0xFFFF8A80) : ColoresOnboardingLocales.texto,
+            color: esError
+                ? const Color(0xFFFF8A80)
+                : ColoresOnboardingLocales.texto,
             fontWeight: FontWeight.w900,
           ),
         ),
@@ -642,27 +741,27 @@ class _LocalesCrearPerfilState extends State<LocalesCrearPerfil> {
   }
 
   InputDecoration _decorationDropdown(String hint) => InputDecoration(
-        hintText: hint,
-        hintStyle: GoogleFonts.baloo2(
-          color: ColoresOnboardingLocales.textoSuave,
-          fontWeight: FontWeight.w600,
-        ),
-        filled: true,
-        fillColor: ColoresOnboardingLocales.inputFill,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: ColoresOnboardingLocales.inputBorde),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: ColoresOnboardingLocales.inputBorde),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: Colors.white, width: 1.5),
-        ),
-      );
+    hintText: hint,
+    hintStyle: GoogleFonts.baloo2(
+      color: ColoresOnboardingLocales.textoSuave,
+      fontWeight: FontWeight.w600,
+    ),
+    filled: true,
+    fillColor: ColoresOnboardingLocales.inputFill,
+    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+    border: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(14),
+      borderSide: const BorderSide(color: ColoresOnboardingLocales.inputBorde),
+    ),
+    enabledBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(14),
+      borderSide: const BorderSide(color: ColoresOnboardingLocales.inputBorde),
+    ),
+    focusedBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(14),
+      borderSide: const BorderSide(color: Colors.white, width: 1.5),
+    ),
+  );
 
   Widget _introScreen() {
     final frases = <({IconData icon, String text, Color? color})>[
@@ -755,7 +854,8 @@ class _LocalesCrearPerfilState extends State<LocalesCrearPerfil> {
             const OnbTituloSeccion(
               icono: CupertinoIcons.building_2_fill,
               titulo: 'Datos del local',
-              subtitulo: 'Nombre, ubicación y link de Maps para que te encuentren.',
+              subtitulo:
+                  'Nombre, ubicación y link de Maps para que te encuentren.',
             ),
             const SizedBox(height: 16),
             OnbCampo(
@@ -764,7 +864,10 @@ class _LocalesCrearPerfilState extends State<LocalesCrearPerfil> {
               onChanged: (_) => setState(() {}),
             ),
             const SizedBox(height: 12),
-            OnbCampo(controller: _localUsername, hint: 'Username (sin espacios)'),
+            OnbCampo(
+              controller: _localUsername,
+              hint: 'Username (sin espacios)',
+            ),
             const SizedBox(height: 6),
             Row(
               children: [
@@ -810,7 +913,8 @@ class _LocalesCrearPerfilState extends State<LocalesCrearPerfil> {
               items: const [
                 DropdownMenuItem(value: 'Córdoba', child: Text('Córdoba')),
               ],
-              onChanged: (v) => setState(() => _provincia = v ?? _provinciaDefault),
+              onChanged: (v) =>
+                  setState(() => _provincia = v ?? _provinciaDefault),
             ),
             const SizedBox(height: 12),
             DropdownButtonFormField<String>(
@@ -825,7 +929,8 @@ class _LocalesCrearPerfilState extends State<LocalesCrearPerfil> {
               items: _ciudadesCordoba
                   .map((c) => DropdownMenuItem(value: c, child: Text(c)))
                   .toList(),
-              onChanged: (v) => setState(() => _ciudad = v ?? _ciudadesCordoba.first),
+              onChanged: (v) =>
+                  setState(() => _ciudad = v ?? _ciudadesCordoba.first),
             ),
             const SizedBox(height: 14),
             Text(
@@ -863,7 +968,8 @@ class _LocalesCrearPerfilState extends State<LocalesCrearPerfil> {
             const OnbTituloSeccion(
               icono: CupertinoIcons.photo_fill,
               titulo: 'Fotos de tu local',
-              subtitulo: 'Avatar circular, banner ancho y al menos 1 foto cuadrada del espacio.',
+              subtitulo:
+                  'Avatar circular, banner vertical y al menos 1 foto cuadrada del espacio.',
             ),
             const SizedBox(height: 18),
             Center(
@@ -894,7 +1000,7 @@ class _LocalesCrearPerfilState extends State<LocalesCrearPerfil> {
             GridView.builder(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
-              itemCount: 5,
+              itemCount: _maxFotosLocales,
               gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: 3,
                 crossAxisSpacing: 10,
@@ -906,7 +1012,8 @@ class _LocalesCrearPerfilState extends State<LocalesCrearPerfil> {
                 bytes: _fotosLocales[index]?.bytes,
                 onTap: () => _pickSingleImage(
                   perfil: PerfilImagenStorage.fotoLocal,
-                  onSet: (imgResult) => setState(() => _fotosLocales[index] = imgResult),
+                  onSet: (imgResult) =>
+                      setState(() => _fotosLocales[index] = imgResult),
                 ),
               ),
             ),
@@ -951,7 +1058,8 @@ class _LocalesCrearPerfilState extends State<LocalesCrearPerfil> {
             OnbCampo(
               controller: _urlInstagram,
               titulo: 'Instagram (opcional)',
-              ayuda: 'Pegá la URL de tu perfil. No alcanza con poner solo el @.',
+              ayuda:
+                  'Pegá la URL de tu perfil. No alcanza con poner solo el @.',
               hint: 'https://instagram.com/tulocal',
               keyboardType: TextInputType.url,
               suffix: IconButton(
@@ -986,9 +1094,9 @@ class _LocalesCrearPerfilState extends State<LocalesCrearPerfil> {
             const SizedBox(height: 12),
             OnbCampo(
               controller: _descripcion,
-              hint: 'Descripción breve (opcional)',
+              hint: 'Descripción completa (opcional)',
               maxLines: 4,
-              maxLength: 300,
+              maxLength: LimitesMiLocalPerfil.maxCaracteresDescripcion,
               onChanged: (_) => setState(() {}),
             ),
           ],
@@ -1065,13 +1173,17 @@ class _LocalesCrearPerfilState extends State<LocalesCrearPerfil> {
             label: 'Guardar y verificar mi local',
             icono: CupertinoIcons.checkmark_seal_fill,
             cargando: _guardando,
-            onPressed: _guardando ? null : () => _guardarPerfil(quiereVerificacion: true),
+            onPressed: _guardando
+                ? null
+                : () => _guardarPerfil(quiereVerificacion: true),
           ),
           const SizedBox(height: 12),
           OnbBotonOutline(
             label: 'Guardar sin verificar',
             icono: CupertinoIcons.arrow_right_circle,
-            onPressed: _guardando ? null : () => _guardarPerfil(quiereVerificacion: false),
+            onPressed: _guardando
+                ? null
+                : () => _guardarPerfil(quiereVerificacion: false),
           ),
         ],
       ),
@@ -1146,58 +1258,128 @@ class _LocalesCrearPerfilState extends State<LocalesCrearPerfil> {
         }
       },
       child: Theme(
-      data: ThemeData(
-        brightness: Brightness.dark,
-        scaffoldBackgroundColor: ColoresOnboardingLocales.violeta,
-      ),
-      child: Scaffold(
-        backgroundColor: ColoresOnboardingLocales.violeta,
-        appBar: AppBar(
-          backgroundColor: ColoresOnboardingLocales.violeta,
-          elevation: 0,
-          centerTitle: true,
-          automaticallyImplyLeading: false,
-          leading: _leadingAppBar(),
-          title: _paso > 0 && _paso < 4
-              ? Text(
-                  _tituloPaso(),
-                  style: GoogleFonts.baloo2(
-                    color: ColoresOnboardingLocales.texto,
-                    fontWeight: FontWeight.w900,
-                    fontSize: 17,
-                  ),
-                )
-              : null,
+        data: ThemeData(
+          brightness: Brightness.dark,
+          scaffoldBackgroundColor: ColoresOnboardingLocales.violeta,
         ),
-        body: Column(
-          children: [
-            _buildProgressBar(),
-            Expanded(
-              child: AnimatedSwitcher(
-                duration: const Duration(milliseconds: 320),
-                switchInCurve: Curves.easeOutCubic,
-                switchOutCurve: Curves.easeInCubic,
-                child: KeyedSubtree(
-                  key: ValueKey<int>(_paso),
-                  child: _contenidoPaso(),
+        child: Scaffold(
+          backgroundColor: ColoresOnboardingLocales.violeta,
+          appBar: AppBar(
+            backgroundColor: ColoresOnboardingLocales.violeta,
+            elevation: 0,
+            centerTitle: true,
+            automaticallyImplyLeading: false,
+            leading: _leadingAppBar(),
+            title: _paso > 0 && _paso < 4
+                ? Text(
+                    _tituloPaso(),
+                    style: GoogleFonts.baloo2(
+                      color: ColoresOnboardingLocales.texto,
+                      fontWeight: FontWeight.w900,
+                      fontSize: 17,
+                    ),
+                  )
+                : null,
+          ),
+          body: Column(
+            children: [
+              _buildProgressBar(),
+              Expanded(
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 320),
+                  switchInCurve: Curves.easeOutCubic,
+                  switchOutCurve: Curves.easeInCubic,
+                  child: KeyedSubtree(
+                    key: ValueKey<int>(_paso),
+                    child: _contenidoPaso(),
+                  ),
                 ),
+              ),
+              if (_paso >= 1 && _paso <= 3)
+                SafeArea(
+                  top: false,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        OnbBotonPrimario(
+                          label: _paso == 3 ? 'Ir al último paso' : 'Continuar',
+                          icono: CupertinoIcons.arrow_right,
+                          onPressed: _puedeContinuar ? _siguientePaso : null,
+                        ),
+                        if (_paso == 1) ...[
+                          const SizedBox(height: 10),
+                          _BotonAsistenteIa(onTap: _abrirAsistenteIa),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Botón secundario "Completar rápido con IA" (abre el chatbot asistente).
+/// Gradiente sutil + brillo mostaza para diferenciarlo del CTA primario.
+class _BotonAsistenteIa extends StatelessWidget {
+  const _BotonAsistenteIa({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: double.infinity,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(16),
+          child: Ink(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: ColoresOnboardingLocales.mostaza.withValues(alpha: 0.75),
+                width: 1.4,
+              ),
+              gradient: LinearGradient(
+                colors: [
+                  ColoresOnboardingLocales.mostaza.withValues(alpha: 0.18),
+                  ColoresOnboardingLocales.violetaOscuro.withValues(alpha: 0.10),
+                ],
               ),
             ),
-            if (_paso >= 1 && _paso <= 3)
-              SafeArea(
-                top: false,
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
-                  child: OnbBotonPrimario(
-                    label: _paso == 3 ? 'Ir al último paso' : 'Continuar',
-                    icono: CupertinoIcons.arrow_right,
-                    onPressed: _puedeContinuar ? _siguientePaso : null,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 13),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(
+                    CupertinoIcons.sparkles,
+                    size: 19,
+                    color: ColoresOnboardingLocales.mostaza,
                   ),
-                ),
+                  const SizedBox(width: 9),
+                  Flexible(
+                    child: Text(
+                      'Completar rápido con IA',
+                      style: GoogleFonts.baloo2(
+                        fontSize: 15.5,
+                        fontWeight: FontWeight.w800,
+                        color: ColoresOnboardingLocales.texto,
+                      ),
+                    ),
+                  ),
+                ],
               ),
-          ],
+            ),
+          ),
         ),
-      ),
       ),
     );
   }

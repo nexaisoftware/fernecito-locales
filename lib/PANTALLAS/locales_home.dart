@@ -4,8 +4,11 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../core/bootstrap_locales.dart';
 import '../core/constants.dart';
+import '../core/horarios_local.dart';
 import '../core/tema_app_locales.dart';
+import '../widgets/splash_carga_locales.dart';
 import '../widgets/boton_modo_oscuro_locales.dart';
 import '../widgets/badge_etiqueta_locales.dart';
 import '../widgets/badge_plan_suscripcion.dart';
@@ -37,6 +40,13 @@ class _LocalesHomeState extends State<LocalesHome> with WidgetsBindingObserver {
   String? _fotoPerfilUrl;
   String? _nombreLocal;
   String? _usernameLocal;
+  String? _descripcionLocal;
+  String? _bannerLocalUrl;
+  int _cantidadFotosLocal = 0;
+  HorariosLocal _horariosLocal = {};
+  int _eventosPublicados = 0;
+  bool _avisoPerfilOcultoSesion = false;
+  bool _avisoEventosOcultoSesion = false;
   bool _localVerificado = false;
   bool _esPionero = false;
   int? _pioneroMesBeneficio;
@@ -44,13 +54,12 @@ class _LocalesHomeState extends State<LocalesHome> with WidgetsBindingObserver {
   String? _tipoSuscripcionRaw;
   DateTime? _fechaVencimientoSuscripcion;
   bool _cargandoPerfil = true;
-  CuposSuscripcionMock _cuposDashboard =
-      const CuposSuscripcionMock(
-        flyersIa: 0,
-        recomendadosFernecito: 0,
-        topCartelera: 0,
-        topUltra: 0,
-      );
+  CuposSuscripcionMock _cuposDashboard = const CuposSuscripcionMock(
+    flyersIa: 0,
+    recomendadosFernecito: 0,
+    topCartelera: 0,
+    topUltra: 0,
+  );
 
   @override
   void initState() {
@@ -93,13 +102,16 @@ class _LocalesHomeState extends State<LocalesHome> with WidgetsBindingObserver {
   Future<void> _chequearSuspension() async {
     final suspendida = await ServicioEstadoCuentaLocales.instancia.refrescar();
     if (!mounted || !suspendida) return;
-    Navigator.of(context).pushNamedAndRemoveUntil('/cuenta_bloqueada', (_) => false);
+    Navigator.of(
+      context,
+    ).pushNamedAndRemoveUntil('/cuenta_bloqueada', (_) => false);
   }
 
   Future<void> _cargarPerfilLocal() async {
     final uid = ServicioSupabase().usuarioActual?.id;
     if (uid == null) {
       setState(() => _cargandoPerfil = false);
+      BootstrapLocales.marcarLista();
       return;
     }
     try {
@@ -107,11 +119,23 @@ class _LocalesHomeState extends State<LocalesHome> with WidgetsBindingObserver {
           .from('perfiles_locales')
           .select(
             'foto_perfil_url, nombre_local, local_username, local_verificado, '
+            'descripcion_local, url_foto_banner, horarios_json, '
+            'foto_local_1, foto_local_2, foto_local_3, foto_local_4, foto_local_5, '
             'plan_suscripcion, fecha_vencimiento_suscripcion, '
             'es_pionero, pionero_mes_beneficio, pionero_beneficios_fin',
           )
           .eq('id', uid)
           .maybeSingle();
+      final ahoraIso = DateTime.now().toUtc().toIso8601String();
+      final eventosRows = await ServicioSupabase().cliente
+          .from('eventos')
+          .select('id_evento')
+          .eq('id_local', uid)
+          .eq('estado_publicacion', 'publicado')
+          .or(
+            'fecha_fin_publicacion.gt.$ahoraIso,fecha_fin_publicacion.is.null',
+          )
+          .limit(2);
       final tipoRaw = await SuscripcionLocales.leerTipoRawDesdePerfil(uid);
       final planRawPerfil = row?['plan_suscripcion']?.toString().trim();
       final tipoRawEfectivo = (tipoRaw != null && tipoRaw.isNotEmpty)
@@ -143,10 +167,22 @@ class _LocalesHomeState extends State<LocalesHome> with WidgetsBindingObserver {
         tipoPlan: tipoPlan,
       );
       if (!mounted) return;
+      final fotos = [
+        row?['foto_local_1'],
+        row?['foto_local_2'],
+        row?['foto_local_3'],
+        row?['foto_local_4'],
+        row?['foto_local_5'],
+      ].where((v) => v?.toString().trim().isNotEmpty == true).length;
       setState(() {
         _fotoPerfilUrl = row?['foto_perfil_url'] as String?;
         _nombreLocal = row?['nombre_local'] as String?;
         _usernameLocal = row?['local_username'] as String?;
+        _descripcionLocal = row?['descripcion_local'] as String?;
+        _bannerLocalUrl = row?['url_foto_banner'] as String?;
+        _cantidadFotosLocal = fotos;
+        _horariosLocal = parseHorariosLocal(row?['horarios_json']);
+        _eventosPublicados = (eventosRows as List).length;
         _localVerificado = localVerificado;
         _esPionero = esPionero;
         _pioneroMesBeneficio = pioneroMes;
@@ -156,8 +192,12 @@ class _LocalesHomeState extends State<LocalesHome> with WidgetsBindingObserver {
         _cuposDashboard = cupos;
         _cargandoPerfil = false;
       });
+      BootstrapLocales.marcarLista();
     } catch (_) {
-      if (mounted) setState(() => _cargandoPerfil = false);
+      if (mounted) {
+        setState(() => _cargandoPerfil = false);
+        BootstrapLocales.marcarLista();
+      }
     }
   }
 
@@ -169,9 +209,31 @@ class _LocalesHomeState extends State<LocalesHome> with WidgetsBindingObserver {
     ]);
   }
 
+  List<_FaltantePerfil> _faltantesPerfilBasicos() {
+    final faltantes = <_FaltantePerfil>[];
+    if ((_fotoPerfilUrl ?? '').trim().isEmpty) {
+      faltantes.add(const _FaltantePerfil('logo', 'logo'));
+    }
+    if ((_bannerLocalUrl ?? '').trim().isEmpty) {
+      faltantes.add(const _FaltantePerfil('banner', 'banner'));
+    }
+    if ((_descripcionLocal ?? '').trim().length < 30) {
+      faltantes.add(const _FaltantePerfil('descripcion', 'descripción'));
+    }
+    if (_horariosLocal.isEmpty) {
+      faltantes.add(const _FaltantePerfil('horarios', 'horarios'));
+    }
+    if (_cantidadFotosLocal < 4) {
+      faltantes.add(const _FaltantePerfil('fotos', 'fotos'));
+    }
+    return faltantes;
+  }
+
   @override
   Widget build(BuildContext context) {
-    TemaLocalesScope.of(context);
+    if (_cargandoPerfil) {
+      return const ColoredBox(color: kVioletaSplashLocales);
+    }
     TemaLocalesScope.of(context);
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -212,8 +274,9 @@ class _LocalesHomeState extends State<LocalesHome> with WidgetsBindingObserver {
     final tipoPlan = _tipoPlanDashboard();
     final mostrarVerificado =
         _esPionero || (_localVerificado && tipoPlan != 'Gratuita');
-    final colorVerificado =
-        _esPionero ? ProgramaPioneros.dorado : ColoresLocales.acentoVioleta;
+    final colorVerificado = _esPionero
+        ? ProgramaPioneros.dorado
+        : ColoresLocales.acentoVioleta;
 
     return Material(
       color: ColoresLocales.barraDashboard,
@@ -287,7 +350,8 @@ class _LocalesHomeState extends State<LocalesHome> with WidgetsBindingObserver {
 
   String _tipoPlanDashboard() {
     if (!_localVerificado && !_esPionero) return 'Gratuita';
-    final activo = _esPionero &&
+    final activo =
+        _esPionero &&
         _pioneroBeneficiosFin != null &&
         _pioneroBeneficiosFin!.isAfter(DateTime.now());
     return SuscripcionLocales.tipoPlanEfectivo(
@@ -330,9 +394,23 @@ class _LocalesHomeState extends State<LocalesHome> with WidgetsBindingObserver {
           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
           child: Row(
             children: [
-              Expanded(child: _navItem(0, CupertinoIcons.square_grid_2x2_fill, 'Dashboard')),
-              Expanded(child: _navItem(1, CupertinoIcons.calendar, 'Mis eventos')),
-              Expanded(child: _navItem(2, CupertinoIcons.arrow_up_circle_fill, 'Posición')),
+              Expanded(
+                child: _navItem(
+                  0,
+                  CupertinoIcons.square_grid_2x2_fill,
+                  'Dashboard',
+                ),
+              ),
+              Expanded(
+                child: _navItem(1, CupertinoIcons.calendar, 'Mis eventos'),
+              ),
+              Expanded(
+                child: _navItem(
+                  2,
+                  CupertinoIcons.arrow_up_circle_fill,
+                  'Posición',
+                ),
+              ),
               Expanded(child: _navItemNotis()),
               Expanded(child: _navItemAvatar(4, 'Mi local')),
             ],
@@ -363,10 +441,7 @@ class _LocalesHomeState extends State<LocalesHome> with WidgetsBindingObserver {
   static const _navZonaIconoTam = 32.0;
   static const _navEscalaActivo = 1.28;
 
-  Widget _navIconoAnimado({
-    required bool selected,
-    required Widget child,
-  }) {
+  Widget _navIconoAnimado({required bool selected, required Widget child}) {
     return AnimatedScale(
       scale: selected ? _navEscalaActivo : 1,
       duration: _navAnimDur,
@@ -378,10 +453,7 @@ class _LocalesHomeState extends State<LocalesHome> with WidgetsBindingObserver {
   }
 
   /// Área fija para todos los ítems: misma caja, misma escala activa.
-  Widget _navZonaIcono({
-    required bool selected,
-    required Widget icon,
-  }) {
+  Widget _navZonaIcono({required bool selected, required Widget icon}) {
     return SizedBox(
       width: _navZonaIconoTam,
       height: _navZonaIconoTam,
@@ -395,14 +467,8 @@ class _LocalesHomeState extends State<LocalesHome> with WidgetsBindingObserver {
     if (!selected) return null;
     if (TemaAppLocales.instancia.esOscuro) {
       return [
-        Shadow(
-          color: Colors.white.withValues(alpha: 0.55),
-          blurRadius: 12,
-        ),
-        Shadow(
-          color: Colors.white.withValues(alpha: 0.22),
-          blurRadius: 22,
-        ),
+        Shadow(color: Colors.white.withValues(alpha: 0.55), blurRadius: 12),
+        Shadow(color: Colors.white.withValues(alpha: 0.22), blurRadius: 22),
       ];
     }
     return [
@@ -428,10 +494,7 @@ class _LocalesHomeState extends State<LocalesHome> with WidgetsBindingObserver {
           blurRadius: 10,
           spreadRadius: 0.5,
         ),
-        BoxShadow(
-          color: Colors.white.withValues(alpha: 0.14),
-          blurRadius: 18,
-        ),
+        BoxShadow(color: Colors.white.withValues(alpha: 0.14), blurRadius: 18),
       ];
     }
     return [
@@ -542,7 +605,10 @@ class _LocalesHomeState extends State<LocalesHome> with WidgetsBindingObserver {
                     top: -5,
                     child: IgnorePointer(
                       child: Container(
-                        constraints: const BoxConstraints(minWidth: 14, minHeight: 14),
+                        constraints: const BoxConstraints(
+                          minWidth: 14,
+                          minHeight: 14,
+                        ),
                         padding: const EdgeInsets.symmetric(horizontal: 3),
                         decoration: BoxDecoration(
                           color: const Color(0xFFEF4444),
@@ -598,14 +664,14 @@ class _LocalesHomeState extends State<LocalesHome> with WidgetsBindingObserver {
             child: _cargandoPerfil
                 ? const Center(child: CupertinoActivityIndicator(radius: 8))
                 : _fotoPerfilUrl != null && _fotoPerfilUrl!.isNotEmpty
-                    ? Image.network(
-                        _fotoPerfilUrl!,
-                        fit: BoxFit.cover,
-                        width: _navIconoTam,
-                        height: _navIconoTam,
-                        errorBuilder: (_, __, ___) => _avatarFallback(),
-                      )
-                    : _avatarFallback(),
+                ? Image.network(
+                    _fotoPerfilUrl!,
+                    fit: BoxFit.cover,
+                    width: _navIconoTam,
+                    height: _navIconoTam,
+                    errorBuilder: (_, __, ___) => _avatarFallback(),
+                  )
+                : _avatarFallback(),
           ),
         ),
       ),
@@ -633,7 +699,14 @@ class _LocalesHomeState extends State<LocalesHome> with WidgetsBindingObserver {
   Widget _buildDashboard() {
     final displayUser = (_usernameLocal?.trim().isNotEmpty == true)
         ? _usernameLocal!.trim()
-        : ((_nombreLocal?.trim().isNotEmpty == true) ? _nombreLocal!.trim() : 'local');
+        : ((_nombreLocal?.trim().isNotEmpty == true)
+              ? _nombreLocal!.trim()
+              : 'local');
+    final faltantesPerfil = _faltantesPerfilBasicos();
+    final mostrarAvisoPerfil =
+        faltantesPerfil.isNotEmpty && !_avisoPerfilOcultoSesion;
+    final mostrarAvisoEventos =
+        _eventosPublicados == 0 && !_avisoEventosOcultoSesion;
 
     final atajos = [
       _Atajo(
@@ -653,7 +726,8 @@ class _LocalesHomeState extends State<LocalesHome> with WidgetsBindingObserver {
       _Atajo(
         titulo: 'Listas y pases',
         icon: CupertinoIcons.list_bullet,
-        subtitulo: 'Control de acceso, listas de invitados y pases para tus eventos.',
+        subtitulo:
+            'Control de acceso, listas de invitados y pases para tus eventos.',
       ),
       _Atajo(
         titulo: 'Métricas',
@@ -674,75 +748,132 @@ class _LocalesHomeState extends State<LocalesHome> with WidgetsBindingObserver {
         physics: const AlwaysScrollableScrollPhysics(),
         slivers: [
           SliverToBoxAdapter(
-          child: SafeArea(
-            bottom: false,
-            child: Padding(
-              padding: EdgeInsets.fromLTRB(20, 32, 20, 16),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Hola, $displayUser!',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: GoogleFonts.baloo2(
-                            fontSize: 26,
-                            fontWeight: FontWeight.w800,
-                            color: ColoresLocales.acentoVioleta,
+            child: SafeArea(
+              bottom: false,
+              child: Padding(
+                padding: EdgeInsets.fromLTRB(20, 32, 20, 16),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Hola, $displayUser!',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: GoogleFonts.baloo2(
+                              fontSize: 26,
+                              fontWeight: FontWeight.w800,
+                              color: ColoresLocales.acentoVioleta,
+                            ),
                           ),
-                        ),
-                        SizedBox(height: 6),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                '¿Qué querés hacer hoy?',
-                                style: GoogleFonts.baloo2(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w500,
-                                  color: ColoresLocales.textoSecundarioOnFondoClaro,
+                          SizedBox(height: 6),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  '¿Qué querés hacer hoy?',
+                                  style: GoogleFonts.baloo2(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w500,
+                                    color: ColoresLocales
+                                        .textoSecundarioOnFondoClaro,
+                                  ),
                                 ),
                               ),
-                            ),
-                            const BotonModoOscuroLocales(),
-                          ],
-                        ),
-                      ],
+                              const BotonModoOscuroLocales(),
+                            ],
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                  if (!_cargandoPerfil) ...[
-                    SizedBox(width: 8),
-                    _badgePlan(),
+                    if (!_cargandoPerfil) ...[SizedBox(width: 8), _badgePlan()],
                   ],
-                ],
+                ),
               ),
-          ),
-        ),
-        ),
-        SliverPadding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-          sliver: SliverList(
-            delegate: SliverChildBuilderDelegate(
-              (context, index) {
-                final a = atajos[index];
-                return Padding(
-                  padding: EdgeInsets.only(bottom: 12),
-                  child: a.estiloExclusivo
-                      ? _buildCardAtajoExclusivo(a)
-                      : _buildCardAtajo(a),
-                );
-              },
-              childCount: atajos.length,
             ),
           ),
-        ),
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+            sliver: SliverList(
+              delegate: SliverChildBuilderDelegate(
+                (context, index) {
+                  final avisos = <Widget>[
+                    if (mostrarAvisoPerfil)
+                      _AvisoDashboardLocal(
+                        icono: CupertinoIcons.wand_stars,
+                        titulo: 'Tu perfil puede vender mucho más',
+                        texto: _textoOportunidadPerfil(faltantesPerfil),
+                        accion: 'Mejorar mi perfil',
+                        onAccion: () => _seleccionarTab(4),
+                        onCerrar: () {
+                          setState(() => _avisoPerfilOcultoSesion = true);
+                        },
+                      ),
+                    if (mostrarAvisoEventos)
+                      _AvisoDashboardLocal(
+                        icono: CupertinoIcons.ticket_fill,
+                        titulo: 'Ganás más visibilidad con eventos',
+                        texto:
+                            'No tenés eventos publicados ahora. Subí una promo, flyer o fecha especial para aparecer en la cartelera.',
+                        accion: 'Publicar evento',
+                        onAccion: () =>
+                            Navigator.pushNamed(context, '/crear_evento'),
+                        onCerrar: () {
+                          setState(() => _avisoEventosOcultoSesion = true);
+                        },
+                      ),
+                  ];
+                  if (index < avisos.length) {
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: avisos[index],
+                    );
+                  }
+                  final a = atajos[index - avisos.length];
+                  return Padding(
+                    padding: EdgeInsets.only(bottom: 12),
+                    child: a.estiloExclusivo
+                        ? _buildCardAtajoExclusivo(a)
+                        : _buildCardAtajo(a),
+                  );
+                },
+                childCount:
+                    atajos.length +
+                    (mostrarAvisoPerfil ? 1 : 0) +
+                    (mostrarAvisoEventos ? 1 : 0),
+              ),
+            ),
+          ),
         ],
       ),
     );
+  }
+
+  String _textoFaltantesPerfil(List<_FaltantePerfil> faltantes) {
+    final nombres = faltantes.map((f) => f.nombre).take(4).toList();
+    if (nombres.length == 1) return nombres.first;
+    if (nombres.length == 2) return '${nombres[0]} y ${nombres[1]}';
+    return '${nombres.sublist(0, nombres.length - 1).join(', ')} y ${nombres.last}';
+  }
+
+  String _textoOportunidadPerfil(List<_FaltantePerfil> faltantes) {
+    final ids = faltantes.map((f) => f.id).toSet();
+    if (ids.contains('horarios')) {
+      return 'Agregá tus horarios para que la gente sepa cuándo estás abierto y pueda elegirte más fácil.';
+    }
+    if (ids.contains('descripcion')) {
+      return 'Sumá una buena descripción para que Fernecito y los usuarios entiendan mejor qué ofrece tu local.';
+    }
+    if (ids.contains('banner') || ids.contains('logo')) {
+      return 'Completá logo y banner para que tu local se vea más profesional en la app.';
+    }
+    if (ids.contains('fotos')) {
+      return 'Agregá más fotos reales para mostrar la onda del lugar y generar más confianza.';
+    }
+    return 'Completá ${_textoFaltantesPerfil(faltantes)} para que tu local se vea más confiable y atractivo.';
   }
 
   Widget _buildCardAtajoExclusivo(_Atajo a) {
@@ -754,7 +885,10 @@ class _LocalesHomeState extends State<LocalesHome> with WidgetsBindingObserver {
         borderRadius: BorderRadius.circular(20),
         child: Container(
           padding: EdgeInsets.symmetric(horizontal: 18, vertical: 20),
-          decoration: ColoresLocales.decoracionCard(exclusivo: true, sinBorde: true),
+          decoration: ColoresLocales.decoracionCard(
+            exclusivo: true,
+            sinBorde: true,
+          ),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -820,7 +954,11 @@ class _LocalesHomeState extends State<LocalesHome> with WidgetsBindingObserver {
               SizedBox(
                 width: 76,
                 height: 76,
-                child: Icon(a.icon, size: 42, color: ColoresLocales.acentoVioleta),
+                child: Icon(
+                  a.icon,
+                  size: 42,
+                  color: ColoresLocales.acentoVioleta,
+                ),
               ),
               SizedBox(width: 16),
               Expanded(
@@ -878,7 +1016,6 @@ class _LocalesHomeState extends State<LocalesHome> with WidgetsBindingObserver {
       return;
     }
   }
-
 }
 
 class _Atajo {
@@ -895,4 +1032,121 @@ class _Atajo {
     this.chipNuevo = false,
     this.estiloExclusivo = false,
   });
+}
+
+class _FaltantePerfil {
+  const _FaltantePerfil(this.id, this.nombre);
+  final String id;
+  final String nombre;
+}
+
+class _AvisoDashboardLocal extends StatelessWidget {
+  const _AvisoDashboardLocal({
+    required this.icono,
+    required this.titulo,
+    required this.texto,
+    required this.accion,
+    required this.onAccion,
+    required this.onCerrar,
+  });
+
+  final IconData icono;
+  final String titulo;
+  final String texto;
+  final String accion;
+  final VoidCallback onAccion;
+  final VoidCallback onCerrar;
+
+  @override
+  Widget build(BuildContext context) {
+    final mostaza = ColoresLocales.mostazaDestacado;
+    final textoBase = TemaAppLocales.instancia.esOscuro
+        ? Colors.white
+        : ColoresLocales.tituloAcento;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(11, 9, 7, 9),
+      decoration: BoxDecoration(
+        color: mostaza.withValues(
+          alpha: TemaAppLocales.instancia.esOscuro ? 0.13 : 0.18,
+        ),
+        borderRadius: BorderRadius.circular(14),
+        boxShadow: [
+          BoxShadow(
+            color: mostaza.withValues(alpha: 0.07),
+            blurRadius: 12,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 28,
+            height: 28,
+            decoration: BoxDecoration(
+              color: mostaza.withValues(alpha: 0.20),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(icono, size: 15, color: mostaza),
+          ),
+          const SizedBox(width: 9),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  titulo,
+                  style: GoogleFonts.baloo2(
+                    fontSize: 13.2,
+                    fontWeight: FontWeight.w900,
+                    color: textoBase,
+                    height: 1.0,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  texto,
+                  style: GoogleFonts.baloo2(
+                    fontSize: 11.4,
+                    fontWeight: FontWeight.w600,
+                    color: textoBase.withValues(alpha: 0.76),
+                    height: 1.12,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                GestureDetector(
+                  onTap: onAccion,
+                  child: Text(
+                    accion,
+                    style: GoogleFonts.baloo2(
+                      fontSize: 11.8,
+                      fontWeight: FontWeight.w900,
+                      color: mostaza,
+                      height: 1,
+                      decoration: TextDecoration.underline,
+                      decorationColor: mostaza.withValues(alpha: 0.75),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 5),
+          GestureDetector(
+            onTap: onCerrar,
+            behavior: HitTestBehavior.opaque,
+            child: Padding(
+              padding: const EdgeInsets.all(5),
+              child: Icon(
+                CupertinoIcons.xmark,
+                size: 14,
+                color: textoBase.withValues(alpha: 0.55),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }

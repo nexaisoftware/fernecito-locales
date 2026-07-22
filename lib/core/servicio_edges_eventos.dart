@@ -386,7 +386,10 @@ class ServicioEdgesEventos {
     try {
       final res = await _handleEdge(
         'editar_evento',
-        body: {'id_evento': idEvento, ...campos},
+        body: {
+          'id_evento': idEvento,
+          'payload_evento': campos,
+        },
       );
       return res.data;
     } on Exception {
@@ -400,7 +403,10 @@ class ServicioEdgesEventos {
     try {
       await _handleEdge(
         'editar_evento',
-        body: {'id_evento': idEvento, 'estado_publicacion': 'cancelado'},
+        body: {
+          'id_evento': idEvento,
+          'payload_evento': {'estado_publicacion': 'cancelado'},
+        },
       );
     } on Exception {
       rethrow;
@@ -412,7 +418,10 @@ class ServicioEdgesEventos {
     try {
       await _handleEdge(
         'editar_evento',
-        body: {'id_evento': idEvento, 'estado_publicacion': 'publicado'},
+        body: {
+          'id_evento': idEvento,
+          'payload_evento': {'estado_publicacion': 'publicado'},
+        },
       );
     } on Exception {
       rethrow;
@@ -486,6 +495,47 @@ class ServicioEdgesEventos {
 
   Future<void> eliminarCuentaLocal() async {
     await _handleEdge('eliminar_cuenta_local', body: const {});
+  }
+
+  /// Promptera del chatbot de creación de EVENTO (capa aditiva, NO guarda nada).
+  /// [intent]: 'fechas' | 'tipo' | 'descripcion'.
+  /// - fechas → { entendido, fecha_inicio, fecha_fin, resumen }.
+  /// - tipo → { tipo }.
+  /// - descripcion → { descripcion }.
+  Future<Map<String, dynamic>> asistenteEventoLocal({
+    required String intent,
+    required String texto,
+    Map<String, dynamic>? contexto,
+  }) async {
+    final res = await _handleEdge(
+      'asistente_evento_local',
+      body: {
+        'intent': intent,
+        'texto': texto,
+        if (contexto != null) 'contexto': contexto,
+      },
+    );
+    return res.data;
+  }
+
+  /// Promptera del chatbot de creación de perfil (capa aditiva, NO guarda nada).
+  /// [intent]: 'horarios' | 'descripcion'.
+  /// - horarios → { horarios_json, resumen, entendido } (contexto opcional: es_correccion, texto_anterior, resumen_anterior).
+  /// - descripcion → { descripcion, rubros } (contexto opcional: nombre_local, rubros).
+  Future<Map<String, dynamic>> asistentePerfilLocal({
+    required String intent,
+    required String texto,
+    Map<String, dynamic>? contexto,
+  }) async {
+    final res = await _handleEdge(
+      'asistente_perfil_local',
+      body: {
+        'intent': intent,
+        'texto': texto,
+        if (contexto != null) 'contexto': contexto,
+      },
+    );
+    return res.data;
   }
 
   /// Gestión de staff del local (owner) o vinculación (usuario staff).

@@ -6,8 +6,8 @@ import 'dart:ui';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:url_launcher/url_launcher.dart';
 import '../core/constants.dart';
+import '../core/lanzador_externo.dart';
 import '../widgets/tema_locales_scope.dart';
 import '../core/servicio_edges_eventos.dart';
 
@@ -46,18 +46,30 @@ class _LocalesSoporteState extends State<LocalesSoporte> {
 
   Future<void> _cargarEstadoSoporte() async {
     try {
-      final data = await ServicioEdgesEventos().administrarSoporteLocal(accion: 'get_estado');
+      final data = await ServicioEdgesEventos().administrarSoporteLocal(
+        accion: 'get_estado',
+      );
       if (!mounted) return;
       final soporteRaw = data['soporte'];
-      final soporte = soporteRaw is Map ? Map<String, dynamic>.from(soporteRaw) : null;
-      final estado = (soporte?['estado_operacion'] as String?)?.trim().toLowerCase();
+      final soporte = soporteRaw is Map
+          ? Map<String, dynamic>.from(soporteRaw)
+          : null;
+      final estado = (soporte?['estado_operacion'] as String?)
+          ?.trim()
+          .toLowerCase();
       final codigo = (soporte?['codigo_antiestafa'] as String?)?.trim();
       final username = (data['local_username'] as String?)?.trim();
 
       setState(() {
-        _estadoOperacion = (estado == 'abierta' || estado == 'terminada') ? estado! : 'terminada';
-        _localUsername = (username != null && username.isNotEmpty) ? username : 'local';
-        _codigoActual = (codigo != null && codigo.isNotEmpty) ? codigo : _nuevoCodigo();
+        _estadoOperacion = (estado == 'abierta' || estado == 'terminada')
+            ? estado!
+            : 'terminada';
+        _localUsername = (username != null && username.isNotEmpty)
+            ? username
+            : 'local';
+        _codigoActual = (codigo != null && codigo.isNotEmpty)
+            ? codigo
+            : _nuevoCodigo();
         _codigoVisible = _operacionAbierta;
         _cargando = false;
       });
@@ -69,13 +81,16 @@ class _LocalesSoporteState extends State<LocalesSoporte> {
   }
 
   Future<void> _abrirWhatsAppConMensaje() async {
-    final usernameConArroba = _localUsername.startsWith('@') ? _localUsername : '@$_localUsername';
-    final msg = 'Hola! 😊 Soy $usernameConArroba de Fernecito.\n\n'
+    final usernameConArroba = _localUsername.startsWith('@')
+        ? _localUsername
+        : '@$_localUsername';
+    final msg =
+        'Hola! 😊 Soy $usernameConArroba de Fernecito.\n\n'
         'Necesito ayuda con mi cuenta de local.\n\n'
         'Para mi tranquilidad, ¿podés decirme primero mi código anti-estafas?\n\n'
         '¡Muchas gracias! 🥃';
     final uri = Uri.parse('https://wa.me/?text=${Uri.encodeComponent(msg)}');
-    final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    final ok = await lanzarExternoConFallback(uri);
     if (!ok && mounted) {
       _mostrarDialogo(
         'No se pudo abrir WhatsApp',
@@ -95,11 +110,15 @@ class _LocalesSoporteState extends State<LocalesSoporte> {
         viaContacto: abrirChat ? 'whatsapp' : 'email',
       );
       final soporteRaw = data['soporte'];
-      final soporte = soporteRaw is Map ? Map<String, dynamic>.from(soporteRaw) : null;
+      final soporte = soporteRaw is Map
+          ? Map<String, dynamic>.from(soporteRaw)
+          : null;
       if (mounted) {
         setState(() {
-          _estadoOperacion = (soporte?['estado_operacion'] as String?) ?? 'abierta';
-          _codigoActual = (soporte?['codigo_antiestafa'] as String?) ?? nuevoCodigo;
+          _estadoOperacion =
+              (soporte?['estado_operacion'] as String?) ?? 'abierta';
+          _codigoActual =
+              (soporte?['codigo_antiestafa'] as String?) ?? nuevoCodigo;
           _codigoVisible = true;
         });
       }
@@ -126,11 +145,15 @@ class _LocalesSoporteState extends State<LocalesSoporte> {
         viaContacto: 'whatsapp', // reiniciar siempre arranca chat WSP
       );
       final soporteRaw = data['soporte'];
-      final soporte = soporteRaw is Map ? Map<String, dynamic>.from(soporteRaw) : null;
+      final soporte = soporteRaw is Map
+          ? Map<String, dynamic>.from(soporteRaw)
+          : null;
       if (mounted) {
         setState(() {
-          _estadoOperacion = (soporte?['estado_operacion'] as String?) ?? 'abierta';
-          _codigoActual = (soporte?['codigo_antiestafa'] as String?) ?? nuevoCodigo;
+          _estadoOperacion =
+              (soporte?['estado_operacion'] as String?) ?? 'abierta';
+          _codigoActual =
+              (soporte?['codigo_antiestafa'] as String?) ?? nuevoCodigo;
           _codigoVisible = true;
         });
       }
@@ -149,8 +172,13 @@ class _LocalesSoporteState extends State<LocalesSoporte> {
       await showDialog<void>(
         context: context,
         builder: (_) => AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          title: Text('Operación abierta', style: GoogleFonts.baloo2(fontWeight: FontWeight.w900)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: Text(
+            'Operación abierta',
+            style: GoogleFonts.baloo2(fontWeight: FontWeight.w900),
+          ),
           content: Text(
             'Tenés una operación abierta.\n\nPodés continuar la conversación actual o iniciar una nueva con otro código.',
             style: GoogleFonts.baloo2(),
@@ -165,15 +193,23 @@ class _LocalesSoporteState extends State<LocalesSoporte> {
                 Navigator.of(context).pop();
                 await _abrirWhatsAppConMensaje();
               },
-              child: Text('Ir al chat', style: GoogleFonts.baloo2(fontWeight: FontWeight.w800)),
+              child: Text(
+                'Ir al chat',
+                style: GoogleFonts.baloo2(fontWeight: FontWeight.w800),
+              ),
             ),
             FilledButton(
               onPressed: () async {
                 Navigator.of(context).pop();
                 await _reiniciarOperacionSoporteYAbrirChat();
               },
-              style: FilledButton.styleFrom(backgroundColor: ColoresLocales.acentoVioleta),
-              child: Text('Iniciar nueva conversación', style: GoogleFonts.baloo2(fontWeight: FontWeight.w800)),
+              style: FilledButton.styleFrom(
+                backgroundColor: ColoresLocales.acentoVioleta,
+              ),
+              child: Text(
+                'Iniciar nueva conversación',
+                style: GoogleFonts.baloo2(fontWeight: FontWeight.w800),
+              ),
             ),
           ],
         ),
@@ -185,7 +221,10 @@ class _LocalesSoporteState extends State<LocalesSoporte> {
       context: context,
       builder: (_) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text('Antes de contactar soporte', style: GoogleFonts.baloo2(fontWeight: FontWeight.w900)),
+        title: Text(
+          'Antes de contactar soporte',
+          style: GoogleFonts.baloo2(fontWeight: FontWeight.w900),
+        ),
         content: Text(
           'Primero generá tu código anti-estafas.\n\n'
           'Esto protege tu cuenta durante la conversación con soporte oficial.',
@@ -201,8 +240,13 @@ class _LocalesSoporteState extends State<LocalesSoporte> {
               Navigator.of(context).pop();
               await _abrirOperacionSoporte(abrirChat: true);
             },
-            style: FilledButton.styleFrom(backgroundColor: ColoresLocales.acentoVioleta),
-            child: Text('Generar y contactar', style: GoogleFonts.baloo2(fontWeight: FontWeight.w800)),
+            style: FilledButton.styleFrom(
+              backgroundColor: ColoresLocales.acentoVioleta,
+            ),
+            child: Text(
+              'Generar y contactar',
+              style: GoogleFonts.baloo2(fontWeight: FontWeight.w800),
+            ),
           ),
         ],
       ),
@@ -214,7 +258,10 @@ class _LocalesSoporteState extends State<LocalesSoporte> {
       context: context,
       builder: (_) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text(titulo, style: GoogleFonts.baloo2(fontWeight: FontWeight.w900)),
+        title: Text(
+          titulo,
+          style: GoogleFonts.baloo2(fontWeight: FontWeight.w900),
+        ),
         content: Text(msg, style: GoogleFonts.baloo2()),
         actions: [
           TextButton(
@@ -245,7 +292,10 @@ class _LocalesSoporteState extends State<LocalesSoporte> {
           leading: CupertinoButton(
             padding: EdgeInsets.zero,
             onPressed: () => Navigator.pop(context),
-            child: Icon(CupertinoIcons.chevron_back, color: ColoresLocales.acentoVioleta),
+            child: Icon(
+              CupertinoIcons.chevron_back,
+              color: ColoresLocales.acentoVioleta,
+            ),
           ),
           title: Text(
             'Ayuda y soporte',
@@ -255,7 +305,9 @@ class _LocalesSoporteState extends State<LocalesSoporte> {
             ),
           ),
         ),
-        body: Center(child: CircularProgressIndicator(color: ColoresLocales.acentoVioleta)),
+        body: Center(
+          child: CircularProgressIndicator(color: ColoresLocales.acentoVioleta),
+        ),
       );
     }
 
@@ -268,8 +320,10 @@ class _LocalesSoporteState extends State<LocalesSoporte> {
         leading: CupertinoButton(
           padding: EdgeInsets.zero,
           onPressed: () => Navigator.pop(context),
-          child: Icon(CupertinoIcons.chevron_back,
-              color: ColoresLocales.acentoVioleta),
+          child: Icon(
+            CupertinoIcons.chevron_back,
+            color: ColoresLocales.acentoVioleta,
+          ),
         ),
         title: Text(
           'Ayuda y soporte',
@@ -347,7 +401,9 @@ class _LocalesSoporteState extends State<LocalesSoporte> {
                           decoration: BoxDecoration(
                             color: Colors.red.withOpacity(0.06),
                             borderRadius: BorderRadius.circular(16),
-                            border: Border.all(color: Colors.red.withOpacity(0.18)),
+                            border: Border.all(
+                              color: Colors.red.withOpacity(0.18),
+                            ),
                           ),
                           child: Text(
                             'IMPORTANTE: NO COMPARTAS ESTE CÓDIGO',
@@ -434,8 +490,10 @@ class _LocalesSoporteState extends State<LocalesSoporte> {
                       style: FilledButton.styleFrom(
                         backgroundColor: ColoresLocales.acentoVioleta,
                         foregroundColor: ColoresLocales.textoEnBoton,
-                        padding:
-                            EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 10,
+                        ),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(999),
                         ),
@@ -444,12 +502,18 @@ class _LocalesSoporteState extends State<LocalesSoporte> {
                           ? SizedBox(
                               width: 16,
                               height: 16,
-                              child: CircularProgressIndicator(strokeWidth: 2, color: ColoresLocales.textoEnBoton),
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: ColoresLocales.textoEnBoton,
+                              ),
                             )
                           : Icon(CupertinoIcons.eye_fill, size: 18),
                       label: Text(
                         _procesando ? 'Generando...' : 'Eh leído, ver código',
-                        style: GoogleFonts.baloo2(fontSize: 12, fontWeight: FontWeight.w900),
+                        style: GoogleFonts.baloo2(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w900,
+                        ),
                       ),
                     ),
                   ),
@@ -467,7 +531,9 @@ class _LocalesSoporteState extends State<LocalesSoporte> {
       decoration: BoxDecoration(
         color: ColoresLocales.superficie,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: ColoresLocales.acentoVioleta.withOpacity(0.18)),
+        border: Border.all(
+          color: ColoresLocales.acentoVioleta.withOpacity(0.18),
+        ),
         boxShadow: [
           BoxShadow(
             color: ColoresLocales.acentoVioleta.withOpacity(0.06),
@@ -546,7 +612,11 @@ class _LocalesSoporteState extends State<LocalesSoporte> {
                   color: ColoresLocales.acentoVioleta.withOpacity(0.08),
                   borderRadius: BorderRadius.circular(14),
                 ),
-                child: Icon(icon, color: ColoresLocales.acentoVioleta, size: 18),
+                child: Icon(
+                  icon,
+                  color: ColoresLocales.acentoVioleta,
+                  size: 18,
+                ),
               ),
               SizedBox(width: 12),
               Expanded(
@@ -585,4 +655,3 @@ class _LocalesSoporteState extends State<LocalesSoporte> {
     );
   }
 }
-

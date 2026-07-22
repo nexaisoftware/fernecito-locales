@@ -196,10 +196,7 @@ class ColoresLocales {
         ];
 
   /// Sombras de cards del dashboard — ninguna en oscuro.
-  static List<BoxShadow> sombrasCard({
-    bool exclusivo = false,
-    Color? acento,
-  }) {
+  static List<BoxShadow> sombrasCard({bool exclusivo = false, Color? acento}) {
     if (_oscuro) return const <BoxShadow>[];
     final c = acento ?? acentoVioleta;
     return [
@@ -215,8 +212,8 @@ class ColoresLocales {
   static Color bordeCard({bool exclusivo = false}) => _oscuro
       ? bordeSuave
       : (exclusivo
-          ? mostazaDestacado.withOpacity(0.38)
-          : acentoVioleta.withOpacity(0.16));
+            ? mostazaDestacado.withOpacity(0.38)
+            : acentoVioleta.withOpacity(0.16));
 
   /// Decoración estándar de cards (dashboard y pantallas similares).
   /// Decoración de card con paleta oscura fija (Mi local — no sigue modo claro).
@@ -284,18 +281,18 @@ class ColoresMiLocalPerfil {
   static const rellenoInput = superficieElevada;
 
   static BoxDecoration get decoracionFondo => BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [
-            principalMarca.withValues(alpha: 0.28),
-            principalMarca.withValues(alpha: 0.1),
-            Colors.transparent,
-          ],
-          stops: const [0.0, 0.22, 0.5],
-        ),
-        color: fondo,
-      );
+    gradient: LinearGradient(
+      begin: Alignment.topCenter,
+      end: Alignment.bottomCenter,
+      colors: [
+        principalMarca.withValues(alpha: 0.28),
+        principalMarca.withValues(alpha: 0.1),
+        Colors.transparent,
+      ],
+      stops: const [0.0, 0.22, 0.5],
+    ),
+    color: fondo,
+  );
 }
 
 /// Límites de texto en la pantalla Mi local.
@@ -304,6 +301,9 @@ class LimitesMiLocalPerfil {
 
   /// Ej.: "el rincon de la hamburguesa - burgers de calidad" (48 chars).
   static const maxCaracteresNombre = 50;
+
+  /// Descripción amplia: se usa para IA, búsquedas y perfil público.
+  static const maxCaracteresDescripcion = 2000;
 
   /// Salto manual ~10 chars antes del wrap natural del ancho disponible.
   static const saltoLineaNombreAntes = 10;
@@ -329,7 +329,8 @@ class FormatoNombreLocalHero {
     double reservaTrailing = 0,
   }) {
     final texto = nombre.trim();
-    if (texto.isEmpty || texto.length <= LimitesMiLocalPerfil.minCaracteresUnaLinea) {
+    if (texto.isEmpty ||
+        texto.length <= LimitesMiLocalPerfil.minCaracteresUnaLinea) {
       return texto;
     }
 
@@ -381,8 +382,7 @@ class FormatoNombreLocalHero {
       return (largo / 2).round().clamp(1, largo - 1);
     }
 
-    final anticipado =
-        finNatural - LimitesMiLocalPerfil.saltoLineaNombreAntes;
+    final anticipado = finNatural - LimitesMiLocalPerfil.saltoLineaNombreAntes;
     return anticipado.clamp(10, largo - 1);
   }
 
@@ -429,7 +429,9 @@ class IconosFeaturesLocales {
   static const topCartelera = CupertinoIcons.star_fill;
   static const topUltra = CupertinoIcons.flame_fill;
 
-  static ({String label, Color color, IconData icon}) metaJerarquia(String? jerarquia) {
+  static ({String label, Color color, IconData icon}) metaJerarquia(
+    String? jerarquia,
+  ) {
     final nivel = (jerarquia ?? 'gratis').toLowerCase();
     return switch (nivel) {
       'normal' => (
@@ -460,7 +462,9 @@ class IconosFeaturesLocales {
     };
   }
 
-  static ({String label, Color color, IconData icon}) metaNivelPosicionamiento(String nivel) {
+  static ({String label, Color color, IconData icon}) metaNivelPosicionamiento(
+    String nivel,
+  ) {
     return switch (nivel) {
       'recomendado_fernecito' => (
         label: 'Rec. Fernecito',

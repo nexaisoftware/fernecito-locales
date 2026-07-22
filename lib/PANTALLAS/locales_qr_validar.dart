@@ -104,11 +104,17 @@ class _SquadSnapshotQr {
   final bool esSquad;
   final int cantidadPersonas;
   final List<String> uidsMiembros;
+  final int? indice;
+  final int? cantidadTotal;
+  final String? nombreGrupo;
 
   const _SquadSnapshotQr({
     required this.esSquad,
     required this.cantidadPersonas,
     required this.uidsMiembros,
+    this.indice,
+    this.cantidadTotal,
+    this.nombreGrupo,
   });
 }
 
@@ -125,17 +131,25 @@ _SquadSnapshotQr _parseSquadSnapshot(dynamic raw) {
       if (s.isNotEmpty) uids.add(s);
     }
   }
-  final cantRaw = m['cantidad'];
+  final cantRaw = m['cantidad_total'] ?? m['cantidad'];
   var cantidad = cantRaw is int
       ? cantRaw
       : (cantRaw is num ? cantRaw.toInt() : int.tryParse(cantRaw?.toString() ?? '') ?? 0);
   if (cantidad <= 0) cantidad = uids.isNotEmpty ? uids.length : 1;
+  final indiceRaw = m['indice'];
+  final indice = indiceRaw is int
+      ? indiceRaw
+      : (indiceRaw is num ? indiceRaw.toInt() : int.tryParse(indiceRaw?.toString() ?? ''));
+  final nombreGrupo = m['nombre_grupo']?.toString().trim();
   final esSquadFlag = m['es_squad'] == true || m['es_squad'] == 1;
-  final esSquad = esSquadFlag || uids.length > 1 || cantidad > 1;
+  final esSquad = esSquadFlag || indice != null || uids.length > 1 || cantidad > 1;
   return _SquadSnapshotQr(
     esSquad: esSquad,
-    cantidadPersonas: cantidad,
+    cantidadPersonas: indice != null ? 1 : cantidad,
     uidsMiembros: uids,
+    indice: indice,
+    cantidadTotal: cantidad,
+    nombreGrupo: (nombreGrupo != null && nombreGrupo.isNotEmpty) ? nombreGrupo : null,
   );
 }
 
@@ -176,6 +190,9 @@ class _DatosValidacion {
   final bool esSquad;
   final int cantidadPersonas;
   final List<String> miembros;
+  final int? indiceSquad;
+  final int? cantidadTotalSquad;
+  final String? nombreSquad;
   final String? tituloEvento;
 
   // Promo
@@ -199,6 +216,9 @@ class _DatosValidacion {
     this.esSquad = false,
     this.cantidadPersonas = 1,
     this.miembros = const [],
+    this.indiceSquad,
+    this.cantidadTotalSquad,
+    this.nombreSquad,
     this.tituloEvento,
     this.tituloPromo,
     this.descripcionPromo,
@@ -265,6 +285,16 @@ class _DatosValidacion {
         ? edadRaw
         : (edadRaw is num ? edadRaw.toInt() : int.tryParse(edadRaw?.toString() ?? ''));
 
+    final indiceRaw = data['indice_squad'];
+    final indiceSquad = indiceRaw is int
+        ? indiceRaw
+        : (indiceRaw is num ? indiceRaw.toInt() : int.tryParse(indiceRaw?.toString() ?? ''));
+    final totalRaw = data['cantidad_total_squad'];
+    final cantidadTotalSquad = totalRaw is int
+        ? totalRaw
+        : (totalRaw is num ? totalRaw.toInt() : int.tryParse(totalRaw?.toString() ?? ''));
+    final nombreSquad = data['nombre_squad']?.toString().trim();
+
     return _DatosValidacion(
       ok: true,
       tipo: tipo,
@@ -273,9 +303,15 @@ class _DatosValidacion {
           uMap?['nombre_usuario']?.toString().trim(),
       username: uMap?['username']?.toString().trim(),
       edad: edad,
-      esSquad: data['es_squad'] == true || cantidad > 1 || miembros.length > 1,
+      esSquad: data['es_squad'] == true ||
+          indiceSquad != null ||
+          cantidad > 1 ||
+          miembros.length > 1,
       cantidadPersonas: cantidad,
       miembros: miembros,
+      indiceSquad: indiceSquad,
+      cantidadTotalSquad: cantidadTotalSquad,
+      nombreSquad: (nombreSquad != null && nombreSquad.isNotEmpty) ? nombreSquad : null,
       tituloEvento: evMap?['titulo_evento']?.toString(),
       tituloPromo: promoMap?['titulo_promocion']?.toString().trim(),
       descripcionPromo: promoMap?['descripcion_promocion']?.toString().trim(),
@@ -2001,9 +2037,30 @@ class _PantallaValidacionCodigoState extends State<PantallaValidacionCodigo> {
 
   String _tituloValidacionOk(_DatosValidacion d) {
     if (d.tipo == _TipoValidacion.promo) return 'Promo válida';
-    return d.esSquad
-        ? 'Asistencia squad válida'
-        : 'Asistencia individual válida';
+    final handle = d.username?.trim();
+    if (handle != null && handle.isNotEmpty) {
+      final fmt = handle.startsWith('@') ? handle : '@$handle';
+      return '$fmt válido';
+    }
+    if (d.nombreUsuario != null && d.nombreUsuario!.trim().isNotEmpty) {
+      return '${d.nombreUsuario!.trim()} válido';
+    }
+    return d.esSquad ? 'Asistencia squad válida' : 'Asistencia individual válida';
+  }
+
+  String? _subtituloSquadValidacion(_DatosValidacion d) {
+    if (!d.esSquad) return null;
+    final total = d.cantidadTotalSquad ?? d.cantidadPersonas;
+    final indice = d.indiceSquad;
+    final nombre = d.nombreSquad?.trim();
+    if (indice != null && total > 0) {
+      final base = '$indice/$total del squad';
+      if (nombre != null && nombre.isNotEmpty) return '$base "$nombre"';
+      return base;
+    }
+    if (nombre != null && nombre.isNotEmpty) return 'Squad "$nombre" · $total personas';
+    if (total > 1) return 'Squad · $total personas';
+    return null;
   }
 
   Widget _panelOverlayResultado({
@@ -2083,6 +2140,19 @@ class _PantallaValidacionCodigoState extends State<PantallaValidacionCodigo> {
             height: 1.15,
           ),
         ),
+        if (_subtituloSquadValidacion(d) != null) ...[
+          const SizedBox(height: 8),
+          Text(
+            _subtituloSquadValidacion(d)!,
+            textAlign: TextAlign.center,
+            style: GoogleFonts.baloo2(
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+              color: Colors.white.withOpacity(0.92),
+              height: 1.2,
+            ),
+          ),
+        ],
         SizedBox(height: 16),
         _panelOverlayResultado(
           icono: CupertinoIcons.qrcode,

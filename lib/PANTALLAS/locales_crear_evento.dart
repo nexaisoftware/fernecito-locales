@@ -19,6 +19,8 @@ import '../widgets/tema_locales_scope.dart';
 import '../widgets/feedback_locales.dart';
 import '../core/supabase_client.dart';
 import '../core/servicio_edges_eventos.dart';
+import '../core/navegacion_posicionamiento.dart';
+import '../widgets/asistente_evento_sheet.dart';
 
 enum _IntencionPublicacion { estandar, recFernecito, topCartelera, topUltra }
 
@@ -164,10 +166,13 @@ class _LocalesCrearEventoState extends State<LocalesCrearEvento> {
 
     if (args.fechaInicio != null) {
       _fechaInicio = args.fechaInicio;
-      _fechaFin = args.fechaFin ?? args.fechaInicio!.add(const Duration(hours: 5));
+      _fechaFin =
+          args.fechaFin ?? args.fechaInicio!.add(const Duration(hours: 5));
     }
 
-    if (args.activarPromos && args.nombrePromo != null && args.nombrePromo!.trim().isNotEmpty) {
+    if (args.activarPromos &&
+        args.nombrePromo != null &&
+        args.nombrePromo!.trim().isNotEmpty) {
       _agregarPromos = true;
       if (_promos.isEmpty) _promos.add(_PromoDraft());
       final p = _promos.first;
@@ -182,7 +187,9 @@ class _LocalesCrearEventoState extends State<LocalesCrearEvento> {
 
   Future<void> _cargarFlyerDesdeArgs(CrearEventoDesdeFlyerArgs args) async {
     Uint8List? raw = args.flyerBytes;
-    if (raw == null && args.rutaFlyerLocal != null && args.rutaFlyerLocal!.isNotEmpty) {
+    if (raw == null &&
+        args.rutaFlyerLocal != null &&
+        args.rutaFlyerLocal!.isNotEmpty) {
       final f = File(args.rutaFlyerLocal!);
       if (await f.exists()) raw = await f.readAsBytes();
     }
@@ -200,7 +207,8 @@ class _LocalesCrearEventoState extends State<LocalesCrearEvento> {
 
     setState(() {
       _flyerBytes = raw;
-      _flyerNombre = 'flyer_ia.${args.rutaFlyerLocal?.split('.').last ?? 'jpg'}';
+      _flyerNombre =
+          'flyer_ia.${args.rutaFlyerLocal?.split('.').last ?? 'jpg'}';
       _procesandoFlyer = true;
       _errorFlyer = null;
     });
@@ -564,10 +572,7 @@ class _LocalesCrearEventoState extends State<LocalesCrearEvento> {
           ),
         ),
         const SizedBox(height: 8),
-        Align(
-          alignment: Alignment.center,
-          child: _buildMiniaturaFlyerSubir(),
-        ),
+        Align(alignment: Alignment.center, child: _buildMiniaturaFlyerSubir()),
         if (_errorFlyer != null) ...[
           const SizedBox(height: 8),
           Text(
@@ -672,7 +677,9 @@ class _LocalesCrearEventoState extends State<LocalesCrearEvento> {
             ),
             style: TextButton.styleFrom(
               foregroundColor: ColoresLocales.acentoVioleta,
-              backgroundColor: ColoresLocales.acentoVioleta.withValues(alpha: 0.1),
+              backgroundColor: ColoresLocales.acentoVioleta.withValues(
+                alpha: 0.1,
+              ),
               padding: const EdgeInsets.symmetric(horizontal: 10),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(50),
@@ -723,26 +730,26 @@ class _LocalesCrearEventoState extends State<LocalesCrearEvento> {
         return false;
       }
       if (!_esEnLocal) {
-      if (_direccionEventoCtrl.text.trim().isEmpty) {
-        _mostrarError('Completá la dirección del evento.');
-        setState(() => _expandUbicacionExterna = true);
-        return false;
-      }
-      if (_ciudadEventoCtrl.text.trim().isEmpty) {
-        _mostrarError('Completá la ciudad del evento.');
-        setState(() => _expandUbicacionExterna = true);
-        return false;
-      }
-      if (_provinciaEventoCtrl.text.trim().isEmpty) {
-        _mostrarError('Completá la provincia del evento.');
-        setState(() => _expandUbicacionExterna = true);
-        return false;
-      }
-      if (_urlMapsEventoCtrl.text.trim().isEmpty) {
-        _mostrarError('Completá la URL de Google Maps del evento.');
-        setState(() => _expandUbicacionExterna = true);
-        return false;
-      }
+        if (_direccionEventoCtrl.text.trim().isEmpty) {
+          _mostrarError('Completá la dirección del evento.');
+          setState(() => _expandUbicacionExterna = true);
+          return false;
+        }
+        if (_ciudadEventoCtrl.text.trim().isEmpty) {
+          _mostrarError('Completá la ciudad del evento.');
+          setState(() => _expandUbicacionExterna = true);
+          return false;
+        }
+        if (_provinciaEventoCtrl.text.trim().isEmpty) {
+          _mostrarError('Completá la provincia del evento.');
+          setState(() => _expandUbicacionExterna = true);
+          return false;
+        }
+        if (_urlMapsEventoCtrl.text.trim().isEmpty) {
+          _mostrarError('Completá la URL de Google Maps del evento.');
+          setState(() => _expandUbicacionExterna = true);
+          return false;
+        }
       }
     }
     // Cupo es opcional (null = sin límite). Si se ingresa, debe ser >= 1.
@@ -796,9 +803,9 @@ class _LocalesCrearEventoState extends State<LocalesCrearEvento> {
       if (p.modoUso == 'squad') {
         final min = int.tryParse(p.minMiembrosCtrl.text.trim());
         final max = int.tryParse(p.maxMiembrosCtrl.text.trim());
-        if (min == null || max == null || min <= 0 || max < min) {
+        if (min == null || max == null || min < 2 || max < min) {
           _mostrarError(
-            'Completá mínimo/máximo de squad válidos en la promo ${i + 1}.',
+            'Completá mínimo/máximo de squad válidos en la promo ${i + 1} (mínimo 2).',
           );
           return false;
         }
@@ -824,6 +831,9 @@ class _LocalesCrearEventoState extends State<LocalesCrearEvento> {
   }
 
   String _diaSemana(DateTime d) {
+    // Día calendario en Argentina (UTC-3 fijo). Evita que un sábado 23:00 AR
+    // (domingo 02:00 UTC) se guarde como "domingo".
+    final ar = d.toUtc().subtract(const Duration(hours: 3));
     const dias = [
       'lunes',
       'martes',
@@ -833,7 +843,7 @@ class _LocalesCrearEventoState extends State<LocalesCrearEvento> {
       'sabado',
       'domingo',
     ];
-    return dias[d.weekday - 1]; // weekday: 1=lunes ... 7=domingo
+    return dias[ar.weekday - 1]; // weekday: 1=lunes ... 7=domingo
   }
 
   Map<String, dynamic> _buildPayloadEvento() {
@@ -857,7 +867,9 @@ class _LocalesCrearEventoState extends State<LocalesCrearEvento> {
           : (descripcion.isEmpty ? null : descripcion),
       'url_flyer': _urlFlyerSubido ?? '',
       // Campos funcionales: en modo simple se mandan neutralizados.
-      'url_compra_entradas': _esSimple ? null : (urlCompra.isEmpty ? null : urlCompra),
+      'url_compra_entradas': _esSimple
+          ? null
+          : (urlCompra.isEmpty ? null : urlCompra),
       'tipo_evento': _tipoEvento,
       'edad_minima': _esSimple ? null : edad,
       if (!_esSimple) ...{
@@ -944,14 +956,163 @@ class _LocalesCrearEventoState extends State<LocalesCrearEvento> {
         _paso = 3;
       });
     } catch (e) {
-      if (mounted) _mostrarError('No se pudo publicar el evento: $e', bloqueante: true);
+      if (mounted) {
+        _mostrarError('No se pudo publicar el evento: $e', bloqueante: true);
+      }
     } finally {
       if (mounted) setState(() => _guardando = false);
     }
   }
 
+  /// Publica el evento con los datos del asistente IA.
+  /// NO muta el estado del form (si falla, el formulario detrás queda intacto).
+  /// Comprime el flyer y sube por el mismo camino que el form → `subir_evento`.
+  Future<({String? error, String? idEvento})> _publicarDesdeAsistente(
+    DatosEventoChat d,
+  ) async {
+    ({String? error, String? idEvento}) fail(String msg) =>
+        (error: msg, idEvento: null);
+
+    final uid = _idLocal ?? ServicioSupabase().usuarioActual?.id;
+    if (uid == null) {
+      return fail('No encontramos tu sesión. Volvé a iniciar sesión.');
+    }
+    if (d.flyerBytes == null) return fail('Falta el flyer del evento.');
+    if (d.titulo.trim().isEmpty) return fail('Completá el título del evento.');
+    if ((d.descripcion ?? '').trim().isEmpty) {
+      return fail('Completá la descripción del evento.');
+    }
+    if (d.fechaInicio == null || d.fechaFin == null) {
+      return fail('Faltan las fechas del evento.');
+    }
+    if (!d.fechaFin!.isAfter(d.fechaInicio!)) {
+      return fail('La fecha de fin debe ser posterior al inicio.');
+    }
+    if (!d.esEnLocal) {
+      if ((d.direccion ?? '').trim().isEmpty) {
+        return fail('Completá la dirección del evento.');
+      }
+      if ((d.ciudad ?? '').trim().isEmpty) {
+        return fail('Completá la ciudad del evento.');
+      }
+      if ((d.provincia ?? '').trim().isEmpty) {
+        return fail('Completá la provincia del evento.');
+      }
+      if ((d.urlMaps ?? '').trim().isEmpty) {
+        return fail('Completá la URL de Google Maps del evento.');
+      }
+    }
+    if (d.cupoListaMax != null && d.cupoListaMax! <= 0) {
+      return fail('Si limitás el cupo, ingresá un número válido (>= 1).');
+    }
+    final conPromos = d.agregarPromos && d.promos.isNotEmpty;
+    if (d.agregarPromos && d.promos.isEmpty) {
+      return fail('Agregá al menos una promo o salteá esa sección.');
+    }
+    if (conPromos) {
+      for (var i = 0; i < d.promos.length; i++) {
+        final p = d.promos[i];
+        if (p.titulo.trim().isEmpty || p.descripcion.trim().isEmpty) {
+          return fail('Completá título y descripción en la promo ${i + 1}.');
+        }
+        if (p.cuposTotales != null && p.cuposTotales! <= 0) {
+          return fail('Ingresá una cantidad válida en la promo ${i + 1}.');
+        }
+        if (p.modoUso == 'squad') {
+          final min = p.minSquad;
+          final max = p.maxSquad;
+          if (min == null || max == null || min < 2 || max < min) {
+            return fail(
+              'Completá mínimo/máximo de squad válidos en la promo ${i + 1} (mínimo 2).',
+            );
+          }
+        }
+      }
+    }
+
+    try {
+      // Misma optimización/compresión que el form tradicional.
+      final (compressed, extension) = await _comprimirFlyer(d.flyerBytes!);
+      final urlFlyer = await _subirFlyerABucket(compressed, extension);
+
+      final jerarquia = _localVerificado ? 'normal' : 'gratis';
+      final edad = d.edadMinima;
+      final urlCompra = (d.urlCompraEntradas ?? '').trim();
+      final advertencias = (d.advertencias ?? '').trim();
+
+      final payloadEvento = <String, dynamic>{
+        'modo_evento': 'completo',
+        'titulo_evento': d.titulo.trim(),
+        'descripcion_evento': d.descripcion!.trim(),
+        'url_flyer': urlFlyer,
+        'url_compra_entradas': urlCompra.isEmpty ? null : urlCompra,
+        'tipo_evento': d.tipo,
+        'edad_minima': edad,
+        'fecha_inicio': d.fechaInicio!.toUtc().toIso8601String(),
+        'fecha_fin': d.fechaFin!.toUtc().toIso8601String(),
+        'dia_semana': _diaSemana(d.fechaInicio!),
+        'modo_lista': d.modoLista == 'manual' ? 'manual' : 'auto',
+        'cupo_lista_max': d.cupoListaMax,
+        'permite_squads': d.permiteSquads,
+        'es_en_local': d.esEnLocal,
+        if (!d.esEnLocal) 'direccion_evento': d.direccion!.trim(),
+        'ciudad_evento': d.esEnLocal ? null : d.ciudad!.trim(),
+        'provincia_evento': d.esEnLocal ? null : d.provincia!.trim(),
+        if (!d.esEnLocal) 'url_maps_evento': d.urlMaps!.trim(),
+        if (advertencias.isNotEmpty) 'advertencias_evento': advertencias,
+        'jerarquia': jerarquia,
+        'tiene_promo': conPromos,
+      };
+
+      final payloadPromos = conPromos
+          ? d.promos.map((p) {
+              return <String, dynamic>{
+                'titulo_promocion': p.titulo.trim(),
+                'descripcion_promocion': p.descripcion.trim(),
+                'fecha_inicio': d.fechaInicio!.toUtc().toIso8601String(),
+                'fecha_fin': d.fechaFin!.toUtc().toIso8601String(),
+                'cupos_totales': p.cuposTotales,
+                'modo_uso': p.modoUso,
+                'min_miembros_squad':
+                    p.modoUso == 'squad' ? p.minSquad : null,
+                'max_miembros_squad':
+                    p.modoUso == 'squad' ? p.maxSquad : null,
+              };
+            }).toList()
+          : <Map<String, dynamic>>[];
+
+      final idEvento = await ServicioEdgesEventos().subirEvento(
+        payloadEvento: payloadEvento,
+        promociones: payloadPromos,
+      );
+      return (error: null, idEvento: idEvento);
+    } catch (e) {
+      return fail('No se pudo publicar el evento: $e');
+    }
+  }
+
+  /// Abre el asistente IA (chatbot) para crear el evento. Solo en modo completo.
+  Future<void> _abrirAsistenteEvento() async {
+    if (_guardando || _cargandoPerfil) return;
+    await mostrarAsistenteEventoSheet(
+      context,
+      ciudadLocal: _ciudadLocal,
+      flyerInicial: _flyerBytes ?? _flyerBytesComprimidos,
+      onPublicar: (d) => _publicarDesdeAsistente(d),
+      onIrHome: () =>
+          Navigator.pushNamedAndRemoveUntil(context, '/home', (r) => false),
+      onSubirJerarquia: (idEvento) {
+        Navigator.pushNamedAndRemoveUntil(context, '/home', (r) => false);
+        Future.delayed(const Duration(milliseconds: 80), () {
+          NavegacionPosicionamiento.irAEvento(idEvento ?? '');
+        });
+      },
+    );
+  }
+
   void _mostrarError(String mensaje, {bool bloqueante = false}) {
-    final esErrorRed = bloqueante ||
+    final esErrorRed =
+        bloqueante ||
         mensaje.startsWith('No se pudo') ||
         mensaje.startsWith('Error al');
     if (!esErrorRed) {
@@ -1010,11 +1171,7 @@ class _LocalesCrearEventoState extends State<LocalesCrearEvento> {
   Future<void> _publicarEnJerarquia(_IntencionPublicacion intencion) async {
     if (_guardando) return;
 
-    if (!_localVerificado &&
-        intencion != _IntencionPublicacion.estandar) {
-      return;
-    }
-
+    // Premium: solo exige créditos (no verificación).
     if (intencion == _IntencionPublicacion.recFernecito &&
         _credRecomendados <= 0) {
       return;
@@ -1471,8 +1628,7 @@ class _LocalesCrearEventoState extends State<LocalesCrearEvento> {
     String? motivoDeshabilitado,
     bool filled = false,
   }) {
-    final publicando =
-        _guardando && _intencionPublicacion == intencion;
+    final publicando = _guardando && _intencionPublicacion == intencion;
     final onTap = habilitado && !_guardando
         ? () => _publicarEnJerarquia(intencion)
         : null;
@@ -1487,9 +1643,7 @@ class _LocalesCrearEventoState extends State<LocalesCrearEvento> {
                   padding: const EdgeInsets.all(9),
                   child: CircularProgressIndicator(
                     strokeWidth: 2,
-                    color: filled
-                        ? ColoresLocales.textoEnBoton
-                        : color,
+                    color: filled ? ColoresLocales.textoEnBoton : color,
                   ),
                 )
               : Icon(
@@ -1540,8 +1694,9 @@ class _LocalesCrearEventoState extends State<LocalesCrearEvento> {
                 ? ColoresLocales.textoEnBoton.withValues(alpha: 0.9)
                 : (habilitado
                       ? color
-                      : ColoresLocales.textoSecundarioOnFondoClaro
-                            .withValues(alpha: 0.5)),
+                      : ColoresLocales.textoSecundarioOnFondoClaro.withValues(
+                          alpha: 0.5,
+                        )),
           ),
       ],
     );
@@ -1602,8 +1757,6 @@ class _LocalesCrearEventoState extends State<LocalesCrearEvento> {
         ? 'Gratis · incluido en tu plan'
         : 'Gratis';
 
-    final premiumBloqueado = !_localVerificado;
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -1611,9 +1764,7 @@ class _LocalesCrearEventoState extends State<LocalesCrearEvento> {
           intencion: _IntencionPublicacion.estandar,
           icono: CupertinoIcons.square_grid_2x2,
           color: ColoresLocales.acentoVioletaMarca,
-          nombreNivel: _localVerificado
-              ? 'Estándar'
-              : 'Estándar (Gratis)',
+          nombreNivel: _localVerificado ? 'Estándar' : 'Estándar (Gratis)',
           detalleCosto: estandarDetalle,
           habilitado: true,
         ),
@@ -1624,10 +1775,9 @@ class _LocalesCrearEventoState extends State<LocalesCrearEvento> {
           color: ColoresFeaturesLocales.recomendadoFernecito,
           nombreNivel: 'Recomendado Fernecito',
           detalleCosto: '1 crédito · te quedan $_credRecomendados',
-          habilitado: !premiumBloqueado && _credRecomendados > 0,
-          motivoDeshabilitado: premiumBloqueado
-              ? 'Requiere cuenta verificada'
-              : (_credRecomendados <= 0 ? 'Sin créditos disponibles' : null),
+          habilitado: _credRecomendados > 0,
+          motivoDeshabilitado:
+              _credRecomendados <= 0 ? 'Sin créditos disponibles' : null,
           filled: true,
         ),
         const SizedBox(height: 10),
@@ -1637,10 +1787,8 @@ class _LocalesCrearEventoState extends State<LocalesCrearEvento> {
           color: ColoresFeaturesLocales.topCartelera,
           nombreNivel: 'Top Cartelera',
           detalleCosto: '1 crédito · te quedan $_credTop',
-          habilitado: !premiumBloqueado && _credTop > 0,
-          motivoDeshabilitado: premiumBloqueado
-              ? 'Requiere cuenta verificada'
-              : (_credTop <= 0 ? 'Sin créditos disponibles' : null),
+          habilitado: _credTop > 0,
+          motivoDeshabilitado: _credTop <= 0 ? 'Sin créditos disponibles' : null,
           filled: true,
         ),
         const SizedBox(height: 10),
@@ -1650,24 +1798,12 @@ class _LocalesCrearEventoState extends State<LocalesCrearEvento> {
           color: ColoresFeaturesLocales.topUltra,
           nombreNivel: 'Top Ultra',
           detalleCosto: '1 crédito · te quedan $_credTopUltra',
-          habilitado: !premiumBloqueado && _credTopUltra > 0,
-          motivoDeshabilitado: premiumBloqueado
-              ? 'Requiere cuenta verificada'
-              : (_credTopUltra <= 0 ? 'Sin créditos disponibles' : null),
+          habilitado: _credTopUltra > 0,
+          motivoDeshabilitado:
+              _credTopUltra <= 0 ? 'Sin créditos disponibles' : null,
           filled: true,
         ),
-        if (premiumBloqueado) ...[
-          const SizedBox(height: 12),
-          Text(
-            'Verificá tu cuenta para desbloquear Recomendado, Top Cartelera y Top Ultra.',
-            textAlign: TextAlign.center,
-            style: GoogleFonts.baloo2(
-              fontSize: 12,
-              height: 1.35,
-              color: ColoresLocales.textoSecundarioOnFondoClaro,
-            ),
-          ),
-        ] else if (_credRecomendados <= 0 &&
+        if (_credRecomendados <= 0 &&
             _credTop <= 0 &&
             _credTopUltra <= 0) ...[
           const SizedBox(height: 12),
@@ -1760,7 +1896,10 @@ class _LocalesCrearEventoState extends State<LocalesCrearEvento> {
       child: AnimatedContainer(
         duration: Duration(milliseconds: 150),
         height: height,
-        padding: EdgeInsets.symmetric(horizontal: 12, vertical: verticalPadding),
+        padding: EdgeInsets.symmetric(
+          horizontal: 12,
+          vertical: verticalPadding,
+        ),
         decoration: BoxDecoration(
           color: selected
               ? ColoresLocales.acentoVioleta
@@ -1957,8 +2096,8 @@ class _LocalesCrearEventoState extends State<LocalesCrearEvento> {
     final colorResumenEstado = resumenEstadoDestacado
         ? ColoresLocales.acentoVioleta
         : (TemaAppLocales.instancia.esOscuro
-            ? ColoresLocales.textoOnFondoClaro.withValues(alpha: 0.82)
-            : ColoresLocales.textoSecundarioOnFondoClaro);
+              ? ColoresLocales.textoOnFondoClaro.withValues(alpha: 0.82)
+              : ColoresLocales.textoSecundarioOnFondoClaro);
 
     return _card(
       child: Column(
@@ -1993,7 +2132,8 @@ class _LocalesCrearEventoState extends State<LocalesCrearEvento> {
                               Text(
                                 ayudaColapsada,
                                 style: GoogleFonts.baloo2(
-                                  color: ColoresLocales.textoSecundarioOnFondoClaro,
+                                  color: ColoresLocales
+                                      .textoSecundarioOnFondoClaro,
                                   fontSize: 11.5,
                                   height: 1.3,
                                 ),
@@ -2040,10 +2180,7 @@ class _LocalesCrearEventoState extends State<LocalesCrearEvento> {
               ),
             ),
           ),
-          if (expandido) ...[
-            const SizedBox(height: 14),
-            child,
-          ],
+          if (expandido) ...[const SizedBox(height: 14), child],
         ],
       ),
     );
@@ -2139,18 +2276,12 @@ class _LocalesCrearEventoState extends State<LocalesCrearEvento> {
             keyboardType: TextInputType.number,
             inputFormatters: [FilteringTextInputFormatter.digitsOnly],
             onChanged: (_) => setState(() {}),
-            style: GoogleFonts.baloo2(
-              color: ColoresLocales.textoOnFondoClaro,
-            ),
-            decoration: _inputUnaLinea(
-              'Número máximo de personas en lista',
-            ),
+            style: GoogleFonts.baloo2(color: ColoresLocales.textoOnFondoClaro),
+            decoration: _inputUnaLinea('Número máximo de personas en lista'),
             validator: (v) {
               if (!_limitarCupoLista) return null;
               final n = int.tryParse((v ?? '').trim());
-              return (n == null || n <= 0)
-                  ? 'Ingresá un cupo válido'
-                  : null;
+              return (n == null || n <= 0) ? 'Ingresá un cupo válido' : null;
             },
           ),
       ],
@@ -2174,9 +2305,7 @@ class _LocalesCrearEventoState extends State<LocalesCrearEvento> {
           controller: _urlCompraEntradasCtrl,
           keyboardType: TextInputType.url,
           onChanged: (_) => setState(() {}),
-          style: GoogleFonts.baloo2(
-            color: ColoresLocales.textoOnFondoClaro,
-          ),
+          style: GoogleFonts.baloo2(color: ColoresLocales.textoOnFondoClaro),
           decoration: _inputUnaLinea(
             'Link de PaseShow, Ticketek u otra plataforma',
           ),
@@ -2191,14 +2320,8 @@ class _LocalesCrearEventoState extends State<LocalesCrearEvento> {
       children: [
         SegmentedButton<bool>(
           segments: const [
-            ButtonSegment<bool>(
-              value: true,
-              label: Text('En mi local'),
-            ),
-            ButtonSegment<bool>(
-              value: false,
-              label: Text('En otro lugar'),
-            ),
+            ButtonSegment<bool>(value: true, label: Text('En mi local')),
+            ButtonSegment<bool>(value: false, label: Text('En otro lugar')),
           ],
           selected: {_esEnLocal},
           style: ButtonStyle(
@@ -2241,9 +2364,7 @@ class _LocalesCrearEventoState extends State<LocalesCrearEvento> {
           TextFormField(
             controller: _direccionEventoCtrl,
             onChanged: (_) => setState(() {}),
-            style: GoogleFonts.baloo2(
-              color: ColoresLocales.textoOnFondoClaro,
-            ),
+            style: GoogleFonts.baloo2(color: ColoresLocales.textoOnFondoClaro),
             decoration: _inputUnaLinea('Dirección del evento'),
             validator: (v) => !_esEnLocal && (v == null || v.trim().isEmpty)
                 ? 'Completá la dirección del evento'
@@ -2271,9 +2392,7 @@ class _LocalesCrearEventoState extends State<LocalesCrearEvento> {
           TextFormField(
             controller: _urlMapsEventoCtrl,
             onChanged: (_) => setState(() {}),
-            style: GoogleFonts.baloo2(
-              color: ColoresLocales.textoOnFondoClaro,
-            ),
+            style: GoogleFonts.baloo2(color: ColoresLocales.textoOnFondoClaro),
             decoration: _inputUnaLinea('URL de Google Maps'),
             validator: (v) => !_esEnLocal && (v == null || v.trim().isEmpty)
                 ? 'Completá la URL de Google Maps'
@@ -2293,9 +2412,7 @@ class _LocalesCrearEventoState extends State<LocalesCrearEvento> {
           minLines: 3,
           maxLines: 5,
           onChanged: (_) => setState(() {}),
-          style: GoogleFonts.baloo2(
-            color: ColoresLocales.textoOnFondoClaro,
-          ),
+          style: GoogleFonts.baloo2(color: ColoresLocales.textoOnFondoClaro),
           decoration: _inputMultiLinea(
             'Ej: código de vestimenta, llevar DNI, edad mínima...',
           ),
@@ -2639,6 +2756,10 @@ class _LocalesCrearEventoState extends State<LocalesCrearEvento> {
               ],
             ),
           ),
+          if (!_esSimple) ...[
+            const SizedBox(height: 4),
+            _BotonAsistenteEventoIa(onTap: _abrirAsistenteEvento),
+          ],
           _card(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -2672,7 +2793,9 @@ class _LocalesCrearEventoState extends State<LocalesCrearEvento> {
                     controller: _descripcionEventoCtrl,
                     minLines: 3,
                     maxLines: 5,
-                    decoration: _inputMultiLinea('Descripción breve del evento'),
+                    decoration: _inputMultiLinea(
+                      'Descripción breve del evento',
+                    ),
                     style: GoogleFonts.baloo2(
                       color: ColoresLocales.textoOnFondoClaro,
                     ),
@@ -2821,112 +2944,112 @@ class _LocalesCrearEventoState extends State<LocalesCrearEvento> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         if (!_esSimple)
-        _card(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Promos del evento',
-                style: GoogleFonts.baloo2(
-                  color: ColoresLocales.textoOnFondoClaro,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              _switchFilaCompacta(
-                label: '¿Querés agregar promociones a este evento?',
-                valor: _agregarPromos,
-                onChanged: (v) {
-                  setState(() {
-                    _agregarPromos = v;
-                    if (_agregarPromos && _promos.isEmpty) {
-                      _promos.add(_PromoDraft());
-                    }
-                    if (!_agregarPromos) {
-                      for (final p in _promos) {
-                        p.dispose();
-                      }
-                      _promos.clear();
-                    }
-                  });
-                },
-              ),
-              if (_agregarPromos) ...[
-                SizedBox(height: 4),
+          _card(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
                 Text(
-                  'Creá promos atractivas como 2x1, descuentos importantes o productos a precios llamativos.',
+                  'Promos del evento',
                   style: GoogleFonts.baloo2(
-                    color: ColoresLocales.textoSecundarioOnFondoClaro,
-                    fontSize: 12,
+                    color: ColoresLocales.textoOnFondoClaro,
+                    fontWeight: FontWeight.w800,
                   ),
                 ),
-                const SizedBox(height: 10),
-                ..._promos.asMap().entries.map((entry) {
-                  final i = entry.key;
-                  final p = entry.value;
-                  return _PromoCard(
-                    index: i + 1,
-                    promo: p,
-                    inputBuilder: _inputUnaLinea,
-                    inputMultilineBuilder: _inputMultiLinea,
-                    textoInicio: _textoFechaPromoInicio(p),
-                    textoFin: _textoFechaPromoFin(p),
-                    inicioVinculado: p.inicioEsDelEvento,
-                    finVinculado: p.finEsDelEvento,
-                    onPickFechaInicio: () async {
-                      final d = await _seleccionarFechaHora(
-                        context,
-                        p.inicioEsDelEvento ? _fechaInicio : p.fechaInicio,
-                      );
-                      if (d != null && mounted) {
-                        setState(() {
-                          p.inicioEsDelEvento = false;
-                          p.fechaInicio = d;
-                        });
+                _switchFilaCompacta(
+                  label: '¿Querés agregar promociones a este evento?',
+                  valor: _agregarPromos,
+                  onChanged: (v) {
+                    setState(() {
+                      _agregarPromos = v;
+                      if (_agregarPromos && _promos.isEmpty) {
+                        _promos.add(_PromoDraft());
                       }
-                    },
-                    onPickFechaFin: () async {
-                      final d = await _seleccionarFechaHora(
-                        context,
-                        p.finEsDelEvento ? _fechaFin : p.fechaFin,
-                      );
-                      if (d != null && mounted) {
-                        setState(() {
-                          p.finEsDelEvento = false;
-                          p.fechaFin = d;
-                        });
+                      if (!_agregarPromos) {
+                        for (final p in _promos) {
+                          p.dispose();
+                        }
+                        _promos.clear();
                       }
-                    },
-                    onRemove: () {
-                      setState(() {
-                        p.dispose();
-                        _promos.removeAt(i);
-                      });
-                    },
-                  );
-                }),
-                const SizedBox(height: 8),
-                Center(
-                  child: TextButton.icon(
-                    onPressed: _agregarPromo,
-                    icon: Icon(Icons.add),
-                    label: Text(
-                      'Agregar otra promo',
-                      style: GoogleFonts.baloo2(fontWeight: FontWeight.w700),
+                    });
+                  },
+                ),
+                if (_agregarPromos) ...[
+                  SizedBox(height: 4),
+                  Text(
+                    'Creá promos atractivas como 2x1, descuentos importantes o productos a precios llamativos.',
+                    style: GoogleFonts.baloo2(
+                      color: ColoresLocales.textoSecundarioOnFondoClaro,
+                      fontSize: 12,
                     ),
-                    style: TextButton.styleFrom(
-                      foregroundColor: ColoresLocales.acentoVioleta,
-                      backgroundColor:
-                          ColoresLocales.acentoVioleta.withValues(alpha: 0.1),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(50),
+                  ),
+                  const SizedBox(height: 10),
+                  ..._promos.asMap().entries.map((entry) {
+                    final i = entry.key;
+                    final p = entry.value;
+                    return _PromoCard(
+                      index: i + 1,
+                      promo: p,
+                      inputBuilder: _inputUnaLinea,
+                      inputMultilineBuilder: _inputMultiLinea,
+                      textoInicio: _textoFechaPromoInicio(p),
+                      textoFin: _textoFechaPromoFin(p),
+                      inicioVinculado: p.inicioEsDelEvento,
+                      finVinculado: p.finEsDelEvento,
+                      onPickFechaInicio: () async {
+                        final d = await _seleccionarFechaHora(
+                          context,
+                          p.inicioEsDelEvento ? _fechaInicio : p.fechaInicio,
+                        );
+                        if (d != null && mounted) {
+                          setState(() {
+                            p.inicioEsDelEvento = false;
+                            p.fechaInicio = d;
+                          });
+                        }
+                      },
+                      onPickFechaFin: () async {
+                        final d = await _seleccionarFechaHora(
+                          context,
+                          p.finEsDelEvento ? _fechaFin : p.fechaFin,
+                        );
+                        if (d != null && mounted) {
+                          setState(() {
+                            p.finEsDelEvento = false;
+                            p.fechaFin = d;
+                          });
+                        }
+                      },
+                      onRemove: () {
+                        setState(() {
+                          p.dispose();
+                          _promos.removeAt(i);
+                        });
+                      },
+                    );
+                  }),
+                  const SizedBox(height: 8),
+                  Center(
+                    child: TextButton.icon(
+                      onPressed: _agregarPromo,
+                      icon: Icon(Icons.add),
+                      label: Text(
+                        'Agregar otra promo',
+                        style: GoogleFonts.baloo2(fontWeight: FontWeight.w700),
+                      ),
+                      style: TextButton.styleFrom(
+                        foregroundColor: ColoresLocales.acentoVioleta,
+                        backgroundColor: ColoresLocales.acentoVioleta
+                            .withValues(alpha: 0.1),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(50),
+                        ),
                       ),
                     ),
                   ),
-                ),
+                ],
               ],
-            ],
+            ),
           ),
-        ),
         _card(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -2977,8 +3100,9 @@ class _LocalesCrearEventoState extends State<LocalesCrearEvento> {
                 style: TextButton.styleFrom(
                   minimumSize: Size.fromHeight(52),
                   foregroundColor: ColoresLocales.acentoVioleta,
-                  backgroundColor:
-                      ColoresLocales.acentoVioleta.withValues(alpha: 0.1),
+                  backgroundColor: ColoresLocales.acentoVioleta.withValues(
+                    alpha: 0.1,
+                  ),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(50),
                   ),
@@ -3286,7 +3410,8 @@ class _FechaHoraField extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     TemaLocalesScope.of(context);
-    final sinFecha = valor == 'Seleccionar fecha y hora' ||
+    final sinFecha =
+        valor == 'Seleccionar fecha y hora' ||
         valor.startsWith('Se usará la fecha');
     final vinculado = esReferenciaEvento && !sinFecha;
     return InkWell(
@@ -3308,8 +3433,8 @@ class _FechaHoraField extends StatelessWidget {
                   color: sinFecha
                       ? ColoresLocales.textoSecundarioOnFondoClaro
                       : vinculado
-                          ? ColoresLocales.acentoVioleta
-                          : ColoresLocales.textoOnFondoClaro,
+                      ? ColoresLocales.acentoVioleta
+                      : ColoresLocales.textoOnFondoClaro,
                   fontWeight: vinculado ? FontWeight.w800 : FontWeight.w700,
                 ),
               ),
@@ -3348,7 +3473,9 @@ class _IndicadorPasoConectado extends StatelessWidget {
             height: 28,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: activo ? ColoresLocales.acentoVioleta : ColoresLocales.chipInactivo,
+              color: activo
+                  ? ColoresLocales.acentoVioleta
+                  : ColoresLocales.chipInactivo,
             ),
             child: Center(
               child: Text(
@@ -3397,6 +3524,91 @@ class _IndicadorPasoConectado extends StatelessWidget {
         ),
         nodo(paso: 2, label: 'Promos y visibilidad', activo: actual >= 2),
       ],
+    );
+  }
+}
+
+/// Botón "Hacelo más rápido con IA" (abre el chatbot asistente de evento).
+/// Solo visible en modo completo.
+class _BotonAsistenteEventoIa extends StatelessWidget {
+  const _BotonAsistenteEventoIa({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(18),
+          child: Ink(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(18),
+              gradient: const LinearGradient(
+                colors: [Color(0xFFF3EDFF), Color(0xFFFFF3D6)],
+              ),
+              border: Border.all(
+                color: ColoresLocales.acentoVioletaMarca.withValues(
+                  alpha: 0.35,
+                ),
+                width: 1.4,
+              ),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              child: Row(
+                children: [
+                  Container(
+                    width: 34,
+                    height: 34,
+                    decoration: const BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: ColoresLocales.acentoVioletaMarca,
+                    ),
+                    child: const Icon(
+                      CupertinoIcons.sparkles,
+                      size: 18,
+                      color: Colors.white,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Hacelo más rápido con IA',
+                          style: GoogleFonts.baloo2(
+                            fontSize: 15.5,
+                            fontWeight: FontWeight.w900,
+                            color: const Color(0xFF1A1A1A),
+                          ),
+                        ),
+                        Text(
+                          'Creá tu evento charlando, en menos pasos',
+                          style: GoogleFonts.baloo2(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: const Color(0xFF555555),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Icon(
+                    CupertinoIcons.chevron_right,
+                    size: 18,
+                    color: Color(0xFF7C3AED),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

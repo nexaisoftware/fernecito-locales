@@ -15,11 +15,13 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/comprimir_imagen_storage.dart';
 import '../core/constants.dart';
 import '../widgets/feedback_locales.dart';
+import '../widgets/recorte_web_safe.dart';
 import '../core/servicio_edges_eventos.dart';
 import '../core/supabase_client.dart';
 import '../core/navegacion_locales.dart';
 import '../core/suscripcion_locales.dart';
 import '../core/programa_pioneros.dart';
+import '../core/horarios_local.dart';
 import '../widgets/programa_pioneros_ui.dart';
 import '../widgets/badge_megusta_local.dart';
 import '../widgets/badge_plan_suscripcion.dart';
@@ -32,7 +34,259 @@ class LocalesPerfil extends StatefulWidget {
   State<LocalesPerfil> createState() => _LocalesPerfilState();
 }
 
+class _FilaTramoHorario extends StatelessWidget {
+  const _FilaTramoHorario({
+    required this.tramo,
+    this.onTapAbre,
+    this.onTapCierra,
+    this.onEliminar,
+  });
+
+  final TramoHorarioLocal tramo;
+  final VoidCallback? onTapAbre;
+  final VoidCallback? onTapCierra;
+  final VoidCallback? onEliminar;
+
+  @override
+  Widget build(BuildContext context) {
+    final cruzaMedianoche = tramo.cruzaMedianoche;
+
+    Widget hora(String label, String value, VoidCallback? onTap) {
+      return Flexible(
+        fit: FlexFit.tight,
+        child: GestureDetector(
+          onTap: onTap,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: ColoresMiLocalPerfil.rellenoInput,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: GoogleFonts.baloo2(
+                    color: ColoresMiLocalPerfil.textoSecundario,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                Text(
+                  value,
+                  style: GoogleFonts.baloo2(
+                    color: ColoresMiLocalPerfil.textoPrincipal,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          child: Column(
+            children: [
+              Row(
+                children: [
+                  hora('Abre', tramo.abre, onTapAbre),
+                  const SizedBox(width: 8),
+                  hora('Cierra', tramo.cierra, onTapCierra),
+                ],
+              ),
+              if (cruzaMedianoche) ...[
+                const SizedBox(height: 6),
+                Row(
+                  children: [
+                    Icon(
+                      CupertinoIcons.moon_stars_fill,
+                      size: 12,
+                      color: ColoresMiLocalPerfil.principalMarca,
+                    ),
+                    const SizedBox(width: 5),
+                    Expanded(
+                      child: Text(
+                        'Cierra al día siguiente',
+                        style: GoogleFonts.baloo2(
+                          color: ColoresMiLocalPerfil.principalMarca,
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ],
+          ),
+        ),
+        if (onEliminar != null) ...[
+          const SizedBox(width: 4),
+          Padding(
+            padding: const EdgeInsets.only(top: 9),
+            child: IconButton(
+              onPressed: onEliminar,
+              icon: const Icon(CupertinoIcons.trash),
+              color: ColoresMiLocalPerfil.textoSecundario,
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _BotonEditarHorariosLocal extends StatelessWidget {
+  const _BotonEditarHorariosLocal({required this.estado, required this.onTap});
+
+  final EstadoHorarioLocal estado;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = estado.abierto
+        ? const Color(0xFF27D66D)
+        : ColoresMiLocalPerfil.textoSecundario;
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+        decoration: BoxDecoration(
+          color: ColoresMiLocalPerfil.rellenoInput.withValues(alpha: 0.78),
+          borderRadius: BorderRadius.circular(15),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+        ),
+        child: Row(
+          children: [
+            Icon(CupertinoIcons.clock_fill, size: 17, color: color),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    estado.tieneHorarios ? estado.titulo : 'Horarios',
+                    style: GoogleFonts.baloo2(
+                      color: ColoresMiLocalPerfil.textoPrincipal,
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  Text(
+                    estado.tieneHorarios
+                        ? estado.detalle
+                        : 'Ver y editar horarios del local',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.baloo2(
+                      color: ColoresMiLocalPerfil.textoSecundario,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            Icon(
+              CupertinoIcons.chevron_right,
+              size: 17,
+              color: ColoresMiLocalPerfil.textoSecundario,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _BotonWhatsappEditableLocal extends StatelessWidget {
+  const _BotonWhatsappEditableLocal({
+    required this.tieneWhatsapp,
+    required this.label,
+    required this.onTap,
+  });
+
+  final bool tieneWhatsapp;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = tieneWhatsapp
+        ? const Color(0xFF25D366)
+        : ColoresMiLocalPerfil.textoSecundario;
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: GestureDetector(
+        onTap: onTap,
+        behavior: HitTestBehavior.opaque,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(
+            color: ColoresMiLocalPerfil.rellenoInput.withValues(alpha: 0.66),
+            borderRadius: BorderRadius.circular(999),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(FontAwesomeIcons.whatsapp, size: 13, color: color),
+              const SizedBox(width: 6),
+              Flexible(
+                child: Text(
+                  tieneWhatsapp ? label : 'Agregar WhatsApp de consultas',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.baloo2(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                    color: color,
+                    height: 1,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _OverlayPickerHora extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Container(
+        height: 42,
+        margin: const EdgeInsets.symmetric(horizontal: 4),
+        decoration: BoxDecoration(
+          color: ColoresMiLocalPerfil.principalMarca.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: ColoresMiLocalPerfil.principalMarca.withValues(alpha: 0.22),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _LocalesPerfilState extends State<LocalesPerfil> {
+  static const int _maxFotosLocales = 10;
+  static final String _selectFotosLocales = List.generate(
+    _maxFotosLocales,
+    (i) => 'foto_local_${i + 1}',
+  ).join(', ');
+
   bool _cargando = true;
   String? _nombreLocal;
   String? _fotoPerfilUrl;
@@ -43,7 +297,10 @@ class _LocalesPerfilState extends State<LocalesPerfil> {
   String? _urlInstagram;
   String? _urlTiktok;
   String? _urlWebsite;
-  final List<String?> _fotosLocal = List<String?>.filled(5, null);
+  String? _telefonoWhatsapp;
+  String? _whatsappLabel;
+  final List<String?> _fotosLocal =
+      List<String?>.filled(_maxFotosLocales, null);
   double? _calificacion;
   int _calificacionCantidad = 0;
   int _cantidadMegusta = 0;
@@ -51,6 +308,7 @@ class _LocalesPerfilState extends State<LocalesPerfil> {
   String? _ciudad;
   String? _provincia;
   List<String> _rubros = [];
+  HorariosLocal _horarios = {};
   bool _infoExpandida =
       true; // info del lugar desplegada por defecto (como app usuarios)
   EstadoSuscripcionLocal? _estadoSuscripcion;
@@ -84,6 +342,11 @@ class _LocalesPerfilState extends State<LocalesPerfil> {
     'foto_local_3',
     'foto_local_4',
     'foto_local_5',
+    'foto_local_6',
+    'foto_local_7',
+    'foto_local_8',
+    'foto_local_9',
+    'foto_local_10',
   };
 
   String _urlConCacheBust(String? url, int version) {
@@ -103,6 +366,41 @@ class _LocalesPerfilState extends State<LocalesPerfil> {
   }
 
   bool _esCampoUrlEditable(String campoDb) => campoDb.startsWith('url_');
+
+  String? _normalizarWhatsappOpcional(String? raw) {
+    var digits = (raw ?? '').replaceAll(RegExp(r'\D'), '');
+    if (digits.startsWith('00')) digits = digits.substring(2);
+    if (digits.startsWith('0')) digits = digits.substring(1);
+    if (digits.length >= 10 && !digits.startsWith('54')) {
+      digits = '549$digits';
+    }
+    if (digits.startsWith('54') && !digits.startsWith('549')) {
+      digits = '549${digits.substring(2)}';
+    }
+    if (digits.isEmpty) return null;
+    if (digits.length < 10 || digits.length > 15) return null;
+    return digits;
+  }
+
+  String _telefonoWhatsappVisible(String? raw) {
+    final n = raw?.trim() ?? '';
+    if (n.isEmpty) return '';
+    return n.startsWith('+') ? n : '+$n';
+  }
+
+  String _labelWhatsappVisible(String? raw) {
+    final label = raw?.trim() ?? '';
+    return label.isEmpty ? 'Consultas por WhatsApp' : label;
+  }
+
+  String? _normalizarWhatsappLabelOpcional(String? raw) {
+    final clean = (raw ?? '')
+        .trim()
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .replaceAll(RegExp(r'[<>{}\\[\\]`]'), '');
+    if (clean.isEmpty) return null;
+    return clean.length > 28 ? clean.substring(0, 28) : clean;
+  }
 
   Future<void> _pegarTextoEnControlador(
     TextEditingController controller,
@@ -140,10 +438,10 @@ class _LocalesPerfilState extends State<LocalesPerfil> {
           .from('perfiles_locales')
           .select(
             'nombre_local, direccion, foto_perfil_url, url_foto_banner, descripcion_local, '
-            'url_maps, url_instagram, url_tiktok, url_website, '
-            'foto_local_1, foto_local_2, foto_local_3, foto_local_4, foto_local_5, '
+            'url_maps, url_instagram, url_tiktok, url_website, telefono_whatsapp, whatsapp_label, '
+            '$_selectFotosLocales, '
             'calificacion_promedio, calificacion_cantidad, cantidad_megusta, local_verificado, plan_suscripcion, '
-            'ciudad, provincia, rubro',
+            'ciudad, provincia, rubro, horarios_json',
           )
           .eq('id', uid)
           .maybeSingle();
@@ -161,7 +459,9 @@ class _LocalesPerfilState extends State<LocalesPerfil> {
         _urlInstagram = row?['url_instagram'] as String?;
         _urlTiktok = row?['url_tiktok'] as String?;
         _urlWebsite = row?['url_website'] as String?;
-        for (var i = 0; i < 5; i++) {
+        _telefonoWhatsapp = row?['telefono_whatsapp'] as String?;
+        _whatsappLabel = row?['whatsapp_label'] as String?;
+        for (var i = 0; i < _maxFotosLocales; i++) {
           _fotosLocal[i] = row?['foto_local_${i + 1}'] as String?;
         }
         final prom = row?['calificacion_promedio'];
@@ -185,6 +485,7 @@ class _LocalesPerfilState extends State<LocalesPerfil> {
                   .where((s) => s.trim().isNotEmpty)
                   .toList()
             : <String>[];
+        _horarios = parseHorariosLocal(row?['horarios_json']);
         _estadoSuscripcion = estadoSuscripcion;
         _cargando = false;
       });
@@ -223,6 +524,23 @@ class _LocalesPerfilState extends State<LocalesPerfil> {
         }
         valorFinal = normalizada;
       }
+    } else if (key == 'telefono_whatsapp') {
+      if (value == null || value.toString().trim().isEmpty) {
+        valorFinal = null;
+      } else {
+        final normalizado = _normalizarWhatsappOpcional(value.toString());
+        if (normalizado == null) {
+          if (mounted) {
+            _mostrarError(
+              'WhatsApp inválido. Usá un número con característica, por ejemplo 3511234567 o +5493511234567.',
+            );
+          }
+          return false;
+        }
+        valorFinal = normalizado;
+      }
+    } else if (key == 'whatsapp_label') {
+      valorFinal = _normalizarWhatsappLabelOpcional(value?.toString());
     }
 
     try {
@@ -257,7 +575,67 @@ class _LocalesPerfilState extends State<LocalesPerfil> {
     }
   }
 
-  Future<String> _subirImagen(
+  /// Extrae el path relativo del bucket desde URL pública o path ya relativo.
+  String? _pathStorageDesdeUrlOPath(String? urlOPath, String bucket) {
+    final raw = urlOPath?.trim() ?? '';
+    if (raw.isEmpty) return null;
+    final sinQuery = raw.split('?').first;
+    if (!sinQuery.startsWith('http')) {
+      return sinQuery.startsWith('/') ? sinQuery.substring(1) : sinQuery;
+    }
+    final marker = '/object/public/$bucket/';
+    final i = sinQuery.indexOf(marker);
+    if (i < 0) return null;
+    return Uri.decodeComponent(sinQuery.substring(i + marker.length));
+  }
+
+  String? _urlActualDelCampo(String campoDb) {
+    if (campoDb == 'foto_perfil_url') return _fotoPerfilUrl;
+    if (campoDb == 'url_foto_banner') return _urlBanner;
+    if (campoDb.startsWith('foto_local_')) {
+      final n = int.tryParse(campoDb.replaceFirst('foto_local_', ''));
+      if (n == null || n < 1 || n > _maxFotosLocales) return null;
+      return _fotosLocal[n - 1];
+    }
+    return null;
+  }
+
+  /// Borra el archivo anterior del slot. Best-effort: no falla el flujo visual.
+  Future<void> _borrarArchivoStorageAnterior({
+    required String bucket,
+    required String pathSuffix,
+    required String pathNuevo,
+    required String? urlAnterior,
+  }) async {
+    final uid = ServicioSupabase().usuarioActual?.id;
+    if (uid == null) return;
+
+    final paths = <String>{};
+    final pathViejo = _pathStorageDesdeUrlOPath(urlAnterior, bucket);
+    if (pathViejo != null && pathViejo.isNotEmpty) paths.add(pathViejo);
+
+    // Paths legacy fijos (antes del timestamp) por si quedó huérfano.
+    for (final ext in const ['jpg', 'jpeg', 'webp', 'png']) {
+      paths.add('$uid/$pathSuffix.$ext');
+    }
+
+    paths.removeWhere(
+      (p) =>
+          p.isEmpty ||
+          p == pathNuevo ||
+          !p.startsWith('$uid/') ||
+          p.contains('..'),
+    );
+    if (paths.isEmpty) return;
+
+    try {
+      await ServicioSupabase().cliente.storage.from(bucket).remove(paths.toList());
+    } catch (_) {
+      // No bloquear el reemplazo si el borrado falla (CDN/policy).
+    }
+  }
+
+  Future<({String url, String path})> _subirImagen(
     String bucket,
     String pathBase,
     Uint8List bytes,
@@ -275,11 +653,13 @@ class _LocalesPerfilState extends State<LocalesPerfil> {
           path,
           comprimida.bytes,
           fileOptions: FileOptions(
-            upsert: true,
+            // Path único por subida → siempre INSERT (no depende de policy UPDATE).
+            upsert: false,
             contentType: comprimida.contentType,
           ),
         );
-    return ServicioSupabase().cliente.storage.from(bucket).getPublicUrl(path);
+    final url = ServicioSupabase().cliente.storage.from(bucket).getPublicUrl(path);
+    return (url: url, path: path);
   }
 
   Future<void> _elegirImagen({
@@ -296,22 +676,43 @@ class _LocalesPerfilState extends State<LocalesPerfil> {
       imageQuality: 88,
     );
     if (file == null || !mounted) return;
-    final bytes = await file.readAsBytes();
+    var bytes = await file.readAsBytes();
     if (!mounted) return;
+    // Logo del local: mismo paso de recorte circular que en crear perfil.
+    if (campoDb == 'foto_perfil_url') {
+      final recortada = await mostrarRecorteLogoSheet(context, bytes);
+      if (recortada == null || !mounted) return; // canceló el recorte
+      bytes = recortada;
+    }
     final uid = ServicioSupabase().usuarioActual?.id;
     if (uid == null) return;
+
+    // Capturar URL vieja ANTES de subir/guardar, para borrarla después.
+    final urlAnterior = _urlActualDelCampo(campoDb);
+
     try {
-      final path = '$uid/$pathSuffix';
-      final url = await _subirImagen(bucket, path, bytes);
-      final ok = await _actualizarCampo(campoDb, url);
-      if (mounted && ok) {
+      // Path con timestamp: la URL pública cambia siempre (evita CDN viejo).
+      final ts = DateTime.now().millisecondsSinceEpoch;
+      final pathBase = '$uid/${pathSuffix}_$ts';
+      final subida = await _subirImagen(bucket, pathBase, bytes);
+      final ok = await _actualizarCampo(campoDb, subida.url);
+      if (!mounted) return;
+      if (ok) {
+        // Solo borramos la vieja si la nueva ya quedó persistida en DB.
+        await _borrarArchivoStorageAnterior(
+          bucket: bucket,
+          pathSuffix: pathSuffix,
+          pathNuevo: subida.path,
+          urlAnterior: urlAnterior,
+        );
         setState(() {
           if (campoDb == 'foto_perfil_url') {
             _versionAvatar++;
-          } else if (campoDb == 'url_foto_banner')
+          } else if (campoDb == 'url_foto_banner') {
             _versionBanner++;
-          else if (campoDb.startsWith('foto_local_'))
+          } else if (campoDb.startsWith('foto_local_')) {
             _versionFotosLocal++;
+          }
         });
         onSuccess();
       }
@@ -482,9 +883,11 @@ class _LocalesPerfilState extends State<LocalesPerfil> {
                     enabled: !guardando,
                     maxLines: maxLines,
                     maxLength: maxLength,
-                    keyboardType: _esCampoUrlEditable(campoDb)
-                        ? TextInputType.url
-                        : TextInputType.text,
+                    keyboardType: campoDb == 'telefono_whatsapp'
+                        ? TextInputType.phone
+                        : (_esCampoUrlEditable(campoDb)
+                              ? TextInputType.url
+                              : TextInputType.text),
                     decoration: InputDecoration(
                       hintText: hint,
                       counterText: maxLength != null ? null : '',
@@ -501,7 +904,9 @@ class _LocalesPerfilState extends State<LocalesPerfil> {
                         horizontal: 16,
                         vertical: 14,
                       ),
-                      suffixIcon: _esCampoUrlEditable(campoDb)
+                      suffixIcon:
+                          (_esCampoUrlEditable(campoDb) ||
+                              campoDb == 'telefono_whatsapp')
                           ? IconButton(
                               tooltip: 'Pegar',
                               onPressed: guardando
@@ -605,7 +1010,243 @@ class _LocalesPerfilState extends State<LocalesPerfil> {
       valorActual: _descripcion ?? '',
       hint: 'Contanos qué hace especial a tu local',
       campoDb: 'descripcion_local',
-      maxLines: 4,
+      maxLines: 6,
+      maxLength: LimitesMiLocalPerfil.maxCaracteresDescripcion,
+    );
+  }
+
+  void _editarWhatsapp() {
+    HapticFeedback.lightImpact();
+    _showWhatsappSheet();
+  }
+
+  void _showWhatsappSheet() {
+    final telefonoCtrl = TextEditingController(
+      text: _telefonoWhatsappVisible(_telefonoWhatsapp),
+    );
+    final labelCtrl = TextEditingController(
+      text: _labelWhatsappVisible(_whatsappLabel),
+    );
+    final inputBorder = OutlineInputBorder(
+      borderRadius: BorderRadius.circular(18),
+      borderSide: BorderSide.none,
+    );
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        var guardando = false;
+        return StatefulBuilder(
+          builder: (ctx, setSheetState) => Padding(
+            padding: EdgeInsets.only(
+              bottom: MediaQuery.of(ctx).viewInsets.bottom,
+            ),
+            child: Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: ColoresMiLocalPerfil.superficie,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    'WhatsApp del local',
+                    style: GoogleFonts.baloo2(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                      color: ColoresMiLocalPerfil.acentoVioleta,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Personalizá el texto del botón público. Cortito: reservas, consultas o pedidos.',
+                    style: GoogleFonts.baloo2(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: ColoresMiLocalPerfil.textoSecundario,
+                      height: 1.15,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Texto del botón',
+                    style: GoogleFonts.baloo2(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w800,
+                      color: ColoresMiLocalPerfil.textoPrincipal,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  TextField(
+                    controller: labelCtrl,
+                    enabled: !guardando,
+                    maxLength: 28,
+                    textInputAction: TextInputAction.next,
+                    decoration: InputDecoration(
+                      hintText: 'Reservas por WhatsApp',
+                      counterText: '',
+                      hintStyle: GoogleFonts.baloo2(
+                        color: ColoresMiLocalPerfil.textoSecundario,
+                        fontSize: 14,
+                      ),
+                      filled: true,
+                      fillColor: ColoresMiLocalPerfil.rellenoInput,
+                      enabledBorder: inputBorder,
+                      focusedBorder: inputBorder,
+                      border: inputBorder,
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 14,
+                      ),
+                    ),
+                    style: GoogleFonts.baloo2(
+                      color: ColoresMiLocalPerfil.textoPrincipal,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Número de WhatsApp',
+                    style: GoogleFonts.baloo2(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w800,
+                      color: ColoresMiLocalPerfil.textoPrincipal,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  TextField(
+                    controller: telefonoCtrl,
+                    enabled: !guardando,
+                    keyboardType: TextInputType.phone,
+                    decoration: InputDecoration(
+                      hintText: '+54 9 351 123 4567',
+                      hintStyle: GoogleFonts.baloo2(
+                        color: ColoresMiLocalPerfil.textoSecundario,
+                        fontSize: 14,
+                      ),
+                      filled: true,
+                      fillColor: ColoresMiLocalPerfil.rellenoInput,
+                      enabledBorder: inputBorder,
+                      focusedBorder: inputBorder,
+                      border: inputBorder,
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 14,
+                      ),
+                      suffixIcon: IconButton(
+                        tooltip: 'Pegar',
+                        onPressed: guardando
+                            ? null
+                            : () => _pegarTextoEnControlador(telefonoCtrl),
+                        icon: const Icon(Icons.paste_rounded),
+                        color: ColoresMiLocalPerfil.acentoVioleta,
+                      ),
+                    ),
+                    style: GoogleFonts.baloo2(
+                      color: ColoresMiLocalPerfil.textoPrincipal,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  Row(
+                    children: [
+                      TextButton(
+                        onPressed: guardando ? null : () => Navigator.pop(ctx),
+                        child: Text(
+                          'Cancelar',
+                          style: GoogleFonts.baloo2(
+                            color: ColoresMiLocalPerfil.textoSecundario,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: guardando
+                              ? null
+                              : () async {
+                                  setSheetState(() => guardando = true);
+                                  final telefonoRaw = telefonoCtrl.text.trim();
+                                  final telefono = telefonoRaw.isEmpty
+                                      ? null
+                                      : _normalizarWhatsappOpcional(
+                                          telefonoRaw,
+                                        );
+                                  if (telefonoRaw.isNotEmpty &&
+                                      telefono == null) {
+                                    if (mounted) {
+                                      _mostrarError(
+                                        'WhatsApp inválido. Usá un número con característica, por ejemplo 3511234567 o +5493511234567.',
+                                      );
+                                    }
+                                    setSheetState(() => guardando = false);
+                                    return;
+                                  }
+
+                                  final label =
+                                      _normalizarWhatsappLabelOpcional(
+                                        labelCtrl.text,
+                                      );
+                                  try {
+                                    await ServicioEdgesEventos()
+                                        .guardarPerfilLocal(
+                                          perfil: {
+                                            'telefono_whatsapp': telefono,
+                                            'whatsapp_label': label,
+                                          },
+                                          modo: 'basico',
+                                        );
+                                    if (!mounted || !ctx.mounted) return;
+                                    await _cargarPerfil();
+                                    if (!mounted || !ctx.mounted) return;
+                                    Navigator.pop(ctx);
+                                    _mostrarExito('WhatsApp guardado');
+                                  } catch (e) {
+                                    if (mounted) {
+                                      _mostrarError('No se pudo guardar: $e');
+                                    }
+                                    if (ctx.mounted) {
+                                      setSheetState(() => guardando = false);
+                                    }
+                                  }
+                                },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor:
+                                ColoresMiLocalPerfil.principalMarca,
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(50),
+                            ),
+                          ),
+                          child: guardando
+                              ? const SizedBox(
+                                  height: 20,
+                                  width: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : Text(
+                                  'Guardar',
+                                  style: GoogleFonts.baloo2(
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -764,6 +1405,444 @@ class _LocalesPerfilState extends State<LocalesPerfil> {
     );
   }
 
+  void _editarHorarios() {
+    HapticFeedback.lightImpact();
+    final seleccion = <int, List<TramoHorarioLocal>>{
+      for (final e in _horarios.entries) e.key: [...e.value],
+    };
+    var diaActivo = DateTime.now().weekday - 1;
+
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        var guardando = false;
+        return StatefulBuilder(
+          builder: (ctx, setSheetState) {
+            final tramos = seleccion[diaActivo] ?? <TramoHorarioLocal>[];
+            final cerrado = tramos.isEmpty;
+
+            Future<void> elegirHora(int index, bool esApertura) async {
+              final actual = tramos.length > index
+                  ? (esApertura ? tramos[index].abre : tramos[index].cierra)
+                  : (esApertura ? '09:00' : '18:00');
+              final value = await _mostrarSelectorHoraCupertino(ctx, actual);
+              if (value == null) return;
+              setSheetState(() {
+                final list = [
+                  ...(seleccion[diaActivo] ?? <TramoHorarioLocal>[]),
+                ];
+                while (list.length <= index) {
+                  list.add(
+                    const TramoHorarioLocal(abre: '09:00', cierra: '18:00'),
+                  );
+                }
+                final old = list[index];
+                list[index] = esApertura
+                    ? TramoHorarioLocal(abre: value, cierra: old.cierra)
+                    : TramoHorarioLocal(abre: old.abre, cierra: value);
+                seleccion[diaActivo] = list;
+              });
+            }
+
+            return Padding(
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.viewInsetsOf(ctx).bottom,
+              ),
+              child: Container(
+                constraints: BoxConstraints(
+                  maxHeight: MediaQuery.sizeOf(ctx).height * 0.86,
+                ),
+                padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
+                decoration: const BoxDecoration(
+                  color: ColoresMiLocalPerfil.superficie,
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+                ),
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Text(
+                        'Horarios de atención',
+                        style: GoogleFonts.baloo2(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w900,
+                          color: ColoresMiLocalPerfil.textoPrincipal,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Mostrale a tus clientes si estás abierto y cuándo volvés.',
+                        style: GoogleFonts.baloo2(
+                          fontSize: 13,
+                          color: ColoresMiLocalPerfil.textoSecundario,
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      Wrap(
+                        spacing: 7,
+                        runSpacing: 7,
+                        children: [
+                          for (var i = 0; i < 7; i++)
+                            ChoiceChip(
+                              selected: diaActivo == i,
+                              label: Text(nombresDiasHorarios[i]),
+                              onSelected: (_) =>
+                                  setSheetState(() => diaActivo = i),
+                              selectedColor:
+                                  ColoresMiLocalPerfil.principalMarca,
+                              backgroundColor:
+                                  ColoresMiLocalPerfil.rellenoInput,
+                              labelStyle: GoogleFonts.baloo2(
+                                color: diaActivo == i
+                                    ? Colors.white
+                                    : ColoresMiLocalPerfil.textoSecundario,
+                                fontWeight: FontWeight.w800,
+                              ),
+                              shape: StadiumBorder(
+                                side: BorderSide(
+                                  color: diaActivo == i
+                                      ? ColoresMiLocalPerfil.principalMarca
+                                      : Colors.white.withValues(alpha: 0.08),
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      SwitchListTile.adaptive(
+                        value: cerrado,
+                        onChanged: guardando
+                            ? null
+                            : (v) => setSheetState(() {
+                                if (v) {
+                                  seleccion[diaActivo] = [];
+                                } else {
+                                  seleccion[diaActivo] = [
+                                    const TramoHorarioLocal(
+                                      abre: '09:00',
+                                      cierra: '18:00',
+                                    ),
+                                  ];
+                                }
+                              }),
+                        activeThumbColor: ColoresMiLocalPerfil.principalMarca,
+                        activeTrackColor: ColoresMiLocalPerfil.principalMarca
+                            .withValues(alpha: 0.28),
+                        contentPadding: EdgeInsets.zero,
+                        title: Text(
+                          'Cerrado este día',
+                          style: GoogleFonts.baloo2(
+                            color: ColoresMiLocalPerfil.textoPrincipal,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                      if (!cerrado) ...[
+                        for (var i = 0; i < tramos.length; i++) ...[
+                          _FilaTramoHorario(
+                            tramo: tramos[i],
+                            onTapAbre: guardando
+                                ? null
+                                : () => elegirHora(i, true),
+                            onTapCierra: guardando
+                                ? null
+                                : () => elegirHora(i, false),
+                            onEliminar: guardando || tramos.length <= 1
+                                ? null
+                                : () => setSheetState(() {
+                                    final list = [...tramos]..removeAt(i);
+                                    seleccion[diaActivo] = list;
+                                  }),
+                          ),
+                          const SizedBox(height: 8),
+                        ],
+                        if (tramos.length < 3)
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: TextButton.icon(
+                              onPressed: guardando
+                                  ? null
+                                  : () => setSheetState(() {
+                                      final list = [
+                                        ...tramos,
+                                        const TramoHorarioLocal(
+                                          abre: '19:00',
+                                          cierra: '23:00',
+                                        ),
+                                      ];
+                                      seleccion[diaActivo] = list;
+                                    }),
+                              icon: const Icon(CupertinoIcons.plus_circle),
+                              label: const Text('Agregar otra jornada'),
+                              style: TextButton.styleFrom(
+                                foregroundColor:
+                                    ColoresMiLocalPerfil.principalMarca,
+                                textStyle: GoogleFonts.baloo2(
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
+                      const SizedBox(height: 14),
+                      Wrap(
+                        spacing: 8,
+                        children: [
+                          OutlinedButton(
+                            onPressed: guardando
+                                ? null
+                                : () => setSheetState(() {
+                                    for (var d = 0; d <= 4; d++) {
+                                      seleccion[d] = [
+                                        ...(seleccion[diaActivo] ??
+                                            const <TramoHorarioLocal>[]),
+                                      ];
+                                    }
+                                  }),
+                            child: const Text('Copiar a lun-vie'),
+                          ),
+                          OutlinedButton(
+                            onPressed: guardando
+                                ? null
+                                : () => setSheetState(() {
+                                    for (var d = 0; d < 7; d++) {
+                                      seleccion[d] = [
+                                        ...(seleccion[diaActivo] ??
+                                            const <TramoHorarioLocal>[]),
+                                      ];
+                                    }
+                                  }),
+                            child: const Text('Copiar a todos'),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 18),
+                      Row(
+                        children: [
+                          TextButton(
+                            onPressed: guardando
+                                ? null
+                                : () => Navigator.pop(ctx),
+                            child: Text(
+                              'Cancelar',
+                              style: GoogleFonts.baloo2(
+                                color: ColoresMiLocalPerfil.textoSecundario,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: ElevatedButton(
+                              onPressed: guardando
+                                  ? null
+                                  : () async {
+                                      setSheetState(() => guardando = true);
+                                      final ok = await _actualizarCampo(
+                                        'horarios_json',
+                                        horariosLocalToJson(seleccion),
+                                      );
+                                      if (!ctx.mounted) return;
+                                      if (ok) {
+                                        Navigator.pop(ctx);
+                                      } else {
+                                        setSheetState(() => guardando = false);
+                                      }
+                                    },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor:
+                                    ColoresMiLocalPerfil.principalMarca,
+                                foregroundColor: Colors.white,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(18),
+                                ),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 13,
+                                ),
+                              ),
+                              child: guardando
+                                  ? const SizedBox(
+                                      width: 18,
+                                      height: 18,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: Colors.white,
+                                      ),
+                                    )
+                                  : Text(
+                                      'Guardar horarios',
+                                      style: GoogleFonts.baloo2(
+                                        fontWeight: FontWeight.w900,
+                                      ),
+                                    ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<String?> _mostrarSelectorHoraCupertino(
+    BuildContext context,
+    String horaInicial,
+  ) async {
+    final parts = horaInicial.split(':');
+    var hora = (int.tryParse(parts.first) ?? 9).clamp(0, 23);
+    var minuto =
+        ((parts.length > 1 ? int.tryParse(parts[1]) ?? 0 : 0) ~/ 5).clamp(
+          0,
+          11,
+        ) *
+        5;
+    final horaCtrl = FixedExtentScrollController(initialItem: hora);
+    final minutoCtrl = FixedExtentScrollController(initialItem: minuto ~/ 5);
+
+    return showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        return Container(
+          height: 310,
+          decoration: const BoxDecoration(
+            color: ColoresMiLocalPerfil.superficie,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                child: Row(
+                  children: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(ctx),
+                      child: Text(
+                        'Cancelar',
+                        style: GoogleFonts.baloo2(
+                          color: ColoresMiLocalPerfil.textoSecundario,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                    const Spacer(),
+                    Text(
+                      'Elegí horario',
+                      style: GoogleFonts.baloo2(
+                        color: ColoresMiLocalPerfil.textoPrincipal,
+                        fontSize: 17,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const Spacer(),
+                    TextButton(
+                      onPressed: () => Navigator.pop(
+                        ctx,
+                        '${hora.toString().padLeft(2, '0')}:${minuto.toString().padLeft(2, '0')}',
+                      ),
+                      child: Text(
+                        'OK',
+                        style: GoogleFonts.baloo2(
+                          color: ColoresMiLocalPerfil.principalMarca,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    SizedBox(
+                      width: 92,
+                      child: CupertinoPicker(
+                        scrollController: horaCtrl,
+                        itemExtent: 42,
+                        magnification: 1.12,
+                        squeeze: 1.08,
+                        useMagnifier: true,
+                        selectionOverlay: _OverlayPickerHora(),
+                        onSelectedItemChanged: (v) => hora = v,
+                        children: [
+                          for (var i = 0; i < 24; i++)
+                            Center(
+                              child: Text(
+                                i.toString().padLeft(2, '0'),
+                                style: GoogleFonts.baloo2(
+                                  color: ColoresMiLocalPerfil.textoPrincipal,
+                                  fontSize: 23,
+                                  fontWeight: FontWeight.w900,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                    Text(
+                      ':',
+                      style: GoogleFonts.baloo2(
+                        color: ColoresMiLocalPerfil.textoPrincipal,
+                        fontSize: 26,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    SizedBox(
+                      width: 92,
+                      child: CupertinoPicker(
+                        scrollController: minutoCtrl,
+                        itemExtent: 42,
+                        magnification: 1.12,
+                        squeeze: 1.08,
+                        useMagnifier: true,
+                        selectionOverlay: _OverlayPickerHora(),
+                        onSelectedItemChanged: (v) => minuto = v * 5,
+                        children: [
+                          for (var i = 0; i < 12; i++)
+                            Center(
+                              child: Text(
+                                (i * 5).toString().padLeft(2, '0'),
+                                style: GoogleFonts.baloo2(
+                                  color: ColoresMiLocalPerfil.textoPrincipal,
+                                  fontSize: 23,
+                                  fontWeight: FontWeight.w900,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+                child: Text(
+                  'Formato 24 hs',
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.baloo2(
+                    color: ColoresMiLocalPerfil.textoSecundario,
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   void _editarDireccion() {
     HapticFeedback.lightImpact();
     _showEditSheet(
@@ -786,7 +1865,7 @@ class _LocalesPerfilState extends State<LocalesPerfil> {
           children: [
             PageView.builder(
               controller: PageController(initialPage: initialIndex.clamp(0, 4)),
-              itemCount: 5,
+              itemCount: _maxFotosLocales,
               itemBuilder: (context, index) {
                 final url = _fotosLocal[index];
                 final urlBust = _urlConCacheBust(url, _versionFotosLocal);
@@ -1300,6 +2379,14 @@ class _LocalesPerfilState extends State<LocalesPerfil> {
                                   ),
                                 ],
                               ),
+                              const SizedBox(height: 9),
+                              _BotonWhatsappEditableLocal(
+                                tieneWhatsapp: (_telefonoWhatsapp ?? '')
+                                    .trim()
+                                    .isNotEmpty,
+                                label: _labelWhatsappVisible(_whatsappLabel),
+                                onTap: _editarWhatsapp,
+                              ),
                               if (_ubicacionTextoComputed.isNotEmpty ||
                                   (_direccion ?? '').trim().isNotEmpty) ...[
                                 const SizedBox(height: 12),
@@ -1433,6 +2520,11 @@ class _LocalesPerfilState extends State<LocalesPerfil> {
                                   ),
                                 ],
                               ),
+                              const SizedBox(height: 12),
+                              _BotonEditarHorariosLocal(
+                                estado: estadoHorarioLocal(_horarios),
+                                onTap: _editarHorarios,
+                              ),
                             ],
                           ),
                         ),
@@ -1474,7 +2566,7 @@ class _LocalesPerfilState extends State<LocalesPerfil> {
                         padding: EdgeInsets.symmetric(
                           horizontal: horizontalPadding,
                         ),
-                        itemCount: 5,
+                        itemCount: _maxFotosLocales,
                         itemBuilder: (context, index) {
                           final url = _fotosLocal[index];
                           final urlBust = _urlConCacheBust(

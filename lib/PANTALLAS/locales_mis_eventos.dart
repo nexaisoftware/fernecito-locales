@@ -912,8 +912,10 @@ class _LocalesMisEventosState extends State<LocalesMisEventos> {
                           backgroundColor: esBasico
                               ? const Color(0xFFD9B44A)
                               : jerarquia.color,
+                          // Violeta marca fuerte: en dark mode `acentoVioleta` es
+                          // claro (#C4B5FD) y no se lee sobre el fondo mostaza.
                           foregroundColor: esBasico
-                              ? ColoresLocales.acentoVioleta
+                              ? ColoresLocales.acentoVioletaMarca
                               : Colors.white,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(11),
@@ -1098,11 +1100,8 @@ class _LocalesMisEventosState extends State<LocalesMisEventos> {
   }
 
   Future<void> _abrirPosicionamiento(_EventoMini ev) async {
-    if (!_localVerificado) {
-      await _mostrarLayerVerificacion();
-      return;
-    }
-
+    // Los créditos de posicionamiento no dependen de verificación:
+    // si tiene cupos disponibles, puede posicionar igual.
     if (NavegacionPosicionamiento.estaRegistrado) {
       NavegacionPosicionamiento.irAEvento(ev.idEvento);
       if (mounted) {

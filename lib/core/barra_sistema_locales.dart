@@ -29,6 +29,15 @@ class BarraSistemaLocales {
           );
   }
 
+  /// Misma barra que durante el splash violeta (evita flash al arrancar).
+  static const estiloSplash = SystemUiOverlayStyle(
+    statusBarColor: Color(0xFF742ED1),
+    statusBarIconBrightness: Brightness.light,
+    statusBarBrightness: Brightness.dark,
+    systemNavigationBarColor: Color(0xFF742ED1),
+    systemNavigationBarIconBrightness: Brightness.light,
+  );
+
   static void aplicar(bool modoOscuro) {
     if (kIsWeb) {
       barra_pwa.actualizarThemeColorPwa(modoOscuro);

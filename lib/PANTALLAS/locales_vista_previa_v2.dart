@@ -3,9 +3,9 @@ library;
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../core/constants.dart';
+import '../core/lanzador_externo.dart';
 import '../widgets/tema_locales_scope.dart';
 import '../widgets/icono_local.dart';
 import '../core/supabase_client.dart';
@@ -53,7 +53,9 @@ class _LocalesVistaPreviaV2State extends State<LocalesVistaPreviaV2> {
   Future<List<_PromoMini>> _fetchPromos(String idEvento) async {
     final res = await ServicioSupabase().cliente
         .from('promociones')
-        .select('id_evento, titulo_promocion, descripcion_promocion, fecha_inicio, fecha_fin')
+        .select(
+          'id_evento, titulo_promocion, descripcion_promocion, fecha_inicio, fecha_fin',
+        )
         .eq('id_evento', idEvento);
 
     final list = (res as List).cast<Map<String, dynamic>>();
@@ -66,7 +68,9 @@ class _LocalesVistaPreviaV2State extends State<LocalesVistaPreviaV2> {
 
     final row = await ServicioSupabase().cliente
         .from('perfiles_locales')
-        .select('nombre_local, foto_perfil_url, local_verificado, calificacion_promedio')
+        .select(
+          'nombre_local, foto_perfil_url, local_verificado, calificacion_promedio',
+        )
         .eq('id', idLocal)
         .maybeSingle();
 
@@ -116,17 +120,22 @@ class _LocalesVistaPreviaV2State extends State<LocalesVistaPreviaV2> {
   Future<void> _abrirCompraEntradas(String rawUrl) async {
     final texto = rawUrl.trim();
     if (texto.isEmpty) return;
-    final normalizado = texto.startsWith('http://') || texto.startsWith('https://') ? texto : 'https://$texto';
+    final normalizado =
+        texto.startsWith('http://') || texto.startsWith('https://')
+        ? texto
+        : 'https://$texto';
     final uri = Uri.tryParse(normalizado);
     if (uri == null) return;
 
-    final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    final ok = await lanzarExternoConFallback(uri);
     if (!ok && mounted) {
       showCupertinoDialog<void>(
         context: context,
         builder: (_) => CupertinoAlertDialog(
           title: Text('No se pudo abrir el link'),
-          content: Text('Revisá la URL de compra de entradas e intentá de nuevo.'),
+          content: Text(
+            'Revisá la URL de compra de entradas e intentá de nuevo.',
+          ),
           actions: [
             CupertinoDialogAction(
               isDefaultAction: true,
@@ -147,7 +156,9 @@ class _LocalesVistaPreviaV2State extends State<LocalesVistaPreviaV2> {
         decoration: BoxDecoration(
           color: ColoresLocales.fondoSuperficie,
           borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-          border: Border.all(color: ColoresLocales.acentoVioleta.withOpacity(0.2)),
+          border: Border.all(
+            color: ColoresLocales.acentoVioleta.withOpacity(0.2),
+          ),
         ),
         child: SafeArea(
           top: false,
@@ -157,17 +168,29 @@ class _LocalesVistaPreviaV2State extends State<LocalesVistaPreviaV2> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(CupertinoIcons.eye_fill, size: 52, color: ColoresLocales.acentoVioleta.withOpacity(0.9)),
+                  Icon(
+                    CupertinoIcons.eye_fill,
+                    size: 52,
+                    color: ColoresLocales.acentoVioleta.withOpacity(0.9),
+                  ),
                   SizedBox(height: 12),
                   Text(
                     'Vista previa',
-                    style: GoogleFonts.baloo2(fontSize: 22, fontWeight: FontWeight.w900, color: ColoresLocales.textoOnFondoClaro),
+                    style: GoogleFonts.baloo2(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w900,
+                      color: ColoresLocales.textoOnFondoClaro,
+                    ),
                     textAlign: TextAlign.center,
                   ),
                   SizedBox(height: 10),
                   Text(
                     'Desde el panel de locales solo podés ver el diseño. La reserva completa se realiza en la app de usuarios.',
-                    style: GoogleFonts.baloo2(fontSize: 13, color: ColoresLocales.textoSecundarioOnFondoClaro, height: 1.35),
+                    style: GoogleFonts.baloo2(
+                      fontSize: 13,
+                      color: ColoresLocales.textoSecundarioOnFondoClaro,
+                      height: 1.35,
+                    ),
                     textAlign: TextAlign.center,
                   ),
                   SizedBox(height: 18),
@@ -184,7 +207,11 @@ class _LocalesVistaPreviaV2State extends State<LocalesVistaPreviaV2> {
                       child: Center(
                         child: Text(
                           'Entendido',
-                          style: GoogleFonts.baloo2(fontSize: 16, fontWeight: FontWeight.w900, color: ColoresLocales.superficie),
+                          style: GoogleFonts.baloo2(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w900,
+                            color: ColoresLocales.superficie,
+                          ),
                         ),
                       ),
                     ),
@@ -207,7 +234,9 @@ class _LocalesVistaPreviaV2State extends State<LocalesVistaPreviaV2> {
     final urlFlyer = (widget.evento['url_flyer'] as String?) ?? '';
 
     final titulo = (widget.evento['titulo_evento'] as String?) ?? 'Evento';
-    final descripcion = (widget.evento['descripcion_evento'] as String?) ?? 'Vení con amigos y disfrutá.';
+    final descripcion =
+        (widget.evento['descripcion_evento'] as String?) ??
+        'Vení con amigos y disfrutá.';
     final tipoEvento = (widget.evento['tipo_evento'] as String?) ?? 'evento';
     final modoLista = widget.evento['modo_lista']?.toString();
     final urlCompra = (widget.evento['url_compra_entradas'] as String?) ?? '';
@@ -244,7 +273,9 @@ class _LocalesVistaPreviaV2State extends State<LocalesVistaPreviaV2> {
       return Scaffold(
         appBar: appBar,
         backgroundColor: ColoresLocales.fondoPrincipal,
-        body: Center(child: CircularProgressIndicator(color: ColoresLocales.acentoVioleta)),
+        body: Center(
+          child: CircularProgressIndicator(color: ColoresLocales.acentoVioleta),
+        ),
       );
     }
 
@@ -258,7 +289,9 @@ class _LocalesVistaPreviaV2State extends State<LocalesVistaPreviaV2> {
             child: Text(
               _error!,
               textAlign: TextAlign.center,
-              style: GoogleFonts.baloo2(color: ColoresLocales.textoSecundarioOnFondoClaro),
+              style: GoogleFonts.baloo2(
+                color: ColoresLocales.textoSecundarioOnFondoClaro,
+              ),
             ),
           ),
         ),
@@ -276,48 +309,60 @@ class _LocalesVistaPreviaV2State extends State<LocalesVistaPreviaV2> {
         child: Stack(
           children: [
             CustomScrollView(
-            slivers: [
-              SliverToBoxAdapter(
-                child: SafeArea(
-                  bottom: false,
-                  child: Padding(
-                    padding: EdgeInsets.only(top: 8, left: 20, right: 20),
-                    child: ConstrainedBox(
-                      constraints: BoxConstraints(maxHeight: maxFlyerHeight),
-                      child: Center(
-                        child: Container(
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(16),
-                            boxShadow: [
-                              BoxShadow(
-                                color: ColoresLocales.acentoVioleta.withOpacity(0.35),
-                                blurRadius: 28,
-                                spreadRadius: 0,
-                              ),
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.4),
-                                blurRadius: 20,
-                                offset: Offset(0, 8),
-                              ),
-                            ],
-                          ),
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(16),
-                            child: AspectRatio(
-                              aspectRatio: 9 / 16,
-                              child: urlFlyer.isEmpty
-                                  ? Container(
-                                      color: ColoresLocales.fondoSuperficie,
-                                      child: Icon(CupertinoIcons.photo, size: 64, color: ColoresLocales.textoSecundarioOnFondoClaro),
-                                    )
-                                  : Image.network(
-                                      urlFlyer,
-                                      fit: BoxFit.cover,
-                                      errorBuilder: (_, __, ___) => Container(
+              slivers: [
+                SliverToBoxAdapter(
+                  child: SafeArea(
+                    bottom: false,
+                    child: Padding(
+                      padding: EdgeInsets.only(top: 8, left: 20, right: 20),
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(maxHeight: maxFlyerHeight),
+                        child: Center(
+                          child: Container(
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(16),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: ColoresLocales.acentoVioleta
+                                      .withOpacity(0.35),
+                                  blurRadius: 28,
+                                  spreadRadius: 0,
+                                ),
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.4),
+                                  blurRadius: 20,
+                                  offset: Offset(0, 8),
+                                ),
+                              ],
+                            ),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(16),
+                              child: AspectRatio(
+                                aspectRatio: 9 / 16,
+                                child: urlFlyer.isEmpty
+                                    ? Container(
                                         color: ColoresLocales.fondoSuperficie,
-                                        child: Icon(CupertinoIcons.photo, size: 64, color: ColoresLocales.textoSecundarioOnFondoClaro),
+                                        child: Icon(
+                                          CupertinoIcons.photo,
+                                          size: 64,
+                                          color: ColoresLocales
+                                              .textoSecundarioOnFondoClaro,
+                                        ),
+                                      )
+                                    : Image.network(
+                                        urlFlyer,
+                                        fit: BoxFit.cover,
+                                        errorBuilder: (_, __, ___) => Container(
+                                          color: ColoresLocales.fondoSuperficie,
+                                          child: Icon(
+                                            CupertinoIcons.photo,
+                                            size: 64,
+                                            color: ColoresLocales
+                                                .textoSecundarioOnFondoClaro,
+                                          ),
+                                        ),
                                       ),
-                                    ),
+                              ),
                             ),
                           ),
                         ),
@@ -325,50 +370,52 @@ class _LocalesVistaPreviaV2State extends State<LocalesVistaPreviaV2> {
                     ),
                   ),
                 ),
-              ),
-              SliverPadding(
-                padding: const EdgeInsets.fromLTRB(20, 20, 20, 48),
-                sliver: SliverList(
-                  delegate: SliverChildListDelegate([
-                    _TarjetaInfoEventoLocales(
-                      titulo: titulo,
-                      descripcion: descripcion,
-                      fechaHora: fechaHora,
-                      tipoEvento: tipoEvento,
-                      modoLista: _modoListaLabel(modoLista),
-                      urlCompra: urlCompra,
-                    ),
-                    const SizedBox(height: 16),
-                    _TarjetaReservaYPromosLocales(
-                      cuposRestantes: 12,
-                      urlCompra: urlCompra,
-                      onReservaLista: _abrirBottomSheetReserva,
-                      onVerPromos: _abrirBottomSheetPromos,
-                      onObtenerEntrada: () => _abrirCompraEntradas(urlCompra),
-                    ),
-                    const SizedBox(height: 16),
-                    _TarjetaLocalLocales(
-                      nombre: _nombreLocal?.trim().isNotEmpty == true
-                          ? _nombreLocal!.trim()
-                          : ((widget.evento['nombre_local'] as String?)?.trim().isNotEmpty == true
-                                ? (widget.evento['nombre_local'] as String).trim()
-                                : 'Local'),
-                      avatarUrl: _fotoLocal,
-                      verificado: _localVerificado,
-                      calificacionPromedio: _calificacionPromedio,
-                    ),
-                    const SizedBox(height: 28),
-                  ]),
+                SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 48),
+                  sliver: SliverList(
+                    delegate: SliverChildListDelegate([
+                      _TarjetaInfoEventoLocales(
+                        titulo: titulo,
+                        descripcion: descripcion,
+                        fechaHora: fechaHora,
+                        tipoEvento: tipoEvento,
+                        modoLista: _modoListaLabel(modoLista),
+                        urlCompra: urlCompra,
+                      ),
+                      const SizedBox(height: 16),
+                      _TarjetaReservaYPromosLocales(
+                        cuposRestantes: 12,
+                        urlCompra: urlCompra,
+                        onReservaLista: _abrirBottomSheetReserva,
+                        onVerPromos: _abrirBottomSheetPromos,
+                        onObtenerEntrada: () => _abrirCompraEntradas(urlCompra),
+                      ),
+                      const SizedBox(height: 16),
+                      _TarjetaLocalLocales(
+                        nombre: _nombreLocal?.trim().isNotEmpty == true
+                            ? _nombreLocal!.trim()
+                            : ((widget.evento['nombre_local'] as String?)
+                                          ?.trim()
+                                          .isNotEmpty ==
+                                      true
+                                  ? (widget.evento['nombre_local'] as String)
+                                        .trim()
+                                  : 'Local'),
+                        avatarUrl: _fotoLocal,
+                        verificado: _localVerificado,
+                        calificacionPromedio: _calificacionPromedio,
+                      ),
+                      const SizedBox(height: 28),
+                    ]),
+                  ),
                 ),
-              ),
-            ],
-          ),
-        ],
-      ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
-
 }
 
 class _TarjetaInfoEventoLocales extends StatelessWidget {
@@ -396,7 +443,10 @@ class _TarjetaInfoEventoLocales extends StatelessWidget {
       decoration: BoxDecoration(
         color: ColoresLocales.fondoSuperficie.withOpacity(0.8),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: ColoresLocales.acentoVioleta.withOpacity(0.25), width: 1),
+        border: Border.all(
+          color: ColoresLocales.acentoVioleta.withOpacity(0.25),
+          width: 1,
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -426,9 +476,19 @@ class _TarjetaInfoEventoLocales extends StatelessWidget {
           SizedBox(height: 8),
           Row(
             children: [
-              Icon(CupertinoIcons.calendar, size: 12, color: ColoresLocales.textoSecundarioOnFondoClaro),
+              Icon(
+                CupertinoIcons.calendar,
+                size: 12,
+                color: ColoresLocales.textoSecundarioOnFondoClaro,
+              ),
               SizedBox(width: 4),
-              Text(fechaHora, style: GoogleFonts.baloo2(fontSize: 12, color: ColoresLocales.textoSecundarioOnFondoClaro)),
+              Text(
+                fechaHora,
+                style: GoogleFonts.baloo2(
+                  fontSize: 12,
+                  color: ColoresLocales.textoSecundarioOnFondoClaro,
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 12),
@@ -436,9 +496,16 @@ class _TarjetaInfoEventoLocales extends StatelessWidget {
             spacing: 8,
             runSpacing: 6,
             children: [
-              _ChipInfo(icon: CupertinoIcons.tag_fill, texto: 'Tipo: $tipoEvento'),
+              _ChipInfo(
+                icon: CupertinoIcons.tag_fill,
+                texto: 'Tipo: $tipoEvento',
+              ),
               _ChipInfo(icon: CupertinoIcons.list_bullet, texto: modoLista),
-              if (urlCompra.trim().isNotEmpty) _ChipInfo(icon: CupertinoIcons.ticket_fill, texto: 'Venta externa'),
+              if (urlCompra.trim().isNotEmpty)
+                _ChipInfo(
+                  icon: CupertinoIcons.ticket_fill,
+                  texto: 'Venta externa',
+                ),
             ],
           ),
         ],
@@ -470,7 +537,10 @@ class _TarjetaReservaYPromosLocales extends StatelessWidget {
       decoration: BoxDecoration(
         color: ColoresLocales.fondoSuperficie.withOpacity(0.85),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: ColoresLocales.acentoVioleta.withOpacity(0.22), width: 1),
+        border: Border.all(
+          color: ColoresLocales.acentoVioleta.withOpacity(0.22),
+          width: 1,
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -486,7 +556,11 @@ class _TarjetaReservaYPromosLocales extends StatelessWidget {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(CupertinoIcons.flame_fill, size: 10, color: ColoresLocales.textoEnBoton),
+                  Icon(
+                    CupertinoIcons.flame_fill,
+                    size: 10,
+                    color: ColoresLocales.textoEnBoton,
+                  ),
                   SizedBox(width: 4),
                   Text(
                     'Solo quedan $cuposRestantes',
@@ -522,14 +596,22 @@ class _TarjetaReservaYPromosLocales extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.center,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(CupertinoIcons.checkmark_circle_fill, size: 20, color: ColoresLocales.textoEnBoton),
+                  Icon(
+                    CupertinoIcons.checkmark_circle_fill,
+                    size: 20,
+                    color: ColoresLocales.textoEnBoton,
+                  ),
                   SizedBox(width: 8),
                   Flexible(
                     child: FittedBox(
                       fit: BoxFit.scaleDown,
                       child: Text(
                         'Reserva lista ahora!',
-                        style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: ColoresLocales.chipInactivo),
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                          color: ColoresLocales.chipInactivo,
+                        ),
                       ),
                     ),
                   ),
@@ -559,14 +641,22 @@ class _TarjetaReservaYPromosLocales extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.center,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(CupertinoIcons.tag_fill, size: 18, color: ColoresLocales.textoEnBoton),
+                  Icon(
+                    CupertinoIcons.tag_fill,
+                    size: 18,
+                    color: ColoresLocales.textoEnBoton,
+                  ),
                   SizedBox(width: 8),
                   Flexible(
                     child: FittedBox(
                       fit: BoxFit.scaleDown,
                       child: Text(
                         'Ver promos!',
-                        style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: ColoresLocales.chipInactivo),
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                          color: ColoresLocales.chipInactivo,
+                        ),
                       ),
                     ),
                   ),
@@ -597,14 +687,22 @@ class _TarjetaReservaYPromosLocales extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.center,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(CupertinoIcons.ticket_fill, size: 18, color: ColoresLocales.textoEnBoton),
+                    Icon(
+                      CupertinoIcons.ticket_fill,
+                      size: 18,
+                      color: ColoresLocales.textoEnBoton,
+                    ),
                     SizedBox(width: 8),
                     Flexible(
                       child: FittedBox(
                         fit: BoxFit.scaleDown,
                         child: Text(
                           'Obtener entrada',
-                          style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: ColoresLocales.textoEnBoton),
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w800,
+                            color: ColoresLocales.textoEnBoton,
+                          ),
                         ),
                       ),
                     ),
@@ -644,7 +742,10 @@ class _TarjetaLocalLocales extends StatelessWidget {
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(20),
           color: ColoresLocales.fondoSuperficie.withOpacity(0.75),
-          border: Border.all(color: ColoresLocales.acentoVioleta.withOpacity(0.22), width: 1),
+          border: Border.all(
+            color: ColoresLocales.acentoVioleta.withOpacity(0.22),
+            width: 1,
+          ),
         ),
         child: Row(
           children: [
@@ -653,7 +754,10 @@ class _TarjetaLocalLocales extends StatelessWidget {
               height: 56,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                border: Border.all(color: ColoresLocales.acentoVioleta.withOpacity(0.6), width: 2),
+                border: Border.all(
+                  color: ColoresLocales.acentoVioleta.withOpacity(0.6),
+                  width: 2,
+                ),
               ),
               child: ClipOval(
                 child: avatarUrl?.isNotEmpty == true
@@ -691,17 +795,29 @@ class _TarjetaLocalLocales extends StatelessWidget {
                   SizedBox(height: 4),
                   Row(
                     children: [
-                      const Icon(CupertinoIcons.star_fill, color: Color(0xFFFFC107), size: 16),
+                      const Icon(
+                        CupertinoIcons.star_fill,
+                        color: Color(0xFFFFC107),
+                        size: 16,
+                      ),
                       SizedBox(width: 4),
                       Text(
-                        calificacionPromedio != null ? calificacionPromedio!.toStringAsFixed(1) : '—',
-                        style: GoogleFonts.baloo2(fontSize: 13, color: ColoresLocales.textoSecundarioOnFondoClaro),
+                        calificacionPromedio != null
+                            ? calificacionPromedio!.toStringAsFixed(1)
+                            : '—',
+                        style: GoogleFonts.baloo2(
+                          fontSize: 13,
+                          color: ColoresLocales.textoSecundarioOnFondoClaro,
+                        ),
                       ),
                     ],
                   ),
                   if (verificado) ...[
                     SizedBox(height: 8),
-                    _ChipInfo(icon: CupertinoIcons.checkmark_seal_fill, texto: 'Verificado'),
+                    _ChipInfo(
+                      icon: CupertinoIcons.checkmark_seal_fill,
+                      texto: 'Verificado',
+                    ),
                   ],
                 ],
               ),
@@ -726,7 +842,9 @@ class _BottomSheetVerPromos extends StatelessWidget {
       decoration: BoxDecoration(
         color: ColoresLocales.fondoSuperficie,
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-        border: Border.all(color: ColoresLocales.acentoVioleta.withOpacity(0.2)),
+        border: Border.all(
+          color: ColoresLocales.acentoVioleta.withOpacity(0.2),
+        ),
       ),
       child: SafeArea(
         top: false,
@@ -757,7 +875,9 @@ class _BottomSheetVerPromos extends StatelessWidget {
                       decoration: BoxDecoration(
                         color: ColoresLocales.fondoPrincipal.withOpacity(0.65),
                         borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: ColoresLocales.acentoVioleta.withOpacity(0.18)),
+                        border: Border.all(
+                          color: ColoresLocales.acentoVioleta.withOpacity(0.18),
+                        ),
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -775,12 +895,19 @@ class _BottomSheetVerPromos extends StatelessWidget {
                           SizedBox(height: 8),
                           Row(
                             children: [
-                              Icon(CupertinoIcons.calendar, size: 14, color: ColoresLocales.textoSecundario),
+                              Icon(
+                                CupertinoIcons.calendar,
+                                size: 14,
+                                color: ColoresLocales.textoSecundario,
+                              ),
                               SizedBox(width: 6),
                               Expanded(
                                 child: Text(
                                   '${p.fechaInicio != null ? DateTime.fromMillisecondsSinceEpoch(p.fechaInicio!.millisecondsSinceEpoch).toLocal() : ''} - ${p.fechaFin != null ? DateTime.fromMillisecondsSinceEpoch(p.fechaFin!.millisecondsSinceEpoch).toLocal() : ''}',
-                                  style: GoogleFonts.baloo2(fontSize: 12, color: ColoresLocales.textoSecundario),
+                                  style: GoogleFonts.baloo2(
+                                    fontSize: 12,
+                                    color: ColoresLocales.textoSecundario,
+                                  ),
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                 ),
@@ -791,7 +918,11 @@ class _BottomSheetVerPromos extends StatelessWidget {
                           if (p.descripcion.trim().isNotEmpty)
                             Text(
                               p.descripcion,
-                              style: GoogleFonts.baloo2(fontSize: 13, color: ColoresLocales.textoSecundario, height: 1.3),
+                              style: GoogleFonts.baloo2(
+                                fontSize: 13,
+                                color: ColoresLocales.textoSecundario,
+                                height: 1.3,
+                              ),
                               maxLines: 3,
                               overflow: TextOverflow.ellipsis,
                             ),
@@ -802,7 +933,10 @@ class _BottomSheetVerPromos extends StatelessWidget {
                               // TODO: Conectar lógica real de QR promo.
                             },
                             child: Container(
-                              padding: EdgeInsets.symmetric(vertical: 10, horizontal: 14),
+                              padding: EdgeInsets.symmetric(
+                                vertical: 10,
+                                horizontal: 14,
+                              ),
                               decoration: BoxDecoration(
                                 color: const Color(0xFFFF8C42),
                                 borderRadius: BorderRadius.circular(20),
@@ -810,11 +944,19 @@ class _BottomSheetVerPromos extends StatelessWidget {
                               child: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  Icon(CupertinoIcons.qrcode, size: 18, color: ColoresLocales.textoEnBoton),
+                                  Icon(
+                                    CupertinoIcons.qrcode,
+                                    size: 18,
+                                    color: ColoresLocales.textoEnBoton,
+                                  ),
                                   SizedBox(width: 8),
                                   Text(
                                     'Obtener mi promo QR!',
-                                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: ColoresLocales.textoEnBoton),
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w700,
+                                      color: ColoresLocales.textoEnBoton,
+                                    ),
                                   ),
                                 ],
                               ),
@@ -848,7 +990,10 @@ class _ChipInfo extends StatelessWidget {
       decoration: BoxDecoration(
         color: ColoresLocales.fondoSuperficie.withOpacity(0.8),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: ColoresLocales.acentoVioleta.withOpacity(0.25), width: 1),
+        border: Border.all(
+          color: ColoresLocales.acentoVioleta.withOpacity(0.25),
+          width: 1,
+        ),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -857,7 +1002,11 @@ class _ChipInfo extends StatelessWidget {
           SizedBox(width: 6),
           Text(
             texto,
-            style: GoogleFonts.baloo2(fontSize: 12, color: ColoresLocales.textoPrincipal, height: 1.05),
+            style: GoogleFonts.baloo2(
+              fontSize: 12,
+              color: ColoresLocales.textoPrincipal,
+              height: 1.05,
+            ),
           ),
         ],
       ),
@@ -897,4 +1046,3 @@ class _PromoMini {
     );
   }
 }
-

@@ -2323,7 +2323,7 @@ class _TokenAsist {
 }
 
 /// Un grupo representa una unidad de reserva:
-/// - Squad: 1 token con id_reserva_grupal + snapshot_squad
+/// - Squad: N tokens (1 por integrante) con el mismo id_reserva_grupal
 /// - Individual: 1 token sin id_reserva_grupal
 class _GrupoAsist {
   final String? idReserva;
@@ -2336,6 +2336,13 @@ class _GrupoAsist {
   /// Total de personas que entran con esta reserva.
   int get cantidadPersonas {
     if (tokens.isEmpty) return 0;
+    if (tokens.length > 1) return tokens.length;
+    final snap = tokens.first.snapshotSquad;
+    if (snap != null) {
+      final total = snap['cantidad_total'] ?? snap['cantidad'];
+      if (total is int) return total;
+      if (total is num) return total.toInt();
+    }
     return tokens.first.cantidadPersonas;
   }
 

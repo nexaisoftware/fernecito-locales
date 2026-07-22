@@ -4,11 +4,13 @@ library;
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../core/bootstrap_locales.dart';
 import '../core/colores_staff.dart';
 import '../core/servicio_staff_locales.dart';
 import '../core/tema_app_locales.dart';
 import '../core/permisos_staff_validar.dart';
 import '../models/vinculo_staff_local.dart';
+import '../widgets/splash_carga_locales.dart';
 import '../widgets/scaffold_staff.dart';
 import '../widgets/tema_locales_scope.dart';
 import '../widgets/dialog_permiso_push_locales.dart';
@@ -55,12 +57,14 @@ class _LocalesStaffHomeState extends State<LocalesStaffHome> {
         _locales = lista;
         _cargando = false;
       });
+      BootstrapLocales.marcarLista();
     } catch (e) {
       if (!mounted) return;
       setState(() {
         _error = 'No pudimos cargar tus locales.';
         _cargando = false;
       });
+      BootstrapLocales.marcarLista();
     }
   }
 
@@ -438,22 +442,16 @@ class _LocalesStaffHomeState extends State<LocalesStaffHome> {
 
   @override
   Widget build(BuildContext context) {
+    if (_cargando) {
+      return const ColoredBox(color: kVioletaSplashLocales);
+    }
     final oscuro = TemaLocalesScope.of(context);
     final usarDegradado = ColoresStaff.usarDegradado;
 
     final body = RefreshIndicator(
       color: ColoresStaff.acento,
       onRefresh: _cargar,
-      child: _cargando
-          ? ListView(
-              children: [
-                SizedBox(height: usarDegradado ? 8 : 120),
-                Center(
-                  child: CircularProgressIndicator(color: ColoresStaff.acento),
-                ),
-              ],
-            )
-          : _contenidoDashboard(),
+      child: _contenidoDashboard(),
     );
 
     return ScaffoldStaff(

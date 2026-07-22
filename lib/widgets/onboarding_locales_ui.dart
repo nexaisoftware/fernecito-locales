@@ -465,45 +465,56 @@ class OnbBannerSlot extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: AspectRatio(
-        aspectRatio: 3 / 1,
-        child: Container(
-          decoration: BoxDecoration(
-            color: ColoresOnboardingLocales.vidrio,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: bytes == null
-                  ? ColoresOnboardingLocales.vidrioBorde
-                  : Colors.white,
-              width: bytes == null ? 1.5 : 2,
+    // Vertical 4:5 — misma proporción con la que el banner se ve como hero
+    // en el perfil del local (evita que suban fotos panorámicas).
+    return Center(
+      child: GestureDetector(
+        onTap: onTap,
+        child: SizedBox(
+          height: 220,
+          child: AspectRatio(
+            aspectRatio: 4 / 5,
+            child: Container(
+              decoration: BoxDecoration(
+                color: ColoresOnboardingLocales.vidrio,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: bytes == null
+                      ? ColoresOnboardingLocales.vidrioBorde
+                      : Colors.white,
+                  width: bytes == null ? 1.5 : 2,
+                ),
+              ),
+              child: bytes == null
+                  ? Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          CupertinoIcons.photo_on_rectangle,
+                          color: ColoresOnboardingLocales.texto,
+                          size: 32,
+                        ),
+                        const SizedBox(height: 6),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          child: Text(
+                            'Banner vertical',
+                            textAlign: TextAlign.center,
+                            style: GoogleFonts.baloo2(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: ColoresOnboardingLocales.textoSecundario,
+                            ),
+                          ),
+                        ),
+                      ],
+                    )
+                  : ClipRRect(
+                      borderRadius: BorderRadius.circular(14),
+                      child: Image.memory(bytes!, fit: BoxFit.cover),
+                    ),
             ),
           ),
-          child: bytes == null
-              ? Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      CupertinoIcons.photo_on_rectangle,
-                      color: ColoresOnboardingLocales.texto,
-                      size: 32,
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      'Banner (formato ancho 3:1)',
-                      style: GoogleFonts.baloo2(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: ColoresOnboardingLocales.textoSecundario,
-                      ),
-                    ),
-                  ],
-                )
-              : ClipRRect(
-                  borderRadius: BorderRadius.circular(14),
-                  child: Image.memory(bytes!, fit: BoxFit.cover),
-                ),
         ),
       ),
     );
