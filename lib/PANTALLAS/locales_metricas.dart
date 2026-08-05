@@ -168,7 +168,7 @@ class _LocalesMetricasState extends State<LocalesMetricas> {
               ),
               ListTile(
                 title: Text(
-                  'Mi perfil',
+                  'Visitas a mi perfil',
                   style: GoogleFonts.baloo2(fontWeight: FontWeight.w800),
                 ),
                 trailing: _filtroAlcance.tipo == AlcanceFiltroTipo.perfil
@@ -916,7 +916,7 @@ class _LocalesMetricasState extends State<LocalesMetricas> {
                   const SizedBox(width: 8),
                   Expanded(
                     child: _KpiCard(
-                      label: 'Perfil',
+                      label: 'Visitas perfil',
                       valor: formatoMetricaCompacto(a.totalPerfil),
                       icon: CupertinoIcons.person_crop_circle_fill,
                       color: ColoresLocales.acentoVioleta,
@@ -932,6 +932,16 @@ class _LocalesMetricasState extends State<LocalesMetricas> {
                     ),
                   ),
                 ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Visitas perfil = veces que alguien abrió tu ficha en la app de usuarios.',
+                style: GoogleFonts.baloo2(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: ColoresLocales.textoSecundarioOnFondoClaro,
+                  height: 1.3,
+                ),
               ),
               if (_filtroAlcance.tipo == AlcanceFiltroTipo.todas &&
                   a.eventos.isNotEmpty) ...[
@@ -1010,7 +1020,7 @@ class _LocalesMetricasState extends State<LocalesMetricas> {
                   padding: const EdgeInsets.only(top: 24),
                   child: Center(
                     child: Text(
-                      'Todavía no hay impresiones en este período.\nCuando usuarios vean tu cartelera o perfil, lo vas a ver acá.',
+                      'Todavía no hay impresiones en este período.\nCuando vean tus eventos en cartelera o abran tu perfil, aparece acá.',
                       textAlign: TextAlign.center,
                       style: GoogleFonts.baloo2(
                         fontSize: 13,
@@ -1461,7 +1471,7 @@ class _ResumenImpresionesHoy extends StatelessWidget {
                 ),
                 _LeyendaResumenHoy(
                   color: colorPerfil,
-                  label: 'Perfil',
+                  label: 'Visitas perfil',
                   valor: perfil,
                 ),
                 _LeyendaResumenHoy(

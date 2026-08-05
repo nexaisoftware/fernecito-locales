@@ -33,15 +33,32 @@ import '../PANTALLAS/locales_staff_mi_cuenta.dart';
 import '../PANTALLAS/locales_staff_vincular.dart';
 import '../PANTALLAS/locales_validar.dart';
 import '../PANTALLAS/locales_cuenta_bloqueada.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'recarga_cuenta_locales.dart';
 import 'servicio_estado_cuenta_locales.dart';
 
 /// Mapa único de rutas nombradas — usado por [MaterialApp.routes] y [onGenerateRoute].
 Map<String, WidgetBuilder> rutasLocales() => {
       '/login': (context) => const LocalesLogin(),
-      '/home': (context) => const LocalesHome(),
+      '/home': (context) {
+        final args = ModalRoute.of(context)?.settings.arguments;
+        final uid = (args is String && args.isNotEmpty)
+            ? args
+            : (Supabase.instance.client.auth.currentUser?.id ?? 'anon');
+        // Key por uid: remonta Home completo al cambiar de cuenta.
+        return LocalesHome(key: ValueKey('home_$uid'));
+      },
+      rutaRecargarCuenta: (context) => const LocalesRecargarCuenta(),
       '/contrasena': (context) => const LocalesContrasena(),
       '/perfil': (context) => const LocalesPerfil(),
-      '/crear_perfil': (context) => const LocalesCrearPerfil(),
+      '/crear_perfil': (context) {
+        final args = ModalRoute.of(context)?.settings.arguments;
+        final uid = (args is String && args.isNotEmpty)
+            ? args
+            : (Supabase.instance.client.auth.currentUser?.id ?? 'anon');
+        // Key por uid: remonta onboarding al cambiar a otra cuenta incompleta.
+        return LocalesCrearPerfil(key: ValueKey('crear_perfil_$uid'));
+      },
       '/mi_cuenta': (context) => const LocalesMiCuenta(),
       '/mis_eventos': (context) => const LocalesMisEventos(),
       '/crear_evento': (context) {

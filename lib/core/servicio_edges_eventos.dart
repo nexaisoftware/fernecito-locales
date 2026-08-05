@@ -199,6 +199,7 @@ class ServicioEdgesEventos {
     String nombreFuncion, {
     required String token,
     required Map<String, dynamic> body,
+    Duration? timeout,
   }) async {
     final url = Uri.parse('${_urlFunctionsBase()}/$nombreFuncion');
     final headers = <String, String>{
@@ -211,7 +212,7 @@ class ServicioEdgesEventos {
     try {
       response = await http
           .post(url, headers: headers, body: jsonEncode(body))
-          .timeout(_edgeTimeout);
+          .timeout(timeout ?? _edgeTimeout);
     } on TimeoutException {
       throw EdgeException(
         funcion: nombreFuncion,
@@ -251,6 +252,7 @@ class ServicioEdgesEventos {
   Future<_EdgeHttpResult> _invocarConReintento(
     String nombreFuncion, {
     required Map<String, dynamic> body,
+    Duration? timeout,
   }) async {
     final tokenInicial = await _accessToken();
     _logAuthDebug(
@@ -263,6 +265,7 @@ class ServicioEdgesEventos {
       nombreFuncion,
       token: tokenInicial,
       body: body,
+      timeout: timeout,
     );
     if (primer.status != 401) return primer;
     _logAuthDebug(
@@ -283,6 +286,7 @@ class ServicioEdgesEventos {
       nombreFuncion,
       token: tokenRefrescado,
       body: body,
+      timeout: timeout,
     );
     if (segundo.status != 401) return segundo;
 
@@ -303,8 +307,13 @@ class ServicioEdgesEventos {
   Future<_EdgeHttpResult> _handleEdge(
     String funcion, {
     required Map<String, dynamic> body,
+    Duration? timeout,
   }) async {
-    final res = await _invocarConReintento(funcion, body: body);
+    final res = await _invocarConReintento(
+      funcion,
+      body: body,
+      timeout: timeout,
+    );
 
     // Caso éxito real: HTTP 2xx + body.ok truthy (bool o string "true")
     final okBody = res.data['ok'];
@@ -386,10 +395,7 @@ class ServicioEdgesEventos {
     try {
       final res = await _handleEdge(
         'editar_evento',
-        body: {
-          'id_evento': idEvento,
-          'payload_evento': campos,
-        },
+        body: {'id_evento': idEvento, 'payload_evento': campos},
       );
       return res.data;
     } on Exception {
@@ -538,6 +544,44 @@ class ServicioEdgesEventos {
     return res.data;
   }
 
+  /// Asistente de carta/precios del local.
+  /// - accion=parsear: devuelve { items, advertencias } sin guardar.
+  /// - accion=guardar: reemplaza la carta activa con items confirmados.
+  Future<Map<String, dynamic>> asistenteCartaLocal({
+    required String accion,
+    String modo = 'texto',
+    String? texto,
+    String? url,
+    String? archivoDataUri,
+    String? archivoNombre,
+    String? imagenDataUri,
+    List<String>? imagenesDataUri,
+    String? archivoPath,
+    List<String>? imagenesPaths,
+    List<Map<String, dynamic>>? items,
+    String? origen,
+  }) async {
+    final res = await _handleEdge(
+      'asistente_carta_local',
+      timeout: const Duration(seconds: 105),
+      body: {
+        'accion': accion,
+        'modo': modo,
+        if (texto != null) 'texto': texto,
+        if (url != null) 'url': url,
+        if (archivoDataUri != null) 'archivo_data_uri': archivoDataUri,
+        if (archivoNombre != null) 'archivo_nombre': archivoNombre,
+        if (imagenDataUri != null) 'imagen_data_uri': imagenDataUri,
+        if (imagenesDataUri != null) 'imagenes_data_uri': imagenesDataUri,
+        if (archivoPath != null) 'archivo_path': archivoPath,
+        if (imagenesPaths != null) 'imagenes_paths': imagenesPaths,
+        if (items != null) 'items': items,
+        if (origen != null) 'origen': origen,
+      },
+    );
+    return res.data;
+  }
+
   /// Gestión de staff del local (owner) o vinculación (usuario staff).
   Future<Map<String, dynamic>> gestionarStaff({
     required String accion,
@@ -676,7 +720,9 @@ class ServicioEdgesEventos {
     return res.data;
   }
 
-  Future<Map<String, dynamic>> canjearCodigoPionero({required String codigo}) async {
+  Future<Map<String, dynamic>> canjearCodigoPionero({
+    required String codigo,
+  }) async {
     final res = await _handleEdge(
       'canjear_codigo_pionero',
       body: {'codigo': codigo.trim().toUpperCase()},

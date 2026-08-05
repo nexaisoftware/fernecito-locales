@@ -1,10 +1,14 @@
 library;
 
+import 'dart:async';
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../core/bootstrap_locales.dart';
+import '../core/vault_sesiones_locales.dart';
+import '../widgets/switcher_cuentas_locales.dart';
 import '../core/constants.dart';
 import '../core/horarios_local.dart';
 import '../core/tema_app_locales.dart';
@@ -43,16 +47,19 @@ class _LocalesHomeState extends State<LocalesHome> with WidgetsBindingObserver {
   String? _descripcionLocal;
   String? _bannerLocalUrl;
   int _cantidadFotosLocal = 0;
+  int _cantidadItemsCarta = 0;
   HorariosLocal _horariosLocal = {};
   int _eventosPublicados = 0;
   bool _avisoPerfilOcultoSesion = false;
   bool _avisoEventosOcultoSesion = false;
+  bool _avisoCartaOcultoSesion = false;
   bool _localVerificado = false;
   bool _esPionero = false;
   int? _pioneroMesBeneficio;
   DateTime? _pioneroBeneficiosFin;
   String? _tipoSuscripcionRaw;
   DateTime? _fechaVencimientoSuscripcion;
+  DateTime? _ultimaActualizacionCarta;
   bool _cargandoPerfil = true;
   CuposSuscripcionMock _cuposDashboard = const CuposSuscripcionMock(
     flyersIa: 0,
@@ -121,6 +128,7 @@ class _LocalesHomeState extends State<LocalesHome> with WidgetsBindingObserver {
             'foto_perfil_url, nombre_local, local_username, local_verificado, '
             'descripcion_local, url_foto_banner, horarios_json, '
             'foto_local_1, foto_local_2, foto_local_3, foto_local_4, foto_local_5, '
+            'ultima_actualizacion_carta, '
             'plan_suscripcion, fecha_vencimiento_suscripcion, '
             'es_pionero, pionero_mes_beneficio, pionero_beneficios_fin',
           )
@@ -135,6 +143,12 @@ class _LocalesHomeState extends State<LocalesHome> with WidgetsBindingObserver {
           .or(
             'fecha_fin_publicacion.gt.$ahoraIso,fecha_fin_publicacion.is.null',
           )
+          .limit(2);
+      final cartaRows = await ServicioSupabase().cliente
+          .from('locales_carta_items')
+          .select('id')
+          .eq('id_local', uid)
+          .eq('activo', true)
           .limit(2);
       final tipoRaw = await SuscripcionLocales.leerTipoRawDesdePerfil(uid);
       final planRawPerfil = row?['plan_suscripcion']?.toString().trim();
@@ -152,6 +166,10 @@ class _LocalesHomeState extends State<LocalesHome> with WidgetsBindingObserver {
       final pioneroFin = pioneroFinRaw != null
           ? DateTime.tryParse(pioneroFinRaw.toString())?.toLocal()
           : null;
+      final ultimaCartaRaw = row?['ultima_actualizacion_carta'];
+      final ultimaCarta = ultimaCartaRaw != null
+          ? DateTime.tryParse(ultimaCartaRaw.toString())?.toLocal()
+          : null;
       final pioneroBeneficiosActivo =
           esPionero && pioneroFin != null && pioneroFin.isAfter(DateTime.now());
       final tipoPlan = SuscripcionLocales.tipoPlanEfectivo(
@@ -166,6 +184,13 @@ class _LocalesHomeState extends State<LocalesHome> with WidgetsBindingObserver {
         uid: uid,
         tipoPlan: tipoPlan,
       );
+      // Multi-cuenta: asegurar/crear esta cuenta en el vault y refrescar su
+      // cache visual (foto/nombre/@user). guardarActual hace upsert.
+      unawaited(VaultSesionesLocales().guardarActual(
+        nombreLocal: (row?['nombre_local'] as String?)?.trim(),
+        localUsername: (row?['local_username'] as String?)?.trim(),
+        fotoPerfilUrl: (row?['foto_perfil_url'] as String?)?.trim(),
+      ));
       if (!mounted) return;
       final fotos = [
         row?['foto_local_1'],
@@ -181,6 +206,7 @@ class _LocalesHomeState extends State<LocalesHome> with WidgetsBindingObserver {
         _descripcionLocal = row?['descripcion_local'] as String?;
         _bannerLocalUrl = row?['url_foto_banner'] as String?;
         _cantidadFotosLocal = fotos;
+        _cantidadItemsCarta = (cartaRows as List).length;
         _horariosLocal = parseHorariosLocal(row?['horarios_json']);
         _eventosPublicados = (eventosRows as List).length;
         _localVerificado = localVerificado;
@@ -189,6 +215,7 @@ class _LocalesHomeState extends State<LocalesHome> with WidgetsBindingObserver {
         _pioneroBeneficiosFin = pioneroFin;
         _tipoSuscripcionRaw = tipoRawEfectivo;
         _fechaVencimientoSuscripcion = vencimiento;
+        _ultimaActualizacionCarta = ultimaCarta;
         _cuposDashboard = cupos;
         _cargandoPerfil = false;
       });
@@ -511,6 +538,7 @@ class _LocalesHomeState extends State<LocalesHome> with WidgetsBindingObserver {
     required String label,
     required Widget icon,
     required VoidCallback onTap,
+    VoidCallback? onLongPress,
   }) {
     final selected = _indiceNav == index;
     return Semantics(
@@ -521,6 +549,7 @@ class _LocalesHomeState extends State<LocalesHome> with WidgetsBindingObserver {
         height: 62,
         child: InkWell(
           onTap: onTap,
+          onLongPress: onLongPress,
           borderRadius: BorderRadius.circular(14),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -646,6 +675,9 @@ class _LocalesHomeState extends State<LocalesHome> with WidgetsBindingObserver {
       index: index,
       label: label,
       onTap: () => _seleccionarTab(index),
+      // Hold en el avatar del navbar → switcher de cuentas (estilo Instagram).
+      // El tap sigue navegando a "Mi local" como siempre.
+      onLongPress: () => mostrarSwitcherCuentasLocales(context),
       icon: SizedBox(
         width: _navIconoTam,
         height: _navIconoTam,
@@ -707,6 +739,11 @@ class _LocalesHomeState extends State<LocalesHome> with WidgetsBindingObserver {
         faltantesPerfil.isNotEmpty && !_avisoPerfilOcultoSesion;
     final mostrarAvisoEventos =
         _eventosPublicados == 0 && !_avisoEventosOcultoSesion;
+    final cartaDesactualizada = _cantidadItemsCarta > 0 &&
+        (_ultimaActualizacionCarta == null ||
+            DateTime.now().difference(_ultimaActualizacionCarta!).inDays >= 30);
+    final mostrarAvisoCarta =
+        cartaDesactualizada && !_avisoCartaOcultoSesion;
 
     final atajos = [
       _Atajo(
@@ -786,6 +823,10 @@ class _LocalesHomeState extends State<LocalesHome> with WidgetsBindingObserver {
                               const BotonModoOscuroLocales(),
                             ],
                           ),
+                          const SizedBox(height: 10),
+                          _BotonDropdownCuenta(
+                            onTap: () => mostrarSwitcherCuentasLocales(context),
+                          ),
                         ],
                       ),
                     ),
@@ -823,6 +864,18 @@ class _LocalesHomeState extends State<LocalesHome> with WidgetsBindingObserver {
                             Navigator.pushNamed(context, '/crear_evento'),
                         onCerrar: () {
                           setState(() => _avisoEventosOcultoSesion = true);
+                        },
+                      ),
+                    if (mostrarAvisoCarta)
+                      _AvisoDashboardLocal(
+                        icono: CupertinoIcons.list_bullet,
+                        titulo: 'Tu carta puede vender más',
+                        texto:
+                            'Revisá precios y productos para que tus clientes decidan rápido y Fernecito IA recomiende tu local con datos frescos.',
+                        accion: 'Actualizar carta',
+                        onAccion: () => _seleccionarTab(4),
+                        onCerrar: () {
+                          setState(() => _avisoCartaOcultoSesion = true);
                         },
                       ),
                   ];
@@ -1146,6 +1199,56 @@ class _AvisoDashboardLocal extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Pill chico "Cambiar de cuenta" del dashboard → abre el switcher multi-cuenta.
+class _BotonDropdownCuenta extends StatelessWidget {
+  const _BotonDropdownCuenta({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(20),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(20),
+              color: ColoresLocales.acentoVioleta.withValues(alpha: 0.10),
+              border: Border.all(
+                color: ColoresLocales.acentoVioleta.withValues(alpha: 0.30),
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(CupertinoIcons.arrow_2_squarepath,
+                    size: 15, color: ColoresLocales.acentoVioleta),
+                const SizedBox(width: 7),
+                Text(
+                  'Cambiar de cuenta',
+                  style: GoogleFonts.baloo2(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: ColoresLocales.acentoVioleta,
+                  ),
+                ),
+                const SizedBox(width: 4),
+                Icon(CupertinoIcons.chevron_down,
+                    size: 13, color: ColoresLocales.acentoVioleta),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }

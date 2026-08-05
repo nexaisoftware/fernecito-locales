@@ -59,7 +59,7 @@ class AlcanceFiltroMetricas {
       case AlcanceFiltroTipo.todas:
         return 'Todas las impresiones';
       case AlcanceFiltroTipo.perfil:
-        return 'Mi perfil';
+        return 'Visitas a mi perfil';
       case AlcanceFiltroTipo.evento:
         return etiquetaEvento ?? 'Evento';
     }

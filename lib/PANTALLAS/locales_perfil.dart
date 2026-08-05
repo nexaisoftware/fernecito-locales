@@ -18,6 +18,8 @@ import '../widgets/feedback_locales.dart';
 import '../widgets/recorte_web_safe.dart';
 import '../core/servicio_edges_eventos.dart';
 import '../core/supabase_client.dart';
+import '../core/vault_sesiones_locales.dart';
+import '../core/recarga_cuenta_locales.dart';
 import '../core/navegacion_locales.dart';
 import '../core/suscripcion_locales.dart';
 import '../core/programa_pioneros.dart';
@@ -25,6 +27,7 @@ import '../core/horarios_local.dart';
 import '../widgets/programa_pioneros_ui.dart';
 import '../widgets/badge_megusta_local.dart';
 import '../widgets/badge_plan_suscripcion.dart';
+import '../widgets/asistente_carta_sheet.dart';
 import 'locales_calificaciones.dart';
 
 class LocalesPerfil extends StatefulWidget {
@@ -261,6 +264,658 @@ class _BotonWhatsappEditableLocal extends StatelessWidget {
   }
 }
 
+class _BotonCartaEditableLocal extends StatelessWidget {
+  const _BotonCartaEditableLocal({
+    required this.cantidadItems,
+    required this.onTap,
+  });
+
+  final int cantidadItems;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final tieneCarta = cantidadItems > 0;
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+        decoration: BoxDecoration(
+          color: ColoresMiLocalPerfil.rellenoInput.withValues(alpha: 0.78),
+          borderRadius: BorderRadius.circular(15),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              CupertinoIcons.list_bullet,
+              size: 17,
+              color: tieneCarta
+                  ? const Color(0xFFFFD166)
+                  : ColoresMiLocalPerfil.principalMarca,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    tieneCarta ? 'Carta cargada' : 'Agregar carta con IA',
+                    style: GoogleFonts.baloo2(
+                      color: ColoresMiLocalPerfil.textoPrincipal,
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  Text(
+                    tieneCarta
+                        ? '$cantidadItems items visibles para usuarios e IA'
+                        : 'Precios, promos y productos para aparecer mejor en búsquedas',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.baloo2(
+                      color: ColoresMiLocalPerfil.textoSecundario,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            Icon(
+              CupertinoIcons.chevron_right,
+              size: 17,
+              color: ColoresMiLocalPerfil.textoSecundario,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _BotonVerMiCartaLocal extends StatelessWidget {
+  const _BotonVerMiCartaLocal({
+    required this.cantidadItems,
+    required this.onTap,
+  });
+
+  final int cantidadItems;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: GestureDetector(
+        onTap: onTap,
+        behavior: HitTestBehavior.opaque,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
+          decoration: BoxDecoration(
+            color: const Color(0xFFFFD166).withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(999),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(
+                CupertinoIcons.eye_fill,
+                size: 13,
+                color: Color(0xFFFFD166),
+              ),
+              const SizedBox(width: 6),
+              Text(
+                'Ver mi carta',
+                style: GoogleFonts.baloo2(
+                  color: const Color(0xFFFFD166),
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w900,
+                  height: 1,
+                ),
+              ),
+              const SizedBox(width: 5),
+              Text(
+                '$cantidadItems',
+                style: GoogleFonts.baloo2(
+                  color: ColoresMiLocalPerfil.textoSecundario,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                  height: 1,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+Future<bool?> _mostrarMiCartaLocalSheet({
+  required BuildContext context,
+  required String nombreLocal,
+  required List<CartaItemDraft> items,
+}) {
+  if (items.isEmpty) return Future.value(false);
+  final editables = items.map((e) => e.copia()).toList();
+  var guardando = false;
+
+  Future<void> editarItem(
+    BuildContext ctx,
+    CartaItemDraft item,
+    VoidCallback refresh,
+  ) async {
+    final categoriaCtrl = TextEditingController(text: item.categoria);
+    final nombreCtrl = TextEditingController(text: item.nombre);
+    final precioCtrl = TextEditingController(text: item.precio?.toStringAsFixed(0) ?? '');
+    final descCtrl = TextEditingController(text: item.descripcion);
+    await showCupertinoModalPopup<void>(
+      context: ctx,
+      builder: (_) => CupertinoActionSheet(
+        title: Text(
+          'Editar producto',
+          style: GoogleFonts.baloo2(fontWeight: FontWeight.w900),
+        ),
+        message: Material(
+          color: Colors.transparent,
+          child: Column(
+            children: [
+              _campoEditorCarta(categoriaCtrl, 'Sección / categoría'),
+              const SizedBox(height: 8),
+              _campoEditorCarta(nombreCtrl, 'Nombre del producto'),
+              const SizedBox(height: 8),
+              _campoEditorCarta(
+                precioCtrl,
+                'Precio ARS',
+                keyboard: TextInputType.number,
+              ),
+              const SizedBox(height: 8),
+              _campoEditorCarta(descCtrl, 'Descripción breve', maxLines: 2),
+            ],
+          ),
+        ),
+        actions: [
+          CupertinoActionSheetAction(
+            onPressed: () {
+              final nombre = nombreCtrl.text.trim();
+              final categoria = categoriaCtrl.text.trim();
+              if (nombre.isEmpty || categoria.isEmpty) return;
+              item
+                ..categoria = categoria
+                ..nombre = nombre
+                ..descripcion = descCtrl.text.trim()
+                ..precio = double.tryParse(precioCtrl.text.replaceAll(',', '.'))
+                ..tipoPrecio = precioCtrl.text.trim().isEmpty ? 'consultar' : 'fijo';
+              refresh();
+              Navigator.pop(ctx);
+            },
+            child: const Text('Aplicar'),
+          ),
+        ],
+        cancelButton: CupertinoActionSheetAction(
+          onPressed: () => Navigator.pop(ctx),
+          child: const Text('Cancelar'),
+        ),
+      ),
+    );
+    categoriaCtrl.dispose();
+    nombreCtrl.dispose();
+    precioCtrl.dispose();
+    descCtrl.dispose();
+  }
+
+  Future<void> agregarItem(
+    BuildContext ctx,
+    String categoria,
+    VoidCallback refresh,
+  ) async {
+    final nuevo = CartaItemDraft(categoria: categoria, nombre: '');
+    await editarItem(ctx, nuevo, () {
+      if (nuevo.nombre.trim().isNotEmpty && nuevo.categoria.trim().isNotEmpty) {
+        editables.add(nuevo);
+      }
+      refresh();
+    });
+  }
+
+  Future<void> agregarSeccion(BuildContext ctx, VoidCallback refresh) async {
+    final ctrl = TextEditingController();
+    await showCupertinoDialog<void>(
+      context: ctx,
+      builder: (_) => CupertinoAlertDialog(
+        title: const Text('Agregar sección'),
+        content: Padding(
+          padding: const EdgeInsets.only(top: 10),
+          child: CupertinoTextField(
+            controller: ctrl,
+            placeholder: 'Ej: Meriendas, Tragos, Promos',
+          ),
+        ),
+        actions: [
+          CupertinoDialogAction(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancelar'),
+          ),
+          CupertinoDialogAction(
+            isDefaultAction: true,
+            onPressed: () {
+              final categoria = ctrl.text.trim();
+              if (categoria.isNotEmpty) {
+                editables.add(CartaItemDraft(categoria: categoria, nombre: 'Nuevo producto'));
+                refresh();
+              }
+              Navigator.pop(ctx);
+            },
+            child: const Text('Agregar'),
+          ),
+        ],
+      ),
+    );
+    ctrl.dispose();
+  }
+
+  Future<void> guardar(BuildContext ctx, VoidCallback refresh) async {
+    if (guardando) return;
+    final validos = editables
+        .where((e) => e.nombre.trim().isNotEmpty && e.categoria.trim().isNotEmpty)
+        .map((e) => e.toMap())
+        .toList();
+    if (validos.isEmpty) return;
+    guardando = true;
+    refresh();
+    try {
+      await ServicioEdgesEventos().asistenteCartaLocal(
+        accion: 'guardar',
+        items: validos,
+        origen: 'manual',
+      );
+      if (!ctx.mounted) return;
+      Navigator.of(ctx).pop(true);
+    } catch (e) {
+      guardando = false;
+      refresh();
+      if (!ctx.mounted) return;
+      ScaffoldMessenger.of(ctx).showSnackBar(
+        SnackBar(content: Text('No se pudo guardar la carta: $e')),
+      );
+    }
+  }
+
+  return showModalBottomSheet<bool>(
+    context: context,
+    backgroundColor: Colors.transparent,
+    isScrollControlled: true,
+    useRootNavigator: true,
+    builder: (ctx) {
+      final media = MediaQuery.of(ctx);
+      return StatefulBuilder(
+        builder: (ctx, setModalState) {
+          final grupos = <String, List<CartaItemDraft>>{};
+          for (final item in editables) {
+            final key = item.categoria.trim().isEmpty ? 'Otros' : item.categoria.trim();
+            grupos.putIfAbsent(key, () => <CartaItemDraft>[]).add(item);
+          }
+          void refresh() => setModalState(() {});
+          return SafeArea(
+            top: false,
+            minimum: const EdgeInsets.fromLTRB(10, 10, 10, 10),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(maxHeight: media.size.height * 0.86),
+              child: Container(
+                padding: const EdgeInsets.fromLTRB(18, 16, 18, 14),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF161618),
+                  borderRadius: BorderRadius.circular(24),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          width: 34,
+                          height: 34,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFFD166).withValues(alpha: 0.14),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            CupertinoIcons.list_bullet,
+                            size: 17,
+                            color: Color(0xFFFFD166),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Carta de $nombreLocal',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: GoogleFonts.baloo2(
+                                  color: ColoresMiLocalPerfil.textoPrincipal,
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w900,
+                                  height: 1.05,
+                                ),
+                              ),
+                              Text(
+                                'Tocá un producto para editar nombre, precio o sección',
+                                style: GoogleFonts.baloo2(
+                                  color: ColoresMiLocalPerfil.textoSecundario,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        IconButton(
+                          onPressed: guardando ? null : () => Navigator.pop(ctx, false),
+                          icon: const Icon(CupertinoIcons.xmark),
+                          color: ColoresMiLocalPerfil.textoSecundario,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Flexible(
+                      child: SingleChildScrollView(
+                        physics: const BouncingScrollPhysics(),
+                        padding: EdgeInsets.only(
+                          bottom: media.viewPadding.bottom > 0 ? 8 : 0,
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            for (final entry in grupos.entries) ...[
+                              Padding(
+                                padding: const EdgeInsets.only(top: 8, bottom: 7),
+                                child: Row(
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        entry.key,
+                                        style: GoogleFonts.baloo2(
+                                          color: const Color(0xFFFFD166),
+                                          fontSize: 15,
+                                          fontWeight: FontWeight.w900,
+                                        ),
+                                      ),
+                                    ),
+                                    GestureDetector(
+                                      onTap: guardando
+                                          ? null
+                                          : () => agregarItem(ctx, entry.key, refresh),
+                                      child: Text(
+                                        'Agregar ítem',
+                                        style: GoogleFonts.baloo2(
+                                          color: ColoresMiLocalPerfil.principalMarca,
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w900,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              for (final item in entry.value)
+                                _MiCartaLocalItemTile(
+                                  item: item,
+                                  onTap: () => editarItem(ctx, item, refresh),
+                                  onDelete: () {
+                                    editables.remove(item);
+                                    refresh();
+                                  },
+                                ),
+                            ],
+                            const SizedBox(height: 8),
+                            _BotonMiniCarta(
+                              texto: 'Agregar sección',
+                              icono: CupertinoIcons.plus_circle,
+                              onTap: guardando ? null : () => agregarSeccion(ctx, refresh),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _BotonMiniCarta(
+                            texto: 'Editar con IA',
+                            icono: CupertinoIcons.sparkles,
+                            onTap: guardando
+                                ? null
+                                : () {
+                                    Navigator.pop(ctx, false);
+                                    abrirAsistenteCartaLocal(
+                                      context,
+                                      cartaItemsPrevios: editables.length,
+                                    );
+                                  },
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: _BotonMiniCarta(
+                            texto: guardando ? 'Guardando...' : 'Guardar cambios',
+                            icono: CupertinoIcons.checkmark_circle_fill,
+                            primario: true,
+                            onTap: guardando ? null : () => guardar(ctx, refresh),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      );
+    },
+  );
+}
+
+class _MiCartaLocalItemTile extends StatelessWidget {
+  const _MiCartaLocalItemTile({
+    required this.item,
+    required this.onTap,
+    required this.onDelete,
+  });
+
+  final CartaItemDraft item;
+  final VoidCallback onTap;
+  final VoidCallback onDelete;
+
+  String _precio() {
+    final precio = item.precio;
+    if (precio == null) return 'Consultar';
+    final p = precio.round().toString();
+    if (item.tipoPrecio == 'desde') return 'Desde \$$p';
+    if (item.tipoPrecio == 'rango' && item.precioHasta != null) {
+      return '\$$p - \$${item.precioHasta!.round()}';
+    }
+    if (item.tipoPrecio == 'aproximado') return '~\$$p';
+    return '\$$p';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: const Color(0xFF202024),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        item.nombre,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.baloo2(
+                          color: ColoresMiLocalPerfil.textoPrincipal,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w900,
+                          height: 1.05,
+                        ),
+                      ),
+                    ),
+                    if (item.destacado) ...[
+                      const SizedBox(width: 5),
+                      const Icon(
+                        CupertinoIcons.star_fill,
+                        size: 12,
+                        color: Color(0xFFFFD166),
+                      ),
+                    ],
+                  ],
+                ),
+                if (item.descripcion.trim().isNotEmpty) ...[
+                  const SizedBox(height: 3),
+                  Text(
+                    item.descripcion,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.baloo2(
+                      color: ColoresMiLocalPerfil.textoSecundario,
+                      fontSize: 12,
+                      height: 1.15,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                _precio(),
+                style: GoogleFonts.baloo2(
+                  color: const Color(0xFFFFD166),
+                  fontSize: 13,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(height: 7),
+              GestureDetector(
+                onTap: onDelete,
+                child: Icon(
+                  CupertinoIcons.trash,
+                  size: 15,
+                  color: Colors.white.withValues(alpha: 0.42),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+      ),
+    );
+  }
+}
+
+Widget _campoEditorCarta(
+  TextEditingController ctrl,
+  String hint, {
+  int maxLines = 1,
+  TextInputType? keyboard,
+}) {
+  return CupertinoTextField(
+    controller: ctrl,
+    maxLines: maxLines,
+    keyboardType: keyboard,
+    placeholder: hint,
+    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+    decoration: BoxDecoration(
+      color: ColoresLocales.superficieElevada,
+      borderRadius: BorderRadius.circular(12),
+    ),
+    style: GoogleFonts.baloo2(
+      color: ColoresLocales.textoOnFondoClaro,
+      fontWeight: FontWeight.w700,
+    ),
+    placeholderStyle: GoogleFonts.baloo2(
+      color: ColoresLocales.textoSecundarioOnFondoClaro,
+    ),
+  );
+}
+
+class _BotonMiniCarta extends StatelessWidget {
+  const _BotonMiniCarta({
+    required this.texto,
+    required this.icono,
+    required this.onTap,
+    this.primario = false,
+  });
+
+  final String texto;
+  final IconData icono;
+  final VoidCallback? onTap;
+  final bool primario;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = primario ? const Color(0xFFFFD166) : const Color(0xFF2A2A30);
+    final textoColor = primario ? const Color(0xFF211700) : Colors.white;
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedOpacity(
+        duration: const Duration(milliseconds: 160),
+        opacity: onTap == null ? 0.55 : 1,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.circular(15),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icono, size: 15, color: textoColor),
+              const SizedBox(width: 7),
+              Flexible(
+                child: Text(
+                  texto,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.baloo2(
+                    color: textoColor,
+                    fontSize: 12.6,
+                    fontWeight: FontWeight.w900,
+                    height: 1,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _OverlayPickerHora extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
@@ -299,11 +954,15 @@ class _LocalesPerfilState extends State<LocalesPerfil> {
   String? _urlWebsite;
   String? _telefonoWhatsapp;
   String? _whatsappLabel;
-  final List<String?> _fotosLocal =
-      List<String?>.filled(_maxFotosLocales, null);
+  final List<String?> _fotosLocal = List<String?>.filled(
+    _maxFotosLocales,
+    null,
+  );
   double? _calificacion;
   int _calificacionCantidad = 0;
   int _cantidadMegusta = 0;
+  int _cantidadItemsCarta = 0;
+  List<CartaItemDraft> _itemsCarta = [];
   bool _localVerificado = false;
   String? _ciudad;
   String? _provincia;
@@ -448,6 +1107,22 @@ class _LocalesPerfilState extends State<LocalesPerfil> {
       final estadoSuscripcion = await SuscripcionLocales.cargarEstadoCompleto(
         uid,
       );
+      final cartaRaw = await ServicioSupabase().cliente
+          .from('locales_carta_items')
+          .select(
+            'categoria, nombre, descripcion, precio, precio_hasta, moneda, tipo_precio, tags, destacado, confidence',
+          )
+          .eq('id_local', uid)
+          .eq('activo', true)
+          .order('categoria')
+          .order('orden')
+          .limit(100);
+      final itemsCarta = cartaRaw
+          .whereType<Map>()
+          .map((e) => CartaItemDraft.fromMap(Map<String, dynamic>.from(e)))
+          .where((e) => e.nombre.trim().isNotEmpty)
+          .toList();
+      final cantidadItemsCarta = itemsCarta.length;
       if (!mounted) return;
       setState(() {
         _nombreLocal = row?['nombre_local'] as String?;
@@ -474,6 +1149,8 @@ class _LocalesPerfilState extends State<LocalesPerfil> {
         _cantidadMegusta = mg is int
             ? mg
             : (mg != null ? int.tryParse(mg.toString()) ?? 0 : 0);
+        _cantidadItemsCarta = cantidadItemsCarta;
+        _itemsCarta = itemsCarta;
         if (_calificacion != null && _calificacion! <= 0) _calificacion = null;
         _localVerificado = row?['local_verificado'] as bool? ?? false;
         _ciudad = row?['ciudad'] as String?;
@@ -494,6 +1171,30 @@ class _LocalesPerfilState extends State<LocalesPerfil> {
         setState(() => _cargando = false);
         _mostrarError('No se pudo cargar el perfil: $e');
       }
+    }
+  }
+
+  Future<void> _abrirAsistenteCarta() async {
+    final guardo = await abrirAsistenteCartaLocal(
+      context,
+      cartaItemsPrevios: _cantidadItemsCarta,
+    );
+    if (guardo == true) {
+      await _cargarPerfil();
+    }
+  }
+
+  Future<void> _verMiCarta() async {
+    final guardo = await _mostrarMiCartaLocalSheet(
+      context: context,
+      nombreLocal: (_nombreLocal ?? 'tu local').trim().isEmpty
+          ? 'tu local'
+          : _nombreLocal!.trim(),
+      items: _itemsCarta,
+    );
+    if (guardo == true) {
+      await _cargarPerfil();
+      if (mounted) _mostrarExito('Carta actualizada');
     }
   }
 
@@ -629,7 +1330,9 @@ class _LocalesPerfilState extends State<LocalesPerfil> {
     if (paths.isEmpty) return;
 
     try {
-      await ServicioSupabase().cliente.storage.from(bucket).remove(paths.toList());
+      await ServicioSupabase().cliente.storage
+          .from(bucket)
+          .remove(paths.toList());
     } catch (_) {
       // No bloquear el reemplazo si el borrado falla (CDN/policy).
     }
@@ -658,7 +1361,9 @@ class _LocalesPerfilState extends State<LocalesPerfil> {
             contentType: comprimida.contentType,
           ),
         );
-    final url = ServicioSupabase().cliente.storage.from(bucket).getPublicUrl(path);
+    final url = ServicioSupabase().cliente.storage
+        .from(bucket)
+        .getPublicUrl(path);
     return (url: url, path: path);
   }
 
@@ -784,12 +1489,34 @@ class _LocalesPerfilState extends State<LocalesPerfil> {
       await ServicioEdgesEventos().eliminarCuentaLocal();
       if (!mounted) return;
       Navigator.of(context, rootNavigator: true).pop();
-      await Supabase.instance.client.auth.signOut();
+      // Sacar del vault la cuenta eliminada y saltar a otra (o al login).
+      await _salirCuentaActual();
     } catch (e) {
       if (!mounted) return;
       Navigator.of(context, rootNavigator: true).pop();
       _mostrarError('No se pudo eliminar tu cuenta: $e');
     }
+  }
+
+  /// Cierra sesión de la cuenta ACTUAL: la saca del vault multi-cuenta y, si hay
+  /// otra guardada, salta a ella (sin login) forzando el remount de la UI.
+  /// Si no queda ninguna usable, sale al login.
+  Future<void> _salirCuentaActual() async {
+    final vault = VaultSesionesLocales();
+    final actual = vault.uidActivo;
+    if (actual != null) await vault.quitar(actual);
+
+    // Probar cuentas restantes hasta encontrar una con sesión viva.
+    for (final c in await vault.listar()) {
+      final res = await vault.cambiarA(c.uid);
+      if (res == ResultadoCambioCuenta.ok) {
+        // Clave: forzar splash + remount (si no, la UI queda con la cuenta vieja).
+        await recargarAppTrasCambioCuenta();
+        return;
+      }
+    }
+    // Sin otra cuenta usable → cierre normal (el AuthGate va al login).
+    await Supabase.instance.client.auth.signOut();
   }
 
   Future<void> _mostrarRecordatorioMaps() async {
@@ -2525,6 +3252,18 @@ class _LocalesPerfilState extends State<LocalesPerfil> {
                                 estado: estadoHorarioLocal(_horarios),
                                 onTap: _editarHorarios,
                               ),
+                              const SizedBox(height: 9),
+                              _BotonCartaEditableLocal(
+                                cantidadItems: _cantidadItemsCarta,
+                                onTap: _abrirAsistenteCarta,
+                              ),
+                              if (_cantidadItemsCarta > 0) ...[
+                                const SizedBox(height: 7),
+                                _BotonVerMiCartaLocal(
+                                  cantidadItems: _cantidadItemsCarta,
+                                  onTap: _verMiCarta,
+                                ),
+                              ],
                             ],
                           ),
                         ),
@@ -2672,9 +3411,7 @@ class _LocalesPerfilState extends State<LocalesPerfil> {
                     onCambiarContrasena: () =>
                         Navigator.pushNamed(context, '/cambiar_contrasena'),
                     onEliminarCuenta: _eliminarCuenta,
-                    onCerrarSesion: () async {
-                      await Supabase.instance.client.auth.signOut();
-                    },
+                    onCerrarSesion: _salirCuentaActual,
                   ),
                 ),
               ),

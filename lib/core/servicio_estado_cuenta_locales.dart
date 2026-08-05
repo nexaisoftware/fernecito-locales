@@ -10,6 +10,7 @@ import 'motivos_pausa_cuenta.dart';
 const Set<String> rutasPermitidasCuentaSuspendida = {
   '/cuenta_bloqueada',
   '/soporte',
+  '/recargar_cuenta',
 };
 
 class ServicioEstadoCuentaLocales extends ChangeNotifier {

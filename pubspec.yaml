@@ -50,6 +50,8 @@ dependencies:
   share_plus: ^12.0.2
   file_picker: ^11.0.2
   shared_preferences: ^2.3.2
+  # Vault de sesiones para multi-cuenta (Keychain/Keystore en nativo, localStorage en web)
+  flutter_secure_storage: ^9.2.2
   path_provider: ^2.1.4
   mobile_scanner: ^7.2.0
   qr_flutter: ^4.1.0
