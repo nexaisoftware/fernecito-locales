@@ -22,6 +22,8 @@ import '../PANTALLAS/locales_notificaciones.dart';
 import '../PANTALLAS/locales_perfil.dart';
 import '../PANTALLAS/locales_perfil_clientes.dart';
 import '../PANTALLAS/locales_cambiar_contrasena.dart';
+import '../PANTALLAS/locales_plan_dashboard.dart';
+import '../PANTALLAS/locales_planes.dart';
 import '../PANTALLAS/locales_soporte.dart';
 import '../PANTALLAS/locales_staff.dart';
 import '../PANTALLAS/locales_staff_actividad.dart';
@@ -89,6 +91,16 @@ Map<String, WidgetBuilder> rutasLocales() => {
       '/staff_actividad': (context) => const LocalesStaffActividad(),
       '/staff_mi_cuenta': (context) => const LocalesStaffMiCuenta(),
       '/metricas': (context) => const LocalesMetricas(),
+      '/planes': (context) => const LocalesPlanes(),
+      '/planes/detalle': (context) {
+        final args = ModalRoute.of(context)?.settings.arguments;
+        final id = args is String
+            ? args
+            : (args is Map && args['id_plan'] != null
+                ? args['id_plan'].toString()
+                : '');
+        return LocalesPlanDashboard(idPlan: id);
+      },
       '/staff': (context) => const LocalesStaff(),
       '/calificaciones': (context) => const LocalesCalificaciones(),
       '/perfil_clientes': (context) => const LocalesPerfilClientes(),

@@ -776,6 +776,12 @@ class _LocalesHomeState extends State<LocalesHome> with WidgetsBindingObserver {
         icon: CupertinoIcons.person_2_fill,
         subtitulo: 'Gestioná tu equipo, permisos y quién hace qué en el local.',
       ),
+      _Atajo(
+        titulo: 'Planes',
+        icon: CupertinoIcons.calendar,
+        subtitulo:
+            'Planes armados en tu local: proponé beneficios, aceptá pedidos y chateá con el grupo.',
+      ),
     ];
 
     return RefreshIndicator(
@@ -1066,6 +1072,10 @@ class _LocalesHomeState extends State<LocalesHome> with WidgetsBindingObserver {
     }
     if (a.titulo == 'Mi staff') {
       Navigator.pushNamed(context, '/staff');
+      return;
+    }
+    if (a.titulo == 'Planes') {
+      Navigator.pushNamed(context, '/planes');
       return;
     }
   }

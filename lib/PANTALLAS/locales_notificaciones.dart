@@ -123,7 +123,7 @@ class _LocalesNotificacionesState extends State<LocalesNotificaciones> {
     try {
       NavegacionLocales.pushNamed(
         destino.ruta,
-        arguments: destino.pestana,
+        arguments: destino.argumentos ?? destino.pestana,
       );
     } catch (e) {
       debugPrint('⚠️ pushNamed ${destino.ruta}: $e');
@@ -131,7 +131,9 @@ class _LocalesNotificacionesState extends State<LocalesNotificaciones> {
   }
 
   /// Resuelve CTA de notificaciones legacy (/mi_cuenta, rutas typo) y pagos.
-  ({String ruta, int? pestana}) _destinoNotificacion(Notificacion n) {
+  ({String ruta, int? pestana, Object? argumentos}) _destinoNotificacion(
+    Notificacion n,
+  ) {
     const rutaSubs = '/administrar_subscripciones';
 
     int? pestanaPorTipo(String tipo) => switch (tipo) {
@@ -140,21 +142,36 @@ class _LocalesNotificacionesState extends State<LocalesNotificaciones> {
       _ => null,
     };
 
+    final idPlan = (n.ctaIdRef ?? n.payload?['id_plan']?.toString() ?? '')
+        .trim();
+    if (n.tipo == 'plan_pedido_local' ||
+        n.tipo == 'plan_pedido_respuesta' ||
+        (n.ctaRuta ?? '').contains('planes')) {
+      if (idPlan.isNotEmpty) {
+        return (ruta: '/planes/detalle', pestana: null, argumentos: idPlan);
+      }
+      return (ruta: '/planes', pestana: null, argumentos: null);
+    }
+
     final pestanaTipo = pestanaPorTipo(n.tipo);
     if (pestanaTipo != null) {
-      return (ruta: rutaSubs, pestana: pestanaTipo);
+      return (ruta: rutaSubs, pestana: pestanaTipo, argumentos: pestanaTipo);
     }
 
     final ruta = (n.ctaRuta ?? '').trim();
-    if (ruta.isEmpty) return (ruta: '', pestana: null);
+    if (ruta.isEmpty) return (ruta: '', pestana: null, argumentos: null);
 
     if (ruta == rutaSubs ||
         ruta == '/administrar_suscripciones' ||
         ruta == '/mi_cuenta') {
-      return (ruta: rutaSubs, pestana: pestanaTipo ?? 1);
+      return (
+        ruta: rutaSubs,
+        pestana: pestanaTipo ?? 1,
+        argumentos: pestanaTipo ?? 1,
+      );
     }
 
-    return (ruta: ruta, pestana: null);
+    return (ruta: ruta, pestana: null, argumentos: null);
   }
 
   int get _sinLeer => _notifs.where((n) => !n.leida).length;
