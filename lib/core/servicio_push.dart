@@ -8,10 +8,12 @@ library;
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'config_push_web.dart';
+import 'navigator_key_locales.dart';
 import 'push_web_helper.dart';
 
 class ServicioPush {
@@ -21,6 +23,7 @@ class ServicioPush {
   static const String _app = 'locales';
 
   bool _inicializado = false;
+  bool _reintentandoNavegacion = false;
   String? _ultimoTokenRegistrado;
 
   bool get soportado =>
@@ -48,6 +51,57 @@ class ServicioPush {
         );
       }
     });
+
+    FirebaseMessaging.onMessageOpenedApp.listen((msg) {
+      unawaited(_navegarDesdePush(msg));
+    });
+    unawaited(_procesarMensajeInicial());
+  }
+
+  Future<void> _procesarMensajeInicial() async {
+    try {
+      final msg = await FirebaseMessaging.instance.getInitialMessage();
+      if (msg != null) await _navegarDesdePush(msg);
+    } catch (e) {
+      debugPrint('⚠️ mensaje push inicial locales: $e');
+    }
+  }
+
+  /// Abre el detalle del plan y, cuando el payload indica `chat`, continúa
+  /// automáticamente al chat. Si el navigator todavía no está montado (caso
+  /// habitual de `getInitialMessage` durante el arranque), se reintenta en el
+  /// primer frame; sin navigator global no hay una ruta segura que empujar.
+  Future<void> _navegarDesdePush(RemoteMessage message) async {
+    final data = message.data;
+    final idPlan = data['id_plan']?.toString().trim() ?? '';
+    if (idPlan.isEmpty) return;
+    final accion = (data['accion'] ?? data['cta'] ?? '')
+        .toString()
+        .trim()
+        .toLowerCase();
+    final navigator = navigatorKeyLocales.currentState;
+    if (navigator == null) {
+      if (_reintentandoNavegacion) {
+        debugPrint(
+          'ℹ️ Push de plan recibido antes de montar navigatorKeyLocales; '
+          'se omite la navegación.',
+        );
+        return;
+      }
+      _reintentandoNavegacion = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _reintentandoNavegacion = false;
+        unawaited(_navegarDesdePush(message));
+      });
+      return;
+    }
+    await navigator.pushNamed(
+      '/planes/detalle',
+      arguments: <String, dynamic>{
+        'id_plan': idPlan,
+        if (accion == 'chat') 'accion': 'chat',
+      },
+    );
   }
 
   /// Pide permiso (Android 13+/iOS/PWA) y registra el token del local actual.
@@ -60,7 +114,9 @@ class ServicioPush {
         badge: true,
         sound: true,
       );
-      debugPrint('🔔 Permiso push locales: ${settings.authorizationStatus.name}');
+      debugPrint(
+        '🔔 Permiso push locales: ${settings.authorizationStatus.name}',
+      );
       if (settings.authorizationStatus == AuthorizationStatus.denied) {
         return false;
       }
@@ -81,8 +137,8 @@ class ServicioPush {
   Future<bool> tienePermiso() async {
     if (!soportado) return false;
     try {
-      final settings =
-          await FirebaseMessaging.instance.getNotificationSettings();
+      final settings = await FirebaseMessaging.instance
+          .getNotificationSettings();
       return settings.authorizationStatus == AuthorizationStatus.authorized ||
           settings.authorizationStatus == AuthorizationStatus.provisional;
     } catch (_) {

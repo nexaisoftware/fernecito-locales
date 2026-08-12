@@ -11,7 +11,7 @@ import 'servicio_staff_locales.dart';
 import 'servicio_estado_cuenta_locales.dart';
 import 'vault_sesiones_locales.dart';
 import 'recarga_cuenta_locales.dart';
-final GlobalKey<NavigatorState> navigatorKeyLocales = GlobalKey<NavigatorState>();
+import 'navigator_key_locales.dart';
 
 const String _tablaPerfilesLocales = 'perfiles_locales';
 
@@ -42,51 +42,48 @@ class _AuthGateLocalesState extends State<AuthGateLocales> {
   }
 
   void _setupAuthListener() {
-    _authSubscription = Supabase.instance.client.auth.onAuthStateChange.listen(
-      (data) {
-        final event = data.event;
-        final session = data.session;
-        if (!mounted) return;
+    _authSubscription = Supabase.instance.client.auth.onAuthStateChange.listen((
+      data,
+    ) {
+      final event = data.event;
+      final session = data.session;
+      if (!mounted) return;
 
-        switch (event) {
-          case AuthChangeEvent.initialSession:
-            if (session != null) {
-              unawaited(ServicioPush.instancia.sincronizarSiAutorizado());
-              // Snapshotear la cuenta ya logueada (sesión restaurada) en el
-              // vault: sin esto el switcher sale vacío en la cuenta principal.
-              if (!ModoAppLocales.instancia.esStaff) {
-                unawaited(VaultSesionesLocales().guardarActual());
-              }
+      switch (event) {
+        case AuthChangeEvent.initialSession:
+          if (session != null) {
+            unawaited(ServicioPush.instancia.sincronizarSiAutorizado());
+            // Snapshotear la cuenta ya logueada (sesión restaurada) en el
+            // vault: sin esto el switcher sale vacío en la cuenta principal.
+            if (!ModoAppLocales.instancia.esStaff) {
+              unawaited(VaultSesionesLocales().guardarActual());
             }
-            break;
-          case AuthChangeEvent.signedIn:
-            _handleSignedIn(session);
-            break;
-          case AuthChangeEvent.signedOut:
-            _handleSignedOut();
-            break;
-          case AuthChangeEvent.tokenRefreshed:
-            // Re-guardar el refresh token rotado de la cuenta activa en el vault
-            // para que no se venza al cambiar de cuenta más tarde.
-            unawaited(VaultSesionesLocales().actualizarTokenActivo());
-            // Algunos flujos de setSession emiten tokenRefreshed en vez de
-            // signedIn: si cambió el uid, ruteamos igual.
-            final uid = session?.user.id;
-            if (uid != null &&
-                _lastUserId != null &&
-                uid != _lastUserId) {
-              unawaited(_handleSignedIn(session));
-            }
-            break;
-          case AuthChangeEvent.passwordRecovery:
-            _handlePasswordRecovery();
-            break;
-          default:
-            break;
-        }
-      },
-      onError: (error) => print('❌ AuthGateLocales: $error'),
-    );
+          }
+          break;
+        case AuthChangeEvent.signedIn:
+          _handleSignedIn(session);
+          break;
+        case AuthChangeEvent.signedOut:
+          _handleSignedOut();
+          break;
+        case AuthChangeEvent.tokenRefreshed:
+          // Re-guardar el refresh token rotado de la cuenta activa en el vault
+          // para que no se venza al cambiar de cuenta más tarde.
+          unawaited(VaultSesionesLocales().actualizarTokenActivo());
+          // Algunos flujos de setSession emiten tokenRefreshed en vez de
+          // signedIn: si cambió el uid, ruteamos igual.
+          final uid = session?.user.id;
+          if (uid != null && _lastUserId != null && uid != _lastUserId) {
+            unawaited(_handleSignedIn(session));
+          }
+          break;
+        case AuthChangeEvent.passwordRecovery:
+          _handlePasswordRecovery();
+          break;
+        default:
+          break;
+      }
+    }, onError: (error) => print('❌ AuthGateLocales: $error'));
   }
 
   Future<void> _handleSignedIn(Session? session) async {
@@ -121,7 +118,8 @@ class _AuthGateLocalesState extends State<AuthGateLocales> {
     }
 
     try {
-      final suspendida = await ServicioEstadoCuentaLocales.instancia.refrescar();
+      final suspendida = await ServicioEstadoCuentaLocales.instancia
+          .refrescar();
       if (!mounted) return;
 
       if (suspendida) {
@@ -138,7 +136,8 @@ class _AuthGateLocalesState extends State<AuthGateLocales> {
       if (!mounted) return;
 
       final nombreLocal = (respuesta?['nombre_local'] as String?)?.trim();
-      final perfilCompleto = respuesta?['perfil_local_completo'] == true ||
+      final perfilCompleto =
+          respuesta?['perfil_local_completo'] == true ||
           (nombreLocal ?? '').isNotEmpty;
 
       // Multi-cuenta: snapshotear esta cuenta (dueño) en el vault de sesiones.

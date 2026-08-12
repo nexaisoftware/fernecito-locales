@@ -92,7 +92,11 @@ class _LocalesNotificacionesState extends State<LocalesNotificaciones> {
     // Optimista: actualizamos UI primero
     setState(() {
       final idx = _notifs.indexWhere((x) => x.id == n.id);
-      if (idx >= 0) _notifs[idx] = n.copyWith(leida: true, fechaLectura: DateTime.now().toUtc());
+      if (idx >= 0)
+        _notifs[idx] = n.copyWith(
+          leida: true,
+          fechaLectura: DateTime.now().toUtc(),
+        );
     });
     _servicio.sincronizarDesdeLista(_notifs);
     final ok = await _servicio.marcarLeida(n.id);
@@ -144,6 +148,20 @@ class _LocalesNotificacionesState extends State<LocalesNotificaciones> {
 
     final idPlan = (n.ctaIdRef ?? n.payload?['id_plan']?.toString() ?? '')
         .trim();
+    final accion = (n.payload?['accion'] ?? n.payload?['cta'] ?? '')
+        .toString()
+        .trim()
+        .toLowerCase();
+    if (n.tipo == 'plan_mencion' && accion == 'chat') {
+      if (idPlan.isNotEmpty) {
+        return (
+          ruta: '/planes/detalle',
+          pestana: null,
+          argumentos: <String, dynamic>{'id_plan': idPlan, 'accion': 'chat'},
+        );
+      }
+      return (ruta: '/planes', pestana: null, argumentos: null);
+    }
     if (n.tipo == 'plan_pedido_local' ||
         n.tipo == 'plan_pedido_respuesta' ||
         n.tipo == 'plan_mencion' ||
@@ -493,7 +511,9 @@ class _CardNotif extends StatelessWidget {
                             notif.titulo,
                             style: GoogleFonts.baloo2(
                               fontSize: 14,
-                              fontWeight: leida ? FontWeight.w600 : FontWeight.w900,
+                              fontWeight: leida
+                                  ? FontWeight.w600
+                                  : FontWeight.w900,
                               color: leida
                                   ? ColoresLocales.textoSecundarioOnFondoClaro
                                   : ColoresLocales.textoOnFondoClaro,
@@ -534,17 +554,22 @@ class _CardNotif extends StatelessWidget {
                           notif.fechaRelativa,
                           style: GoogleFonts.baloo2(
                             fontSize: 11,
-                            color: ColoresLocales.textoSecundarioOnFondoClaro.withOpacity(0.6),
+                            color: ColoresLocales.textoSecundarioOnFondoClaro
+                                .withOpacity(0.6),
                           ),
                         ),
                         Spacer(),
-                        if (notif.ctaTexto != null && notif.ctaTexto!.isNotEmpty)
+                        if (notif.ctaTexto != null &&
+                            notif.ctaTexto!.isNotEmpty)
                           CupertinoButton(
                             padding: EdgeInsets.zero,
                             onPressed: onBoton,
                             minimumSize: Size(0, 0),
                             child: Container(
-                              padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                              padding: EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 6,
+                              ),
                               decoration: BoxDecoration(
                                 color: leida
                                     ? colorAccent.withValues(alpha: 0.1)
@@ -557,7 +582,8 @@ class _CardNotif extends StatelessWidget {
                                   fontSize: 12,
                                   fontWeight: FontWeight.w700,
                                   color: leida
-                                      ? ColoresLocales.textoSecundarioOnFondoClaro
+                                      ? ColoresLocales
+                                            .textoSecundarioOnFondoClaro
                                       : colorBotonTexto,
                                 ),
                               ),

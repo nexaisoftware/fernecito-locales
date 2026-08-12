@@ -1,5 +1,7 @@
 library;
 
+import 'dart:async';
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -23,6 +25,8 @@ class _LocalesPlanesState extends State<LocalesPlanes> {
   bool _cargando = true;
   bool _cargandoMas = false;
   bool _hayMas = false;
+  String _query = '';
+  Timer? _busquedaDebounce;
   String? _error;
 
   @override
@@ -31,14 +35,21 @@ class _LocalesPlanesState extends State<LocalesPlanes> {
     _cargar();
   }
 
-  Future<void> _cargar({bool silent = false}) async {
+  @override
+  void dispose() {
+    _busquedaDebounce?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _cargar({bool silent = false, String? query}) async {
+    final q = query ?? _query;
     if (!silent) {
       setState(() {
         _cargando = true;
         _error = null;
       });
     }
-    final res = await _srv.hub();
+    final res = await _srv.hub(q: q);
     if (!mounted) return;
     setState(() {
       _items = res.items;
@@ -51,7 +62,7 @@ class _LocalesPlanesState extends State<LocalesPlanes> {
   Future<void> _cargarMas() async {
     if (_cargandoMas || !_hayMas) return;
     setState(() => _cargandoMas = true);
-    final res = await _srv.hub(offset: _items.length);
+    final res = await _srv.hub(offset: _items.length, q: _query);
     if (!mounted) return;
     setState(() {
       _items = [..._items, ...res.items];
@@ -63,10 +74,7 @@ class _LocalesPlanesState extends State<LocalesPlanes> {
   Future<void> _abrir(PlanLocalItem plan) async {
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
-        settings: RouteSettings(
-          name: '/planes/detalle',
-          arguments: plan.id,
-        ),
+        settings: RouteSettings(name: '/planes/detalle', arguments: plan.id),
         builder: (_) => LocalesPlanDashboard(idPlan: plan.id, inicial: plan),
       ),
     );
@@ -104,6 +112,52 @@ class _LocalesPlanesState extends State<LocalesPlanes> {
             fontSize: 22,
           ),
         ),
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(58),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+            child: TextField(
+              onChanged: (value) {
+                setState(() => _query = value);
+                _busquedaDebounce?.cancel();
+                _busquedaDebounce = Timer(
+                  const Duration(milliseconds: 350),
+                  () {
+                    if (mounted) _cargar();
+                  },
+                );
+              },
+              onSubmitted: (_) => _cargar(),
+              style: GoogleFonts.baloo2(
+                color: ColoresLocales.textoOnFondoClaro,
+                fontWeight: FontWeight.w600,
+              ),
+              decoration: InputDecoration(
+                hintText: 'Buscar planes',
+                prefixIcon: Icon(
+                  CupertinoIcons.search,
+                  color: ColoresLocales.textoSecundarioOnFondoClaro,
+                ),
+                suffixIcon: _query.isEmpty
+                    ? null
+                    : IconButton(
+                        onPressed: () {
+                          setState(() => _query = '');
+                          _busquedaDebounce?.cancel();
+                          _cargar();
+                        },
+                        icon: const Icon(CupertinoIcons.xmark_circle_fill),
+                      ),
+                filled: true,
+                fillColor: ColoresLocales.superficieElevada,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+            ),
+          ),
+        ),
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _crearPlan,
@@ -127,126 +181,123 @@ class _LocalesPlanesState extends State<LocalesPlanes> {
                 ],
               )
             : _error != null && _items.isEmpty
-                ? ListView(
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    padding: const EdgeInsets.all(24),
-                    children: [
-                      const SizedBox(height: 80),
-                      Icon(
-                        CupertinoIcons.exclamationmark_triangle,
-                        size: 42,
-                        color: ColoresLocales.textoSecundarioOnFondoClaro,
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        'No se pudieron cargar los planes.',
-                        textAlign: TextAlign.center,
+            ? ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.all(24),
+                children: [
+                  const SizedBox(height: 80),
+                  Icon(
+                    CupertinoIcons.exclamationmark_triangle,
+                    size: 42,
+                    color: ColoresLocales.textoSecundarioOnFondoClaro,
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    'No se pudieron cargar los planes.',
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.baloo2(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: ColoresLocales.textoOnFondoClaro,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Center(
+                    child: TextButton(
+                      onPressed: _cargar,
+                      child: Text(
+                        'Reintentar',
                         style: GoogleFonts.baloo2(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
-                          color: ColoresLocales.textoOnFondoClaro,
+                          fontWeight: FontWeight.w800,
+                          color: ColoresLocales.acentoVioleta,
                         ),
                       ),
-                      const SizedBox(height: 16),
-                      Center(
-                        child: TextButton(
-                          onPressed: _cargar,
-                          child: Text(
-                            'Reintentar',
-                            style: GoogleFonts.baloo2(
-                              fontWeight: FontWeight.w800,
-                              color: ColoresLocales.acentoVioleta,
-                            ),
-                          ),
-                        ),
+                    ),
+                  ),
+                ],
+              )
+            : _items.isEmpty
+            ? ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.all(28),
+                children: [
+                  const SizedBox(height: 72),
+                  Icon(
+                    CupertinoIcons.calendar,
+                    size: 48,
+                    color: ColoresLocales.acentoVioleta,
+                  ),
+                  const SizedBox(height: 14),
+                  Text(
+                    'Todavía no hay planes en tu local',
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.baloo2(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w800,
+                      color: ColoresLocales.textoOnFondoClaro,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Cuando un grupo arme uno, o creá el tuyo.',
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.baloo2(
+                      fontSize: 14,
+                      height: 1.25,
+                      fontWeight: FontWeight.w500,
+                      color: ColoresLocales.textoSecundarioOnFondoClaro,
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  Center(
+                    child: FilledButton(
+                      onPressed: _crearPlan,
+                      style: FilledButton.styleFrom(
+                        backgroundColor: ColoresLocales.acentoVioletaMarca,
+                        foregroundColor: Colors.white,
                       ),
-                    ],
-                  )
-                : _items.isEmpty
-                    ? ListView(
-                        physics: const AlwaysScrollableScrollPhysics(),
-                        padding: const EdgeInsets.all(28),
-                        children: [
-                          const SizedBox(height: 72),
-                          Icon(
-                            CupertinoIcons.calendar,
-                            size: 48,
-                            color: ColoresLocales.acentoVioleta,
-                          ),
-                          const SizedBox(height: 14),
-                          Text(
-                            'Todavía no hay planes en tu local',
-                            textAlign: TextAlign.center,
-                            style: GoogleFonts.baloo2(
-                              fontSize: 20,
-                              fontWeight: FontWeight.w800,
-                              color: ColoresLocales.textoOnFondoClaro,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            'Cuando un grupo arme uno, o creá el tuyo.',
-                            textAlign: TextAlign.center,
-                            style: GoogleFonts.baloo2(
-                              fontSize: 14,
-                              height: 1.25,
-                              fontWeight: FontWeight.w500,
-                              color: ColoresLocales.textoSecundarioOnFondoClaro,
-                            ),
-                          ),
-                          const SizedBox(height: 18),
-                          Center(
-                            child: FilledButton(
-                              onPressed: _crearPlan,
-                              style: FilledButton.styleFrom(
-                                backgroundColor:
-                                    ColoresLocales.acentoVioletaMarca,
-                                foregroundColor: Colors.white,
-                              ),
-                              child: Text(
-                                'Crear plan',
-                                style: GoogleFonts.baloo2(
-                                  fontWeight: FontWeight.w800,
+                      child: Text(
+                        'Crear plan',
+                        style: GoogleFonts.baloo2(fontWeight: FontWeight.w800),
+                      ),
+                    ),
+                  ),
+                ],
+              )
+            : ListView.builder(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
+                itemCount: _items.length + (_hayMas ? 1 : 0),
+                itemBuilder: (context, i) {
+                  if (i >= _items.length) {
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      child: Center(
+                        child: _cargandoMas
+                            ? const CircularProgressIndicator()
+                            : TextButton(
+                                onPressed: _cargarMas,
+                                child: Text(
+                                  'Ver más',
+                                  style: GoogleFonts.baloo2(
+                                    fontWeight: FontWeight.w800,
+                                    color: ColoresLocales.acentoVioleta,
+                                  ),
                                 ),
                               ),
-                            ),
-                          ),
-                        ],
-                      )
-                    : ListView.builder(
-                        physics: const AlwaysScrollableScrollPhysics(),
-                        padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
-                        itemCount: _items.length + (_hayMas ? 1 : 0),
-                        itemBuilder: (context, i) {
-                          if (i >= _items.length) {
-                            return Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 12),
-                              child: Center(
-                                child: _cargandoMas
-                                    ? const CircularProgressIndicator()
-                                    : TextButton(
-                                        onPressed: _cargarMas,
-                                        child: Text(
-                                          'Ver más',
-                                          style: GoogleFonts.baloo2(
-                                            fontWeight: FontWeight.w800,
-                                            color: ColoresLocales.acentoVioleta,
-                                          ),
-                                        ),
-                                      ),
-                              ),
-                            );
-                          }
-                          final plan = _items[i];
-                          return Padding(
-                            padding: const EdgeInsets.only(bottom: 14),
-                            child: _CardPlanLocal(
-                              plan: plan,
-                              onTap: () => _abrir(plan),
-                            ),
-                          );
-                        },
                       ),
+                    );
+                  }
+                  final plan = _items[i];
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 14),
+                    child: _CardPlanLocal(
+                      plan: plan,
+                      onTap: plan.estaFinalizado ? null : () => _abrir(plan),
+                    ),
+                  );
+                },
+              ),
       ),
     );
   }
@@ -255,7 +306,7 @@ class _LocalesPlanesState extends State<LocalesPlanes> {
 class _CardPlanLocal extends StatelessWidget {
   const _CardPlanLocal({required this.plan, required this.onTap});
   final PlanLocalItem plan;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
 
   Color get _color {
     final hex = plan.colorHex.replaceAll('#', '');
@@ -344,10 +395,12 @@ class _CardPlanLocal extends StatelessWidget {
                               plan.hayPedidoPendiente
                                   ? 'Pedido pendiente'
                                   : plan.beneficioAceptado
-                                      ? 'Beneficio OK'
-                                      : plan.estaAbierto
-                                          ? 'Abierto'
-                                          : 'Finalizado',
+                                  ? 'Beneficio OK'
+                                  : plan.estaAbierto
+                                  ? 'Abierto'
+                                  : plan.estado == 'cancelado'
+                                  ? 'Cancelado'
+                                  : 'Finalizado',
                             ),
                           ],
                         ),
@@ -409,7 +462,7 @@ class _CardPlanLocal extends StatelessWidget {
                               ),
                             ),
                             child: Text(
-                              'Abrir panel',
+                              desactivada ? 'No disponible' : 'Abrir panel',
                               style: GoogleFonts.baloo2(
                                 fontSize: 13,
                                 fontWeight: FontWeight.w800,

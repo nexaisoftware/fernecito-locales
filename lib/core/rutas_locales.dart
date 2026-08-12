@@ -42,77 +42,81 @@ import 'servicio_estado_cuenta_locales.dart';
 
 /// Mapa único de rutas nombradas — usado por [MaterialApp.routes] y [onGenerateRoute].
 Map<String, WidgetBuilder> rutasLocales() => {
-      '/login': (context) => const LocalesLogin(),
-      '/home': (context) {
-        final args = ModalRoute.of(context)?.settings.arguments;
-        final uid = (args is String && args.isNotEmpty)
-            ? args
-            : (Supabase.instance.client.auth.currentUser?.id ?? 'anon');
-        // Key por uid: remonta Home completo al cambiar de cuenta.
-        return LocalesHome(key: ValueKey('home_$uid'));
-      },
-      rutaRecargarCuenta: (context) => const LocalesRecargarCuenta(),
-      '/contrasena': (context) => const LocalesContrasena(),
-      '/perfil': (context) => const LocalesPerfil(),
-      '/crear_perfil': (context) {
-        final args = ModalRoute.of(context)?.settings.arguments;
-        final uid = (args is String && args.isNotEmpty)
-            ? args
-            : (Supabase.instance.client.auth.currentUser?.id ?? 'anon');
-        // Key por uid: remonta onboarding al cambiar a otra cuenta incompleta.
-        return LocalesCrearPerfil(key: ValueKey('crear_perfil_$uid'));
-      },
-      '/mi_cuenta': (context) => const LocalesMiCuenta(),
-      '/mis_eventos': (context) => const LocalesMisEventos(),
-      '/crear_evento': (context) {
-        final args = ModalRoute.of(context)?.settings.arguments;
-        return LocalesCrearEvento(
-          datosFlyer: args is CrearEventoDesdeFlyerArgs ? args : null,
-        );
-      },
-      '/listas': (context) => const LocalesValidar(),
-      '/validar': (context) => const LocalesValidar(),
-      '/notificaciones': (context) => const LocalesNotificaciones(),
-      '/mejorar_jerarquia': (context) => const LocalesMejorarJerarquia(),
-      '/administrar_subscripciones': (context) {
-        final args = ModalRoute.of(context)?.settings.arguments;
-        final pestana = args is int ? args : null;
-        return LocalesAdministrarSubscriociones(pestanaInicial: pestana);
-      },
-      '/soporte': (context) => const LocalesSoporte(),
-      '/cuenta_bloqueada': (context) => const LocalesCuentaBloqueada(),
-      '/cambiar_contrasena': (context) => const LocalesCambiarContrasena(),
-      '/compras_pagos': (context) => const LocalesComprasPagos(),
-      '/flyer_ia': (context) => const LocalesFlyerIa(),
-      '/staff_login': (context) => const LocalesStaffLogin(),
-      '/staff_crear_cuenta': (context) => const LocalesStaffCrearCuenta(),
-      '/staff_crear_perfil': (context) => const LocalesStaffCrearPerfil(),
-      '/staff_home': (context) => const LocalesStaffHome(),
-      '/staff_vincular': (context) => const LocalesStaffVincular(),
-      '/staff_actividad': (context) => const LocalesStaffActividad(),
-      '/staff_mi_cuenta': (context) => const LocalesStaffMiCuenta(),
-      '/metricas': (context) => const LocalesMetricas(),
-      '/planes': (context) => const LocalesPlanes(),
-      '/planes/crear': (context) => const LocalesCrearPlan(),
-      '/planes/detalle': (context) {
-        final args = ModalRoute.of(context)?.settings.arguments;
-        final id = args is String
-            ? args
-            : (args is Map && args['id_plan'] != null
-                ? args['id_plan'].toString()
-                : '');
-        return LocalesPlanDashboard(idPlan: id);
-      },
-      '/staff': (context) => const LocalesStaff(),
-      '/calificaciones': (context) => const LocalesCalificaciones(),
-      '/perfil_clientes': (context) => const LocalesPerfilClientes(),
-      '/crear_cuenta': (context) => const LocalesCrearCuenta(),
-      '/confirmar_email': (context) {
-        final args = ModalRoute.of(context)?.settings.arguments;
-        final email = args is ConfirmarEmailArgs ? args.email : '';
-        return LocalesConfirmarEmail(email: email);
-      },
-    };
+  '/login': (context) => const LocalesLogin(),
+  '/home': (context) {
+    final args = ModalRoute.of(context)?.settings.arguments;
+    final uid = (args is String && args.isNotEmpty)
+        ? args
+        : (Supabase.instance.client.auth.currentUser?.id ?? 'anon');
+    // Key por uid: remonta Home completo al cambiar de cuenta.
+    return LocalesHome(key: ValueKey('home_$uid'));
+  },
+  rutaRecargarCuenta: (context) => const LocalesRecargarCuenta(),
+  '/contrasena': (context) => const LocalesContrasena(),
+  '/perfil': (context) => const LocalesPerfil(),
+  '/crear_perfil': (context) {
+    final args = ModalRoute.of(context)?.settings.arguments;
+    final uid = (args is String && args.isNotEmpty)
+        ? args
+        : (Supabase.instance.client.auth.currentUser?.id ?? 'anon');
+    // Key por uid: remonta onboarding al cambiar a otra cuenta incompleta.
+    return LocalesCrearPerfil(key: ValueKey('crear_perfil_$uid'));
+  },
+  '/mi_cuenta': (context) => const LocalesMiCuenta(),
+  '/mis_eventos': (context) => const LocalesMisEventos(),
+  '/crear_evento': (context) {
+    final args = ModalRoute.of(context)?.settings.arguments;
+    return LocalesCrearEvento(
+      datosFlyer: args is CrearEventoDesdeFlyerArgs ? args : null,
+    );
+  },
+  '/listas': (context) => const LocalesValidar(),
+  '/validar': (context) => const LocalesValidar(),
+  '/notificaciones': (context) => const LocalesNotificaciones(),
+  '/mejorar_jerarquia': (context) => const LocalesMejorarJerarquia(),
+  '/administrar_subscripciones': (context) {
+    final args = ModalRoute.of(context)?.settings.arguments;
+    final pestana = args is int ? args : null;
+    return LocalesAdministrarSubscriociones(pestanaInicial: pestana);
+  },
+  '/soporte': (context) => const LocalesSoporte(),
+  '/cuenta_bloqueada': (context) => const LocalesCuentaBloqueada(),
+  '/cambiar_contrasena': (context) => const LocalesCambiarContrasena(),
+  '/compras_pagos': (context) => const LocalesComprasPagos(),
+  '/flyer_ia': (context) => const LocalesFlyerIa(),
+  '/staff_login': (context) => const LocalesStaffLogin(),
+  '/staff_crear_cuenta': (context) => const LocalesStaffCrearCuenta(),
+  '/staff_crear_perfil': (context) => const LocalesStaffCrearPerfil(),
+  '/staff_home': (context) => const LocalesStaffHome(),
+  '/staff_vincular': (context) => const LocalesStaffVincular(),
+  '/staff_actividad': (context) => const LocalesStaffActividad(),
+  '/staff_mi_cuenta': (context) => const LocalesStaffMiCuenta(),
+  '/metricas': (context) => const LocalesMetricas(),
+  '/planes': (context) => const LocalesPlanes(),
+  '/planes/crear': (context) => const LocalesCrearPlan(),
+  '/planes/detalle': (context) {
+    final args = ModalRoute.of(context)?.settings.arguments;
+    final id = args is String
+        ? args
+        : (args is Map && args['id_plan'] != null
+              ? args['id_plan'].toString()
+              : '');
+    final abrirChat =
+        args is Map &&
+        (args['accion']?.toString().toLowerCase() == 'chat' ||
+            args['cta']?.toString().toLowerCase() == 'chat');
+    return LocalesPlanDashboard(idPlan: id, abrirChat: abrirChat);
+  },
+  '/staff': (context) => const LocalesStaff(),
+  '/calificaciones': (context) => const LocalesCalificaciones(),
+  '/perfil_clientes': (context) => const LocalesPerfilClientes(),
+  '/crear_cuenta': (context) => const LocalesCrearCuenta(),
+  '/confirmar_email': (context) {
+    final args = ModalRoute.of(context)?.settings.arguments;
+    final email = args is ConfirmarEmailArgs ? args.email : '';
+    return LocalesConfirmarEmail(email: email);
+  },
+};
 
 Route<dynamic>? generarRutaLocales(RouteSettings settings) {
   final nombre = settings.name;
@@ -125,19 +129,14 @@ Route<dynamic>? generarRutaLocales(RouteSettings settings) {
   }
   final builder = rutasLocales()[nombre];
   if (builder == null) return null;
-  return MaterialPageRoute<void>(
-    settings: settings,
-    builder: builder,
-  );
+  return MaterialPageRoute<void>(settings: settings, builder: builder);
 }
 
 Route<dynamic> rutaDesconocidaLocales(RouteSettings settings) {
   return MaterialPageRoute<void>(
     settings: settings,
     builder: (_) => Scaffold(
-      body: Center(
-        child: Text('Ruta no encontrada: ${settings.name ?? ''}'),
-      ),
+      body: Center(child: Text('Ruta no encontrada: ${settings.name ?? ''}')),
     ),
   );
 }

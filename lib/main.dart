@@ -21,6 +21,7 @@ import 'core/modo_app_locales.dart';
 import 'core/splash_web.dart';
 import 'widgets/tema_locales_scope.dart';
 import 'core/auth_gate_locales.dart';
+import 'core/navigator_key_locales.dart';
 import 'core/rutas_locales.dart';
 import 'core/servicio_staff_locales.dart';
 import 'PANTALLAS/locales_home.dart';
@@ -302,8 +303,7 @@ class _AppLocalesState extends State<AppLocales> {
 
   Widget _buildHome() {
     final mostrarSplash = _debeMostrarSplashInicial();
-    final montarHome =
-        _irAHomeLocal() || _irAHomeStaff();
+    final montarHome = _irAHomeLocal() || _irAHomeStaff();
 
     if (!_verificando && !montarHome) {
       return _pantallaTrasVerificacion();
@@ -357,33 +357,33 @@ class _AppLocalesState extends State<AppLocales> {
               listenable: BootstrapLocales.lista,
               builder: (context, _) {
                 return MaterialApp(
-              navigatorKey: navigatorKeyLocales,
-              builder: (context, child) => Material(
-                color: _debeMostrarSplashInicial()
-                    ? kVioletaSplashLocales
-                    : (oscuro
-                        ? ColoresLocales.fondoClaro
-                        : ColoresLocales.fondoPrincipal),
-                child: AnnotatedRegion<SystemUiOverlayStyle>(
-                  value: _debeMostrarSplashInicial()
-                      ? BarraSistemaLocales.estiloSplash
-                      : BarraSistemaLocales.estilo(oscuro),
-                  child: ControlInstalarPwa(
-                    child: ControlActualizacionWeb(
-                      child: child ?? const SizedBox.shrink(),
+                  navigatorKey: navigatorKeyLocales,
+                  builder: (context, child) => Material(
+                    color: _debeMostrarSplashInicial()
+                        ? kVioletaSplashLocales
+                        : (oscuro
+                              ? ColoresLocales.fondoClaro
+                              : ColoresLocales.fondoPrincipal),
+                    child: AnnotatedRegion<SystemUiOverlayStyle>(
+                      value: _debeMostrarSplashInicial()
+                          ? BarraSistemaLocales.estiloSplash
+                          : BarraSistemaLocales.estilo(oscuro),
+                      child: ControlInstalarPwa(
+                        child: ControlActualizacionWeb(
+                          child: child ?? const SizedBox.shrink(),
+                        ),
+                      ),
                     ),
                   ),
-                ),
-              ),
-              title: 'Fernecito Locales',
-              debugShowCheckedModeBanner: false,
-              themeMode: oscuro ? ThemeMode.dark : ThemeMode.light,
-              theme: _temaApp(oscuro: false),
-              darkTheme: _temaApp(oscuro: true),
-              onGenerateRoute: (settings) =>
-                  generarRutaLocales(settings) ??
-                  rutaDesconocidaLocales(settings),
-              home: _buildHome(),
+                  title: 'Fernecito Locales',
+                  debugShowCheckedModeBanner: false,
+                  themeMode: oscuro ? ThemeMode.dark : ThemeMode.light,
+                  theme: _temaApp(oscuro: false),
+                  darkTheme: _temaApp(oscuro: true),
+                  onGenerateRoute: (settings) =>
+                      generarRutaLocales(settings) ??
+                      rutaDesconocidaLocales(settings),
+                  home: _buildHome(),
                 );
               },
             ),

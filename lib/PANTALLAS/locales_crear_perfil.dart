@@ -17,6 +17,7 @@ import '../core/supabase_client.dart';
 import '../widgets/onboarding_locales_ui.dart';
 import '../widgets/asistente_perfil_sheet.dart';
 import '../core/auth_gate_locales.dart';
+import '../core/navigator_key_locales.dart';
 import '../core/servicio_edges_eventos.dart';
 import '../core/ubicaciones_data.dart';
 import 'locales_home.dart';
@@ -81,8 +82,10 @@ class _LocalesCrearPerfilState extends State<LocalesCrearPerfil> {
   _ImagenLocal? _fotoPerfil;
   _ImagenLocal? _fotoBanner;
   static const int _maxFotosLocales = 10;
-  final List<_ImagenLocal?> _fotosLocales =
-      List<_ImagenLocal?>.filled(_maxFotosLocales, null);
+  final List<_ImagenLocal?> _fotosLocales = List<_ImagenLocal?>.filled(
+    _maxFotosLocales,
+    null,
+  );
 
   /// Horarios opcionales (día 0=lunes … 6=domingo). Los carga el asistente IA.
   Map<String, dynamic>? _horariosJson;
@@ -483,7 +486,9 @@ class _LocalesCrearPerfilState extends State<LocalesCrearPerfil> {
   Future<void> _guardarPerfil({required bool quiereVerificacion}) async {
     setState(() => _guardando = true);
     try {
-      final error = await _ejecutarGuardado(quiereVerificacion: quiereVerificacion);
+      final error = await _ejecutarGuardado(
+        quiereVerificacion: quiereVerificacion,
+      );
       if (error != null) {
         _mostrarError(error);
         return;
@@ -559,8 +564,10 @@ class _LocalesCrearPerfilState extends State<LocalesCrearPerfil> {
         );
       }
 
-      final List<String?> fotosLocalesUrl =
-          List<String?>.filled(_maxFotosLocales, null);
+      final List<String?> fotosLocalesUrl = List<String?>.filled(
+        _maxFotosLocales,
+        null,
+      );
       for (var i = 0; i < _fotosLocales.length; i++) {
         final img = _fotosLocales[i];
         if (img == null) continue;
@@ -658,7 +665,9 @@ class _LocalesCrearPerfilState extends State<LocalesCrearPerfil> {
           MaterialPageRoute(builder: (_) => LocalesHome()),
           (_) => false,
         );
-        navigatorKeyLocales.currentState?.pushNamed('/administrar_subscripciones');
+        navigatorKeyLocales.currentState?.pushNamed(
+          '/administrar_subscripciones',
+        );
       },
     );
   }
@@ -1350,7 +1359,9 @@ class _BotonAsistenteIa extends StatelessWidget {
               gradient: LinearGradient(
                 colors: [
                   ColoresOnboardingLocales.mostaza.withValues(alpha: 0.18),
-                  ColoresOnboardingLocales.violetaOscuro.withValues(alpha: 0.10),
+                  ColoresOnboardingLocales.violetaOscuro.withValues(
+                    alpha: 0.10,
+                  ),
                 ],
               ),
             ),

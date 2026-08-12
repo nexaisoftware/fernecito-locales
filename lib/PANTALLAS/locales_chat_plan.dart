@@ -14,9 +14,10 @@ import '../widgets/tema_locales_scope.dart';
 
 /// Handle usable en @menciones a partir del nombre del local.
 String handleMencionLocal(String? nombreLocal) {
-  final cleaned = (nombreLocal ?? '')
-      .toLowerCase()
-      .replaceAll(RegExp(r'[^a-z0-9._]+'), '');
+  final cleaned = (nombreLocal ?? '').toLowerCase().replaceAll(
+    RegExp(r'[^a-z0-9._]+'),
+    '',
+  );
   if (cleaned.length >= 2) {
     return cleaned.length > 32 ? cleaned.substring(0, 32) : cleaned;
   }
@@ -73,27 +74,29 @@ class _LocalesChatPlanState extends State<LocalesChatPlan> {
     }
     _ctrl.addListener(_onTextoCambio);
     _cargar();
-    _canal = _srv.suscribirMensajes(widget.plan.id, (m) {
-      if (!mounted) return;
-      if (_mensajes.any((x) => x.id == m.id)) return;
-      setState(() {
-        if (m.idAutorLocal == _miUid || m.idAutor == _miUid) {
-          final i = _mensajes.indexWhere(
-            (x) => x.id < 0 && x.cuerpo == m.cuerpo,
-          );
-          if (i >= 0) {
-            final copia = [..._mensajes];
-            copia[i] = m;
-            _mensajes = copia;
-            _resolverNombre(m);
-            return;
+    if (widget.plan.estaAbierto) {
+      _canal = _srv.suscribirMensajes(widget.plan.id, (m) {
+        if (!mounted) return;
+        if (_mensajes.any((x) => x.id == m.id)) return;
+        setState(() {
+          if (m.idAutorLocal == _miUid || m.idAutor == _miUid) {
+            final i = _mensajes.indexWhere(
+              (x) => x.id < 0 && x.cuerpo == m.cuerpo,
+            );
+            if (i >= 0) {
+              final copia = [..._mensajes];
+              copia[i] = m;
+              _mensajes = copia;
+              _resolverNombre(m);
+              return;
+            }
           }
-        }
-        _mensajes = [..._mensajes, m];
+          _mensajes = [..._mensajes, m];
+        });
+        _resolverNombre(m);
+        _bajar();
       });
-      _resolverNombre(m);
-      _bajar();
-    });
+    }
   }
 
   @override
@@ -129,6 +132,11 @@ class _LocalesChatPlanState extends State<LocalesChatPlan> {
         }
         _cargando = false;
       });
+      if (detalle != null && !detalle.plan.estaAbierto) {
+        final canal = _canal;
+        _canal = null;
+        if (canal != null) unawaited(_srv.cerrarCanal(canal));
+      }
       for (final m in mensajes) {
         unawaited(_resolverNombre(m));
       }
@@ -153,8 +161,7 @@ class _LocalesChatPlanState extends State<LocalesChatPlan> {
     }
     _nombresAutores[id] = '...';
     try {
-      final row = await ServicioSupabase()
-          .cliente
+      final row = await ServicioSupabase().cliente
           .from('perfiles_usuarios')
           .select('nombre, username')
           .eq('id', id)
@@ -163,8 +170,8 @@ class _LocalesChatPlanState extends State<LocalesChatPlan> {
       setState(() {
         _nombresAutores[id] =
             (row?['nombre']?.toString().trim().isNotEmpty ?? false)
-                ? row!['nombre'].toString().trim()
-                : (row?['username']?.toString() ?? 'Alguien');
+            ? row!['nombre'].toString().trim()
+            : (row?['username']?.toString() ?? 'Alguien');
       });
     } catch (_) {
       _nombresAutores.remove(id);
@@ -195,8 +202,7 @@ class _LocalesChatPlanState extends State<LocalesChatPlan> {
       return;
     }
     final before = text.substring(0, cursor);
-    final match =
-        RegExp(r'(^|[\s])@([A-Za-z0-9._]{0,32})$').firstMatch(before);
+    final match = RegExp(r'(^|[\s])@([A-Za-z0-9._]{0,32})$').firstMatch(before);
     if (match == null) {
       if (_queryMencion != null) {
         setState(() {
@@ -264,8 +270,9 @@ class _LocalesChatPlanState extends State<LocalesChatPlan> {
     final nuevo = '$before$insertion$after';
     _ctrl.value = TextEditingValue(
       text: nuevo,
-      selection:
-          TextSelection.collapsed(offset: before.length + insertion.length),
+      selection: TextSelection.collapsed(
+        offset: before.length + insertion.length,
+      ),
     );
     setState(() {
       _queryMencion = null;
@@ -341,7 +348,11 @@ class _LocalesChatPlanState extends State<LocalesChatPlan> {
   bool _esAdmin(PlanLocalMensaje m) {
     if (m.esLocal || m.idAutor == null) return false;
     for (final x in _miembros) {
-      if (x.idUsuario == m.idAutor && x.rol == 'admin') return true;
+      if (x.idUsuario == m.idAutor &&
+          (x.rol.toLowerCase() == 'admin' ||
+              x.rol.toLowerCase() == 'organizador')) {
+        return true;
+      }
     }
     return false;
   }
@@ -349,8 +360,9 @@ class _LocalesChatPlanState extends State<LocalesChatPlan> {
   @override
   Widget build(BuildContext context) {
     TemaLocalesScope.of(context);
-    final candidatos =
-        _queryMencion != null ? _candidatos : const <_CandidatoMencion>[];
+    final candidatos = _queryMencion != null
+        ? _candidatos
+        : const <_CandidatoMencion>[];
 
     return Scaffold(
       backgroundColor: ColoresLocales.fondoClaro,
@@ -410,37 +422,36 @@ class _LocalesChatPlanState extends State<LocalesChatPlan> {
             child: _cargando
                 ? const Center(child: CircularProgressIndicator())
                 : _mensajes.isEmpty
-                    ? Center(
-                        child: Padding(
-                          padding: const EdgeInsets.all(28),
-                          child: Text(
-                            'Todavía no hay mensajes. Saludá al grupo.',
-                            textAlign: TextAlign.center,
-                            style: GoogleFonts.baloo2(
-                              fontWeight: FontWeight.w700,
-                              color:
-                                  ColoresLocales.textoSecundarioOnFondoClaro,
-                            ),
-                          ),
+                ? Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(28),
+                      child: Text(
+                        'Todavía no hay mensajes. Saludá al grupo.',
+                        textAlign: TextAlign.center,
+                        style: GoogleFonts.baloo2(
+                          fontWeight: FontWeight.w700,
+                          color: ColoresLocales.textoSecundarioOnFondoClaro,
                         ),
-                      )
-                    : ListView.builder(
-                        controller: _scroll,
-                        padding: const EdgeInsets.fromLTRB(14, 8, 14, 12),
-                        itemCount: _mensajes.length,
-                        itemBuilder: (context, i) {
-                          final m = _mensajes[i];
-                          final mio = m.esLocal &&
-                              (m.idAutorLocal == _miUid ||
-                                  m.idAutor == _miUid);
-                          return _BurbujaLocal(
-                            m: m,
-                            esMio: mio,
-                            esAdmin: _esAdmin(m),
-                            nombreAutor: _nombreAutor(m),
-                          );
-                        },
                       ),
+                    ),
+                  )
+                : ListView.builder(
+                    controller: _scroll,
+                    padding: const EdgeInsets.fromLTRB(14, 8, 14, 12),
+                    itemCount: _mensajes.length,
+                    itemBuilder: (context, i) {
+                      final m = _mensajes[i];
+                      final mio =
+                          m.esLocal &&
+                          (m.idAutorLocal == _miUid || m.idAutor == _miUid);
+                      return _BurbujaLocal(
+                        m: m,
+                        esMio: mio,
+                        esAdmin: _esAdmin(m),
+                        nombreAutor: _nombreAutor(m),
+                      );
+                    },
+                  ),
           ),
           if (candidatos.isNotEmpty)
             Material(
@@ -597,8 +608,10 @@ class _TextoConMenciones extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final partes = texto.split(_mencionRegex);
-    final menciones =
-        _mencionRegex.allMatches(texto).map((m) => m.group(0)!).toList();
+    final menciones = _mencionRegex
+        .allMatches(texto)
+        .map((m) => m.group(0)!)
+        .toList();
     if (menciones.isEmpty) return Text(texto, style: style);
     final spans = <TextSpan>[];
     for (var i = 0; i < partes.length; i++) {
@@ -607,10 +620,7 @@ class _TextoConMenciones extends StatelessWidget {
         spans.add(
           TextSpan(
             text: menciones[i],
-            style: TextStyle(
-              color: colorMencion,
-              fontWeight: FontWeight.w900,
-            ),
+            style: TextStyle(color: colorMencion, fontWeight: FontWeight.w900),
           ),
         );
       }
@@ -626,21 +636,21 @@ class _BadgeChat extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.18),
-          borderRadius: BorderRadius.circular(999),
-        ),
-        child: Text(
-          texto,
-          style: GoogleFonts.baloo2(
-            fontSize: 9,
-            height: 1,
-            fontWeight: FontWeight.w900,
-            color: color,
-          ),
-        ),
-      );
+    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+    decoration: BoxDecoration(
+      color: color.withValues(alpha: 0.18),
+      borderRadius: BorderRadius.circular(999),
+    ),
+    child: Text(
+      texto,
+      style: GoogleFonts.baloo2(
+        fontSize: 9,
+        height: 1,
+        fontWeight: FontWeight.w900,
+        color: color,
+      ),
+    ),
+  );
 }
 
 class _BurbujaLocal extends StatelessWidget {
@@ -699,8 +709,8 @@ class _BurbujaLocal extends StatelessWidget {
           color: local
               ? const Color(0xFF14B8A6).withValues(alpha: 0.14)
               : esMio
-                  ? ColoresLocales.acentoVioletaMarca
-                  : ColoresLocales.superficie,
+              ? ColoresLocales.acentoVioletaMarca
+              : ColoresLocales.superficie,
           borderRadius: BorderRadius.only(
             topLeft: const Radius.circular(18),
             topRight: const Radius.circular(18),
@@ -712,8 +722,8 @@ class _BurbujaLocal extends StatelessWidget {
                   color: const Color(0xFF14B8A6).withValues(alpha: 0.35),
                 )
               : (colorAutor != null
-                  ? Border.all(color: colorAutor.withValues(alpha: 0.35))
-                  : null),
+                    ? Border.all(color: colorAutor.withValues(alpha: 0.35))
+                    : null),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -733,10 +743,9 @@ class _BurbujaLocal extends StatelessWidget {
                         color: local
                             ? const Color(0xFF0F766E)
                             : esMio
-                                ? Colors.white.withValues(alpha: 0.85)
-                                : (colorAutor ??
-                                    ColoresLocales
-                                        .textoSecundarioOnFondoClaro),
+                            ? Colors.white.withValues(alpha: 0.85)
+                            : (colorAutor ??
+                                  ColoresLocales.textoSecundarioOnFondoClaro),
                       ),
                     ),
                   ),

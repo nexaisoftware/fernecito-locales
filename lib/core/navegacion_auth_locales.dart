@@ -3,6 +3,7 @@ library;
 import 'package:flutter/material.dart';
 
 import 'auth_gate_locales.dart';
+import 'navigator_key_locales.dart';
 import 'modo_app_locales.dart';
 
 /// Sale del flujo staff y muestra el login principal de locales (dueño).

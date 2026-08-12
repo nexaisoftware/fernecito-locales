@@ -3,6 +3,7 @@ library;
 import 'package:flutter/material.dart';
 
 import 'auth_gate_locales.dart';
+import 'navigator_key_locales.dart';
 
 /// Navegación segura usando siempre el [Navigator] raíz de la app.
 class NavegacionLocales {
@@ -17,12 +18,15 @@ class NavegacionLocales {
     return _nav?.pushNamed<T>(route, arguments: arguments);
   }
 
-  static Future<T?>? pushReplacementNamed<T extends Object?, TO extends Object?>(
-    String route, {
-    Object? arguments,
-    TO? result,
-  }) {
-    return _nav?.pushReplacementNamed<T, TO>(route, arguments: arguments, result: result);
+  static Future<T?>? pushReplacementNamed<
+    T extends Object?,
+    TO extends Object?
+  >(String route, {Object? arguments, TO? result}) {
+    return _nav?.pushReplacementNamed<T, TO>(
+      route,
+      arguments: arguments,
+      result: result,
+    );
   }
 
   static void pop<T extends Object?>([T? result]) {
@@ -37,10 +41,7 @@ class NavegacionLocales {
   }
 
   static Future<void> irASuscripciones({int? pestana}) async {
-    await _nav?.pushNamed(
-      '/administrar_subscripciones',
-      arguments: pestana,
-    );
+    await _nav?.pushNamed('/administrar_subscripciones', arguments: pestana);
   }
 
   static Future<void> irAComprasPagos(String plan) async {

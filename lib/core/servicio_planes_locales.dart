@@ -54,6 +54,7 @@ class PlanLocalItem {
   final String? fotoOrganizador;
   final String tipoOrganizador;
   final String? nombreSquad;
+
   /// Nombre del venue (para badge LOCAL / @menciones).
   final String? nombreLocal;
   final String? portadaPath;
@@ -72,9 +73,9 @@ class PlanLocalItem {
   bool get estaAbierto => estado == 'abierto';
   bool get estaFinalizado =>
       estado == 'cancelado' || estado == 'finalizado' || estado == 'eliminado';
-  bool get hayPedidoPendiente =>
-      beneficioEstado == 'pedido' || beneficioEstado == 'contraoferta';
-  bool get beneficioAceptado => beneficioEstado == 'aceptado';
+  bool get hayPedidoPendiente => beneficioEstado == 'pedido';
+  bool get beneficioAceptado =>
+      beneficioEstado == 'aceptado' || beneficioEstado == 'contraoferta';
   bool get sinPedido =>
       beneficioEstado == 'ninguno' || beneficioEstado == 'rechazado';
 
@@ -93,9 +94,7 @@ class PlanLocalItem {
     final p = portadaPath;
     if (p == null || p.isEmpty) return null;
     if (p.startsWith('http') || p.startsWith('assets/')) return p;
-    return ServicioSupabase()
-        .cliente
-        .storage
+    return ServicioSupabase().cliente.storage
         .from('planes-portadas')
         .getPublicUrl(p);
   }
@@ -105,24 +104,16 @@ class PlanLocalItem {
     if (p == null || p.isEmpty) return null;
     if (p.startsWith('http')) return p;
     if (tipoOrganizador == 'squad') {
-      return ServicioSupabase()
-          .cliente
-          .storage
+      return ServicioSupabase().cliente.storage
           .from('squad-banners')
           .getPublicUrl(p);
     }
     if (tipoOrganizador == 'local') {
-      return ServicioSupabase()
-          .cliente
-          .storage
+      return ServicioSupabase().cliente.storage
           .from('avatars_locales')
           .getPublicUrl(p);
     }
-    return ServicioSupabase()
-        .cliente
-        .storage
-        .from('avatars')
-        .getPublicUrl(p);
+    return ServicioSupabase().cliente.storage.from('avatars').getPublicUrl(p);
   }
 
   factory PlanLocalItem.fromMap(Map<String, dynamic> m) {
@@ -195,21 +186,18 @@ class PlanLocalMiembro {
   }
 
   factory PlanLocalMiembro.fromMap(Map<String, dynamic> m) => PlanLocalMiembro(
-        idUsuario: m['id_usuario']?.toString() ?? '',
-        nombre: m['nombre']?.toString() ?? 'Alguien',
-        username: m['username']?.toString(),
-        fotoPath: m['foto_perfil_url']?.toString(),
-        rol: m['rol']?.toString() ?? 'miembro',
-        estado: m['estado']?.toString() ?? 'aceptado',
-        nombreSquad: m['nombre_squad']?.toString(),
-      );
+    idUsuario: m['id_usuario']?.toString() ?? '',
+    nombre: m['nombre']?.toString() ?? 'Alguien',
+    username: m['username']?.toString(),
+    fotoPath: m['foto_perfil_url']?.toString(),
+    rol: m['rol']?.toString() ?? 'miembro',
+    estado: m['estado']?.toString() ?? 'aceptado',
+    nombreSquad: m['nombre_squad']?.toString(),
+  );
 }
 
 class PlanLocalDetalle {
-  const PlanLocalDetalle({
-    required this.plan,
-    required this.miembros,
-  });
+  const PlanLocalDetalle({required this.plan, required this.miembros});
   final PlanLocalItem plan;
   final List<PlanLocalMiembro> miembros;
 }
@@ -251,7 +239,7 @@ class PlanLocalMensaje {
       cuerpo: m['cuerpo']?.toString() ?? '',
       creadoEn:
           DateTime.tryParse(m['creado_en']?.toString() ?? '')?.toLocal() ??
-              DateTime.now(),
+          DateTime.now(),
     );
   }
 }
@@ -288,10 +276,10 @@ class ServicioPlanesLocales {
       final raw = res['items'];
       final list = raw is List
           ? raw
-              .whereType<Map>()
-              .map((e) => PlanLocalItem.fromMap(Map<String, dynamic>.from(e)))
-              .where((p) => p.id.isNotEmpty)
-              .toList()
+                .whereType<Map>()
+                .map((e) => PlanLocalItem.fromMap(Map<String, dynamic>.from(e)))
+                .where((p) => p.id.isNotEmpty)
+                .toList()
           : <PlanLocalItem>[];
       return (items: list, hayMas: res['hay_mas'] == true, error: null);
     } catch (e) {
@@ -306,17 +294,15 @@ class ServicioPlanesLocales {
       if (res is! Map) return null;
       final planRaw = res['plan'];
       if (planRaw is! Map) return null;
-      final plan =
-          PlanLocalItem.fromMap(Map<String, dynamic>.from(planRaw));
+      final plan = PlanLocalItem.fromMap(Map<String, dynamic>.from(planRaw));
       final miembrosRaw = res['miembros'];
       final miembros = miembrosRaw is List
           ? miembrosRaw
-              .whereType<Map>()
-              .map(
-                (e) =>
-                    PlanLocalMiembro.fromMap(Map<String, dynamic>.from(e)),
-              )
-              .toList()
+                .whereType<Map>()
+                .map(
+                  (e) => PlanLocalMiembro.fromMap(Map<String, dynamic>.from(e)),
+                )
+                .toList()
           : <PlanLocalMiembro>[];
       return PlanLocalDetalle(plan: plan, miembros: miembros);
     } catch (e) {
@@ -336,24 +322,63 @@ class ServicioPlanesLocales {
         params: {
           'p_id_plan': idPlan,
           'p_accion': accion,
-          'p_contraoferta': ?contraoferta,
+          'p_contraoferta': contraoferta,
         },
       );
-      return res is Map && res['ok'] == true;
+      if (res is Map && res['ok'] == true) return true;
+      throw Exception(
+        res is Map
+            ? (res['error']?.toString() ?? 'respuesta_invalida')
+            : 'respuesta_invalida',
+      );
     } catch (e) {
       debugPrint('⚠️ planes_pedido_responder: $e');
-      return false;
+      rethrow;
     }
   }
 
   Future<bool> cancelar(String idPlan) async {
     try {
-      final res =
-          await _c.rpc('planes_cancelar', params: {'p_id_plan': idPlan});
-      return res is Map && res['ok'] == true;
+      final res = await _c.rpc(
+        'planes_cancelar',
+        params: {'p_id_plan': idPlan},
+      );
+      if (res is Map && res['ok'] == true) return true;
+      throw Exception(
+        res is Map
+            ? (res['error']?.toString() ?? 'respuesta_invalida')
+            : 'respuesta_invalida',
+      );
     } catch (e) {
       debugPrint('⚠️ planes_cancelar: $e');
-      return false;
+      rethrow;
+    }
+  }
+
+  /// Acepta o rechaza una solicitud pendiente de ingreso en una lista manual.
+  Future<bool> gestionarMiembro({
+    required String idPlan,
+    required String idUsuario,
+    required String accion,
+  }) async {
+    try {
+      final res = await _c.rpc(
+        'planes_gestionar_miembro',
+        params: {
+          'p_id_plan': idPlan,
+          'p_id_usuario': idUsuario,
+          'p_accion': accion,
+        },
+      );
+      if (res is Map && res['ok'] == true) return true;
+      throw Exception(
+        res is Map
+            ? (res['error']?.toString() ?? 'respuesta_invalida')
+            : 'respuesta_invalida',
+      );
+    } catch (e) {
+      debugPrint('⚠️ planes_gestionar_miembro: $e');
+      rethrow;
     }
   }
 
@@ -388,8 +413,9 @@ class ServicioPlanesLocales {
           'p_tipo_organizador': tipoOrganizador,
           'p_creador_tipo': 'local',
           'p_contacto_anfitrion': contactoAnfitrion,
-          'p_contacto_modo':
-              contactoModo == 'colaborar' ? 'colaborar' : 'contactar',
+          'p_contacto_modo': contactoModo == 'colaborar'
+              ? 'colaborar'
+              : 'contactar',
           'p_portada_path': portadaPath,
           'p_color_hex': colorHex,
           'p_permite_squads': permiteSquads,
@@ -413,7 +439,9 @@ class ServicioPlanesLocales {
     if (uid == null) return null;
     try {
       final path = '$uid/$idTemporal.jpg';
-      await _c.storage.from('planes-portadas').uploadBinary(
+      await _c.storage
+          .from('planes-portadas')
+          .uploadBinary(
             path,
             bytes,
             fileOptions: FileOptions(
@@ -456,6 +484,21 @@ class ServicioPlanesLocales {
     if (msg.contains('local_inactivo') || msg.contains('local_inexistente')) {
       return 'Tu local no está disponible para publicar planes.';
     }
+    if (msg.contains('beneficio_ya_en_juego')) {
+      return 'Este plan ya tiene un beneficio confirmado o pendiente.';
+    }
+    if (msg.contains('pedido_invalido')) {
+      return 'El beneficio tiene que tener entre 3 y 120 caracteres.';
+    }
+    if (msg.contains('no_autorizado')) {
+      return 'No tenés permisos para $accion en este plan.';
+    }
+    if (msg.contains('miembro_inexistente')) {
+      return 'No encontramos esa solicitud. Actualizá el plan e intentá de nuevo.';
+    }
+    if (msg.contains('accion_invalida')) {
+      return 'Esa acción no está disponible para este plan.';
+    }
     if (msg.contains('plan_cerrado') ||
         msg.contains('plan_finalizado') ||
         msg.contains('plan_inexistente')) {
@@ -463,6 +506,9 @@ class ServicioPlanesLocales {
     }
     if (msg.contains('estado_invalido')) {
       return 'El estado del plan no permite esta acción.';
+    }
+    if (msg.contains('respuesta_invalida')) {
+      return 'El servidor no confirmó la acción. Actualizá el plan y probá de nuevo.';
     }
     return 'No se pudo $accion. Revisá conexión y probá de nuevo.';
   }

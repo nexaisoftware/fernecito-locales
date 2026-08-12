@@ -15,10 +15,12 @@ class LocalesPlanDashboard extends StatefulWidget {
     super.key,
     required this.idPlan,
     this.inicial,
+    this.abrirChat = false,
   });
 
   final String idPlan;
   final PlanLocalItem? inicial;
+  final bool abrirChat;
 
   @override
   State<LocalesPlanDashboard> createState() => _LocalesPlanDashboardState();
@@ -29,22 +31,22 @@ class _LocalesPlanDashboardState extends State<LocalesPlanDashboard> {
   PlanLocalDetalle? _detalle;
   bool _cargando = true;
   bool _accionando = false;
+  bool _abrioChatAutomatico = false;
   String? _error;
 
-  PlanLocalItem get _plan =>
-      _detalle?.plan ?? widget.inicial ?? _planFallback;
+  PlanLocalItem get _plan => _detalle?.plan ?? widget.inicial ?? _planFallback;
 
   PlanLocalItem get _planFallback => PlanLocalItem(
-        id: widget.idPlan,
-        titulo: 'Plan',
-        descripcion: '',
-        ciudad: '',
-        fechaInicio: DateTime.now(),
-        modoLista: 'auto',
-        cupoUsados: 0,
-        nombreOrganizador: '',
-        tipoOrganizador: 'usuario',
-      );
+    id: widget.idPlan,
+    titulo: 'Plan',
+    descripcion: '',
+    ciudad: '',
+    fechaInicio: DateTime.now(),
+    modoLista: 'auto',
+    cupoUsados: 0,
+    nombreOrganizador: '',
+    tipoOrganizador: 'usuario',
+  );
 
   String get _nombreGrupo =>
       _plan.nombreSquad ??
@@ -83,6 +85,12 @@ class _LocalesPlanDashboardState extends State<LocalesPlanDashboard> {
       _cargando = false;
       _error = det == null ? 'No se pudo cargar el plan.' : null;
     });
+    if (det != null && widget.abrirChat && !_abrioChatAutomatico) {
+      _abrioChatAutomatico = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _abrirChat();
+      });
+    }
   }
 
   String _fmtFecha(DateTime d) {
@@ -162,7 +170,7 @@ class _LocalesPlanDashboardState extends State<LocalesPlanDashboard> {
 
   Future<void> _proponer() async {
     final texto = await _pedirTexto(
-      titulo: 'Proponer beneficio',
+      titulo: 'Publicar promo si te unís',
       hint: 'Ej: 2x1 en birra hasta las 00',
     );
     if (texto == null || texto.length < 3 || !mounted) return;
@@ -172,7 +180,8 @@ class _LocalesPlanDashboardState extends State<LocalesPlanDashboard> {
         accion: 'proponer',
         contraoferta: texto,
       ),
-      okMsg: '¡Se puso la 10! Ya está en el chat del plan.',
+      okMsg: 'Promo publicada. Ya aparece como beneficio confirmado.',
+      accion: 'publicar la promo',
     );
   }
 
@@ -183,7 +192,7 @@ class _LocalesPlanDashboardState extends State<LocalesPlanDashboard> {
       builder: (ctx) => AlertDialog(
         backgroundColor: ColoresLocales.superficie,
         title: Text(
-          '¿Aceptar propuesta?',
+          '¿Aceptar pedido?',
           style: GoogleFonts.baloo2(
             fontWeight: FontWeight.w800,
             color: ColoresLocales.textoOnFondoClaro,
@@ -223,13 +232,14 @@ class _LocalesPlanDashboardState extends State<LocalesPlanDashboard> {
     if (ok != true || !mounted) return;
     await _ejecutar(
       () => _srv.pedidoResponder(idPlan: widget.idPlan, accion: 'aceptar'),
-      okMsg: '¡Se puso la 10! El grupo ya fue notificado.',
+      okMsg: 'Pedido aceptado. El grupo ya fue notificado.',
+      accion: 'aceptar el pedido',
     );
   }
 
-  Future<void> _cambiar() async {
+  Future<void> _ofrecerOtraCosa() async {
     final texto = await _pedirTexto(
-      titulo: 'Proponer otro beneficio',
+      titulo: 'Ofrecer otra cosa',
       hint: 'Qué ofrecés en su lugar',
       inicial: _plan.beneficioContraoferta ?? _plan.pedidoBeneficio,
     );
@@ -240,17 +250,18 @@ class _LocalesPlanDashboardState extends State<LocalesPlanDashboard> {
         accion: 'contraoferta',
         contraoferta: texto,
       ),
-      okMsg: 'Propuesta enviada al chat del plan.',
+      okMsg: 'Beneficio alternativo confirmado. El grupo ya fue notificado.',
+      accion: 'ofrecer otro beneficio',
     );
   }
 
-  Future<void> _rechazarPlan() async {
+  Future<void> _cancelarPlan() async {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: ColoresLocales.superficie,
         title: Text(
-          '¿Rechazar plan?',
+          '¿Cancelar este plan?',
           style: GoogleFonts.baloo2(
             fontWeight: FontWeight.w800,
             color: ColoresLocales.textoOnFondoClaro,
@@ -277,7 +288,7 @@ class _LocalesPlanDashboardState extends State<LocalesPlanDashboard> {
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
             child: Text(
-              'Rechazar',
+              'Cancelar este plan',
               style: GoogleFonts.baloo2(
                 fontWeight: FontWeight.w800,
                 color: Colors.red.shade600,
@@ -290,7 +301,8 @@ class _LocalesPlanDashboardState extends State<LocalesPlanDashboard> {
     if (ok != true || !mounted) return;
     await _ejecutar(
       () => _srv.cancelar(widget.idPlan),
-      okMsg: 'Plan rechazado.',
+      okMsg: 'Plan cancelado. Dejó de estar disponible.',
+      accion: 'cancelar este plan',
       popOnOk: true,
     );
   }
@@ -298,19 +310,29 @@ class _LocalesPlanDashboardState extends State<LocalesPlanDashboard> {
   Future<void> _ejecutar(
     Future<bool> Function() fn, {
     required String okMsg,
+    String accion = 'completar la acción',
     bool popOnOk = false,
   }) async {
     if (_accionando) return;
     setState(() => _accionando = true);
     HapticFeedback.mediumImpact();
-    final ok = await fn();
+    bool ok = false;
+    Object? error;
+    try {
+      ok = await fn();
+    } catch (e) {
+      error = e;
+    }
     if (!mounted) return;
     setState(() => _accionando = false);
     if (!ok) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'No se pudo completar la acción.',
+            _srv.mensajeError(
+              error ?? StateError('respuesta_invalida'),
+              accion: accion,
+            ),
             style: GoogleFonts.baloo2(fontWeight: FontWeight.w700),
           ),
         ),
@@ -332,10 +354,194 @@ class _LocalesPlanDashboardState extends State<LocalesPlanDashboard> {
     await _cargar();
   }
 
+  Future<void> _abrirSolicitudes() async {
+    String? procesandoId;
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: ColoresLocales.superficie,
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (context, setSheetState) {
+          final pendientes = (_detalle?.miembros ?? const <PlanLocalMiembro>[])
+              .where((m) => m.estado.toLowerCase() == 'pendiente')
+              .toList();
+
+          Future<void> gestionar(
+            PlanLocalMiembro miembro,
+            String accion,
+          ) async {
+            if (procesandoId != null) return;
+            procesandoId = miembro.idUsuario;
+            setSheetState(() {});
+            try {
+              await _srv.gestionarMiembro(
+                idPlan: widget.idPlan,
+                idUsuario: miembro.idUsuario,
+                accion: accion,
+              );
+              await _cargar();
+            } catch (e) {
+              if (mounted) {
+                ScaffoldMessenger.of(this.context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      _srv.mensajeError(
+                        e,
+                        accion: accion == 'aceptar'
+                            ? 'aceptar la solicitud'
+                            : 'rechazar la solicitud',
+                      ),
+                      style: GoogleFonts.baloo2(fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                );
+              }
+            } finally {
+              procesandoId = null;
+              if (mounted) setSheetState(() {});
+            }
+          }
+
+          return SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 14, 20, 20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 38,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: ColoresLocales.textoSecundarioOnFondoClaro
+                            .withValues(alpha: 0.35),
+                        borderRadius: BorderRadius.circular(99),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  Text(
+                    'Solicitudes para entrar al plan',
+                    style: GoogleFonts.baloo2(
+                      fontSize: 21,
+                      fontWeight: FontWeight.w900,
+                      color: ColoresLocales.textoOnFondoClaro,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Revisá quién quiere sumarse. Aceptar lo agrega al plan; '
+                    'rechazar deja la solicitud afuera.',
+                    style: _muted,
+                  ),
+                  const SizedBox(height: 16),
+                  if (pendientes.isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(8, 20, 8, 24),
+                      child: Center(
+                        child: Column(
+                          children: [
+                            Icon(
+                              CupertinoIcons.person_2,
+                              size: 42,
+                              color: ColoresLocales.acentoVioleta,
+                            ),
+                            const SizedBox(height: 10),
+                            Text(
+                              'No hay solicitudes pendientes',
+                              textAlign: TextAlign.center,
+                              style: _body,
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Cuando alguien pida entrar, vas a poder decidirlo desde acá.',
+                              textAlign: TextAlign.center,
+                              style: _muted,
+                            ),
+                          ],
+                        ),
+                      ),
+                    )
+                  else
+                    ...pendientes.map(
+                      (miembro) => Padding(
+                        padding: const EdgeInsets.only(bottom: 10),
+                        child: ListTile(
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 2,
+                          ),
+                          tileColor: ColoresLocales.superficieElevada,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          leading: CircleAvatar(
+                            backgroundColor: ColoresLocales.cardLavanda,
+                            child: Icon(
+                              CupertinoIcons.person_fill,
+                              color: ColoresLocales.acentoVioleta,
+                            ),
+                          ),
+                          title: Text(
+                            miembro.nombre,
+                            style: GoogleFonts.baloo2(
+                              fontWeight: FontWeight.w800,
+                              color: ColoresLocales.textoOnFondoClaro,
+                            ),
+                          ),
+                          subtitle: Text(
+                            miembro.username == null
+                                ? 'Quiere sumarse al plan'
+                                : '@${miembro.username}',
+                            style: _muted,
+                          ),
+                          trailing: procesandoId == miembro.idUsuario
+                              ? const SizedBox(
+                                  width: 24,
+                                  height: 24,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2.5,
+                                  ),
+                                )
+                              : Wrap(
+                                  spacing: 2,
+                                  children: [
+                                    IconButton(
+                                      tooltip: 'Rechazar',
+                                      onPressed: () =>
+                                          gestionar(miembro, 'rechazar'),
+                                      icon: Icon(
+                                        CupertinoIcons.xmark,
+                                        color: Colors.red.shade600,
+                                      ),
+                                    ),
+                                    IconButton(
+                                      tooltip: 'Aceptar',
+                                      onPressed: () =>
+                                          gestionar(miembro, 'aceptar'),
+                                      icon: Icon(
+                                        CupertinoIcons.check_mark,
+                                        color: ColoresLocales.verdeFernet,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
   void _abrirChat() {
-    final miembros = _detalle?.miembros
-            .where((m) => m.estado == 'aceptado')
-            .toList() ??
+    final miembros =
+        _detalle?.miembros.where((m) => m.estado == 'aceptado').toList() ??
         const <PlanLocalMiembro>[];
     Navigator.of(context).push(
       MaterialPageRoute<void>(
@@ -345,18 +551,18 @@ class _LocalesPlanDashboardState extends State<LocalesPlanDashboard> {
   }
 
   TextStyle get _body => GoogleFonts.baloo2(
-        fontSize: 15,
-        height: 1.3,
-        fontWeight: FontWeight.w600,
-        color: ColoresLocales.textoOnFondoClaro,
-      );
+    fontSize: 15,
+    height: 1.3,
+    fontWeight: FontWeight.w600,
+    color: ColoresLocales.textoOnFondoClaro,
+  );
 
   TextStyle get _muted => GoogleFonts.baloo2(
-        fontSize: 14,
-        height: 1.3,
-        fontWeight: FontWeight.w600,
-        color: ColoresLocales.textoSecundarioOnFondoClaro,
-      );
+    fontSize: 14,
+    height: 1.3,
+    fontWeight: FontWeight.w600,
+    color: ColoresLocales.textoSecundarioOnFondoClaro,
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -400,124 +606,149 @@ class _LocalesPlanDashboardState extends State<LocalesPlanDashboard> {
       body: _cargando && _detalle == null
           ? const Center(child: CircularProgressIndicator())
           : _error != null && _detalle == null
-              ? Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(24),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          _error!,
-                          textAlign: TextAlign.center,
-                          style: GoogleFonts.baloo2(
-                            fontWeight: FontWeight.w700,
-                            color: ColoresLocales.textoOnFondoClaro,
-                          ),
-                        ),
-                        TextButton(
-                          onPressed: _cargar,
-                          child: Text(
-                            'Reintentar',
-                            style: GoogleFonts.baloo2(
-                              fontWeight: FontWeight.w800,
-                              color: ColoresLocales.acentoVioleta,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                )
-              : ListView(
-                  padding: const EdgeInsets.fromLTRB(22, 18, 22, 40),
+          ? Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
-                      eyebrow,
+                      _error!,
+                      textAlign: TextAlign.center,
                       style: GoogleFonts.baloo2(
-                        fontSize: 13,
                         fontWeight: FontWeight.w700,
-                        color: ColoresLocales.acentoVioletaMarca,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      plan.titulo,
-                      style: GoogleFonts.baloo2(
-                        fontSize: 28,
-                        height: 1.05,
-                        fontWeight: FontWeight.w900,
                         color: ColoresLocales.textoOnFondoClaro,
                       ),
                     ),
-                    if (plan.descripcion.trim().isNotEmpty) ...[
-                      const SizedBox(height: 10),
-                      Text(plan.descripcion.trim(), style: _muted),
-                    ],
-                    const SizedBox(height: 16),
-                    Text(
-                      nPersonas == 1
-                          ? '1 persona sumada'
-                          : '$nPersonas personas sumadas',
-                      style: _body,
-                    ),
-                    const SizedBox(height: 6),
-                    Text('Admin del plan: $_adminPlan', style: _body),
-                    const SizedBox(height: 6),
-                    Text(fechas, style: _muted),
-                    const SizedBox(height: 18),
-                    Divider(
-                      height: 1,
-                      thickness: 1,
-                      color: ColoresLocales.textoSecundarioOnFondoClaro
-                          .withValues(alpha: 0.22),
-                    ),
-                    const SizedBox(height: 18),
-                    ..._bloquePedido(plan),
-                    const SizedBox(height: 22),
-                    SizedBox(
-                      width: double.infinity,
-                      height: 56,
-                      child: FilledButton(
-                        onPressed: plan.estaAbierto && !_accionando
-                            ? _abrirChat
-                            : null,
-                        style: FilledButton.styleFrom(
-                          backgroundColor: ColoresLocales.acentoVioletaMarca,
-                          disabledBackgroundColor: ColoresLocales
-                              .acentoVioletaMarca
-                              .withValues(alpha: 0.35),
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                        ),
-                        child: Text(
-                          'Chat del plan',
-                          style: GoogleFonts.baloo2(
-                            fontSize: 17,
-                            fontWeight: FontWeight.w800,
-                          ),
+                    TextButton(
+                      onPressed: _cargar,
+                      child: Text(
+                        'Reintentar',
+                        style: GoogleFonts.baloo2(
+                          fontWeight: FontWeight.w800,
+                          color: ColoresLocales.acentoVioleta,
                         ),
                       ),
                     ),
-                    if (plan.estaAbierto) ...[
-                      const SizedBox(height: 8),
-                      Center(
-                        child: TextButton(
-                          onPressed: _accionando ? null : _rechazarPlan,
-                          child: Text(
-                            'Rechazar plan',
-                            style: GoogleFonts.baloo2(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w800,
-                              color: Colors.red.shade600,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
                   ],
                 ),
+              ),
+            )
+          : ListView(
+              padding: const EdgeInsets.fromLTRB(22, 18, 22, 40),
+              children: [
+                Text(
+                  eyebrow,
+                  style: GoogleFonts.baloo2(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: ColoresLocales.acentoVioletaMarca,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  plan.titulo,
+                  style: GoogleFonts.baloo2(
+                    fontSize: 28,
+                    height: 1.05,
+                    fontWeight: FontWeight.w900,
+                    color: ColoresLocales.textoOnFondoClaro,
+                  ),
+                ),
+                if (plan.descripcion.trim().isNotEmpty) ...[
+                  const SizedBox(height: 10),
+                  Text(plan.descripcion.trim(), style: _muted),
+                ],
+                const SizedBox(height: 16),
+                Text(
+                  nPersonas == 1
+                      ? '1 persona sumada'
+                      : '$nPersonas personas sumadas',
+                  style: _body,
+                ),
+                const SizedBox(height: 6),
+                Text('Admin del plan: $_adminPlan', style: _body),
+                const SizedBox(height: 6),
+                Text(fechas, style: _muted),
+                if (plan.modoLista == 'manual' && plan.estaAbierto) ...[
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: _abrirSolicitudes,
+                      icon: const Icon(CupertinoIcons.person_2),
+                      label: Text(
+                        'Solicitudes para entrar al plan',
+                        style: GoogleFonts.baloo2(fontWeight: FontWeight.w800),
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: ColoresLocales.acentoVioletaMarca,
+                        side: BorderSide(
+                          color: ColoresLocales.acentoVioletaMarca.withValues(
+                            alpha: 0.55,
+                          ),
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 18),
+                Divider(
+                  height: 1,
+                  thickness: 1,
+                  color: ColoresLocales.textoSecundarioOnFondoClaro.withValues(
+                    alpha: 0.22,
+                  ),
+                ),
+                const SizedBox(height: 18),
+                ..._bloquePedido(plan),
+                const SizedBox(height: 22),
+                SizedBox(
+                  width: double.infinity,
+                  height: 56,
+                  child: FilledButton(
+                    onPressed: plan.estaAbierto && !_accionando
+                        ? _abrirChat
+                        : null,
+                    style: FilledButton.styleFrom(
+                      backgroundColor: ColoresLocales.acentoVioletaMarca,
+                      disabledBackgroundColor: ColoresLocales.acentoVioletaMarca
+                          .withValues(alpha: 0.35),
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                    ),
+                    child: Text(
+                      'Chat del plan',
+                      style: GoogleFonts.baloo2(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                ),
+                if (plan.estaAbierto) ...[
+                  const SizedBox(height: 8),
+                  Center(
+                    child: TextButton(
+                      onPressed: _accionando ? null : _cancelarPlan,
+                      child: Text(
+                        'Cancelar este plan',
+                        style: GoogleFonts.baloo2(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.red.shade600,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
     );
   }
 
@@ -525,9 +756,11 @@ class _LocalesPlanDashboardState extends State<LocalesPlanDashboard> {
     if (plan.hayPedidoPendiente) {
       final texto = plan.textoPedidoActivo ?? '';
       return [
+        Text('Pedido pendiente de "$_nombreGrupo"', style: _body),
+        const SizedBox(height: 10),
         Text(
-          'Las personas de "$_nombreGrupo" te pidieron:',
-          style: _body,
+          'Todavía no respondiste. Podés aceptar el pedido u ofrecer otra cosa.',
+          style: _muted,
         ),
         const SizedBox(height: 10),
         Text(
@@ -572,7 +805,7 @@ class _LocalesPlanDashboardState extends State<LocalesPlanDashboard> {
                       ),
                     )
                   : Text(
-                      'Aceptar propuesta',
+                      'Aceptar pedido',
                       style: GoogleFonts.baloo2(
                         fontSize: 15,
                         fontWeight: FontWeight.w800,
@@ -585,7 +818,7 @@ class _LocalesPlanDashboardState extends State<LocalesPlanDashboard> {
             width: double.infinity,
             height: 50,
             child: OutlinedButton(
-              onPressed: _accionando ? null : _cambiar,
+              onPressed: _accionando ? null : _ofrecerOtraCosa,
               style: OutlinedButton.styleFrom(
                 foregroundColor: ColoresLocales.acentoVioletaMarca,
                 side: BorderSide(
@@ -599,7 +832,7 @@ class _LocalesPlanDashboardState extends State<LocalesPlanDashboard> {
                 ),
               ),
               child: Text(
-                'Proponer otro beneficio',
+                'Ofrecer otra cosa',
                 style: GoogleFonts.baloo2(
                   fontSize: 15,
                   fontWeight: FontWeight.w800,
@@ -614,7 +847,7 @@ class _LocalesPlanDashboardState extends State<LocalesPlanDashboard> {
     if (plan.beneficioAceptado) {
       final texto = plan.textoPedidoActivo ?? plan.beneficioLocal ?? '—';
       return [
-        Text('Ya les confirmaste este beneficio:', style: _body),
+        Text('Beneficio confirmado para el grupo:', style: _body),
         const SizedBox(height: 10),
         Text(
           texto,
@@ -625,31 +858,14 @@ class _LocalesPlanDashboardState extends State<LocalesPlanDashboard> {
             color: ColoresLocales.verdeFernet,
           ),
         ),
-        if (plan.estaAbierto) ...[
-          const SizedBox(height: 14),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: TextButton(
-              onPressed: _accionando ? null : _proponer,
-              child: Text(
-                'Cambiar beneficio',
-                style: GoogleFonts.baloo2(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w800,
-                  color: ColoresLocales.acentoVioletaMarca,
-                ),
-              ),
-            ),
-          ),
-        ],
       ];
     }
 
     return [
-      Text('Todavía no te pidieron nada', style: _body),
+      Text('Todavía no hay un pedido de beneficio', style: _body),
       const SizedBox(height: 6),
       Text(
-        'Cuando el grupo arme un pedido aparece acá. También podés ofrecerles algo vos.',
+        'Podés publicar una promo si te unís. Se confirma una sola vez y queda visible para el grupo.',
         style: _muted,
       ),
       if (plan.estaAbierto) ...[
@@ -662,7 +878,9 @@ class _LocalesPlanDashboardState extends State<LocalesPlanDashboard> {
             style: OutlinedButton.styleFrom(
               foregroundColor: ColoresLocales.acentoVioletaMarca,
               side: BorderSide(
-                color: ColoresLocales.acentoVioletaMarca.withValues(alpha: 0.55),
+                color: ColoresLocales.acentoVioletaMarca.withValues(
+                  alpha: 0.55,
+                ),
                 width: 1.6,
               ),
               shape: RoundedRectangleBorder(
@@ -670,7 +888,7 @@ class _LocalesPlanDashboardState extends State<LocalesPlanDashboard> {
               ),
             ),
             child: Text(
-              'Proponer un beneficio',
+              'Publicar promo si te unís',
               style: GoogleFonts.baloo2(
                 fontSize: 15,
                 fontWeight: FontWeight.w800,

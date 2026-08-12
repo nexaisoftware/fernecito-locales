@@ -16,6 +16,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../widgets/splash_carga_locales.dart';
 import 'auth_gate_locales.dart';
+import 'navigator_key_locales.dart';
 import 'servicio_estado_cuenta_locales.dart';
 import 'servicio_push.dart';
 
@@ -105,17 +106,9 @@ class _LocalesRecargarCuentaState extends State<LocalesRecargarCuenta> {
     }
 
     if (destino == '/home') {
-      nav.pushNamedAndRemoveUntil(
-        '/home',
-        (_) => false,
-        arguments: uid,
-      );
+      nav.pushNamedAndRemoveUntil('/home', (_) => false, arguments: uid);
     } else {
-      nav.pushNamedAndRemoveUntil(
-        destino,
-        (_) => false,
-        arguments: uid,
-      );
+      nav.pushNamedAndRemoveUntil(destino, (_) => false, arguments: uid);
     }
     _recargaEnCurso = false;
   }
