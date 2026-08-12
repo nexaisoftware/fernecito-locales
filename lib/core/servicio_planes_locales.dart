@@ -264,13 +264,17 @@ class ServicioPlanesLocales {
     String? q,
   }) async {
     try {
+      // Siempre enviar la firma completa (incl. p_q) para evitar PGRST203
+      // si quedaran sobrecargas viejas de planes_hub en Postgres.
       final res = await _c.rpc(
         'planes_hub',
         params: {
+          'p_ciudades': null,
+          'p_provincia': null,
           'p_modo': 'local',
           'p_limit': limit,
           'p_offset': offset,
-          if (q != null && q.trim().isNotEmpty) 'p_q': q.trim(),
+          'p_q': (q == null || q.trim().isEmpty) ? null : q.trim(),
         },
       );
       if (res is! Map) {
