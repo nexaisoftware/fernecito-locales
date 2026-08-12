@@ -504,7 +504,7 @@ class ServicioPlanesLocales {
         msg.contains('plan_inexistente')) {
       return 'Este plan ya no está disponible.';
     }
-    if (msg.contains('estado_invalido')) {
+    if (msg.contains('estado_invalido') || msg.contains('estado_invalida')) {
       return 'El estado del plan no permite esta acción.';
     }
     if (msg.contains('respuesta_invalida')) {
