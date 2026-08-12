@@ -2,7 +2,6 @@ library;
 
 import 'package:flutter/material.dart';
 
-import 'auth_gate_locales.dart';
 import 'navigator_key_locales.dart';
 
 /// Navegación segura usando siempre el [Navigator] raíz de la app.

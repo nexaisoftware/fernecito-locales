@@ -15,7 +15,6 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../widgets/splash_carga_locales.dart';
-import 'auth_gate_locales.dart';
 import 'navigator_key_locales.dart';
 import 'servicio_estado_cuenta_locales.dart';
 import 'servicio_push.dart';

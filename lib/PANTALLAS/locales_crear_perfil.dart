@@ -16,7 +16,6 @@ import '../core/constants.dart';
 import '../core/supabase_client.dart';
 import '../widgets/onboarding_locales_ui.dart';
 import '../widgets/asistente_perfil_sheet.dart';
-import '../core/auth_gate_locales.dart';
 import '../core/navigator_key_locales.dart';
 import '../core/servicio_edges_eventos.dart';
 import '../core/ubicaciones_data.dart';
