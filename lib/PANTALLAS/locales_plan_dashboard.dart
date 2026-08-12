@@ -16,11 +16,13 @@ class LocalesPlanDashboard extends StatefulWidget {
     required this.idPlan,
     this.inicial,
     this.abrirChat = false,
+    this.abrirSolicitudes = false,
   });
 
   final String idPlan;
   final PlanLocalItem? inicial;
   final bool abrirChat;
+  final bool abrirSolicitudes;
 
   @override
   State<LocalesPlanDashboard> createState() => _LocalesPlanDashboardState();
@@ -32,6 +34,7 @@ class _LocalesPlanDashboardState extends State<LocalesPlanDashboard> {
   bool _cargando = true;
   bool _accionando = false;
   bool _abrioChatAutomatico = false;
+  bool _abrioSolicitudesAutomatico = false;
   String? _error;
 
   PlanLocalItem get _plan => _detalle?.plan ?? widget.inicial ?? _planFallback;
@@ -89,6 +92,13 @@ class _LocalesPlanDashboardState extends State<LocalesPlanDashboard> {
       _abrioChatAutomatico = true;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) _abrirChat();
+      });
+    } else if (det != null &&
+        widget.abrirSolicitudes &&
+        !_abrioSolicitudesAutomatico) {
+      _abrioSolicitudesAutomatico = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _abrirSolicitudes();
       });
     }
   }

@@ -162,6 +162,19 @@ class _LocalesNotificacionesState extends State<LocalesNotificaciones> {
       }
       return (ruta: '/planes', pestana: null, argumentos: null);
     }
+    if (n.tipo == 'plan_solicitud' || accion == 'solicitudes') {
+      if (idPlan.isNotEmpty) {
+        return (
+          ruta: '/planes/detalle',
+          pestana: null,
+          argumentos: <String, dynamic>{
+            'id_plan': idPlan,
+            'accion': 'solicitudes',
+          },
+        );
+      }
+      return (ruta: '/planes', pestana: null, argumentos: null);
+    }
     if (n.tipo == 'plan_pedido_local' ||
         n.tipo == 'plan_pedido_respuesta' ||
         n.tipo == 'plan_mencion' ||

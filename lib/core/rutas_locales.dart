@@ -101,11 +101,14 @@ Map<String, WidgetBuilder> rutasLocales() => {
         : (args is Map && args['id_plan'] != null
               ? args['id_plan'].toString()
               : '');
-    final abrirChat =
-        args is Map &&
-        (args['accion']?.toString().toLowerCase() == 'chat' ||
-            args['cta']?.toString().toLowerCase() == 'chat');
-    return LocalesPlanDashboard(idPlan: id, abrirChat: abrirChat);
+    final accion = args is Map
+        ? (args['accion'] ?? args['cta'] ?? '').toString().toLowerCase()
+        : '';
+    return LocalesPlanDashboard(
+      idPlan: id,
+      abrirChat: accion == 'chat',
+      abrirSolicitudes: accion == 'solicitudes',
+    );
   },
   '/staff': (context) => const LocalesStaff(),
   '/calificaciones': (context) => const LocalesCalificaciones(),
