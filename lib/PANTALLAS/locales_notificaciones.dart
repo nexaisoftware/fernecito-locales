@@ -146,6 +146,7 @@ class _LocalesNotificacionesState extends State<LocalesNotificaciones> {
         .trim();
     if (n.tipo == 'plan_pedido_local' ||
         n.tipo == 'plan_pedido_respuesta' ||
+        n.tipo == 'plan_mencion' ||
         (n.ctaRuta ?? '').contains('planes')) {
       if (idPlan.isNotEmpty) {
         return (ruta: '/planes/detalle', pestana: null, argumentos: idPlan);

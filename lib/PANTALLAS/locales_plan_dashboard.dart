@@ -258,9 +258,13 @@ class _LocalesPlanDashboardState extends State<LocalesPlanDashboard> {
   }
 
   void _abrirChat() {
+    final miembros = _detalle?.miembros
+            .where((m) => m.estado == 'aceptado')
+            .toList() ??
+        const <PlanLocalMiembro>[];
     Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => LocalesChatPlan(plan: _plan),
+        builder: (_) => LocalesChatPlan(plan: _plan, miembros: miembros),
       ),
     );
   }

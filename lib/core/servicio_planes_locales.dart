@@ -24,6 +24,7 @@ class PlanLocalItem {
     this.cupoMax,
     this.fotoOrganizador,
     this.nombreSquad,
+    this.nombreLocal,
     this.portadaPath,
     this.colorHex = '#C084FC',
     this.estado = 'abierto',
@@ -52,6 +53,8 @@ class PlanLocalItem {
   final String? fotoOrganizador;
   final String tipoOrganizador;
   final String? nombreSquad;
+  /// Nombre del venue (para badge LOCAL / @menciones).
+  final String? nombreLocal;
   final String? portadaPath;
   final String colorHex;
   final String estado;
@@ -145,6 +148,7 @@ class PlanLocalItem {
       fotoOrganizador: m['foto_organizador']?.toString(),
       tipoOrganizador: m['tipo_organizador']?.toString() ?? 'usuario',
       nombreSquad: m['nombre_squad']?.toString(),
+      nombreLocal: m['nombre_local']?.toString(),
       portadaPath: m['portada_path']?.toString(),
       colorHex: m['color_hex']?.toString() ?? '#C084FC',
       estado: m['estado']?.toString() ?? 'abierto',
