@@ -88,12 +88,16 @@ class _LocalesPlanDashboardState extends State<LocalesPlanDashboard> {
       _cargando = false;
       _error = det == null ? 'No se pudo cargar el plan.' : null;
     });
-    if (det != null && widget.abrirChat && !_abrioChatAutomatico) {
+    if (det != null &&
+        det.plan.estaAbierto &&
+        widget.abrirChat &&
+        !_abrioChatAutomatico) {
       _abrioChatAutomatico = true;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) _abrirChat();
       });
     } else if (det != null &&
+        det.plan.estaAbierto &&
         widget.abrirSolicitudes &&
         !_abrioSolicitudesAutomatico) {
       _abrioSolicitudesAutomatico = true;
@@ -202,7 +206,7 @@ class _LocalesPlanDashboardState extends State<LocalesPlanDashboard> {
       builder: (ctx) => AlertDialog(
         backgroundColor: ColoresLocales.superficie,
         title: Text(
-          '¿Aceptar pedido?',
+          '¿Aceptar beneficio?',
           style: GoogleFonts.baloo2(
             fontWeight: FontWeight.w800,
             color: ColoresLocales.textoOnFondoClaro,
@@ -229,7 +233,7 @@ class _LocalesPlanDashboardState extends State<LocalesPlanDashboard> {
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
             child: Text(
-              'Aceptar',
+              'Aceptar beneficio',
               style: GoogleFonts.baloo2(
                 fontWeight: FontWeight.w800,
                 color: ColoresLocales.verdeFernet,
@@ -249,7 +253,7 @@ class _LocalesPlanDashboardState extends State<LocalesPlanDashboard> {
 
   Future<void> _ofrecerOtraCosa() async {
     final texto = await _pedirTexto(
-      titulo: 'Ofrecer otra cosa',
+      titulo: 'Proponer otro beneficio',
       hint: 'Qué ofrecés en su lugar',
       inicial: _plan.beneficioContraoferta ?? _plan.pedidoBeneficio,
     );
@@ -365,6 +369,7 @@ class _LocalesPlanDashboardState extends State<LocalesPlanDashboard> {
   }
 
   Future<void> _abrirSolicitudes() async {
+    if (!_plan.estaAbierto) return;
     String? procesandoId;
     await showModalBottomSheet<void>(
       context: context,
@@ -550,6 +555,7 @@ class _LocalesPlanDashboardState extends State<LocalesPlanDashboard> {
   }
 
   void _abrirChat() {
+    if (!_plan.estaAbierto) return;
     final miembros =
         _detalle?.miembros.where((m) => m.estado == 'aceptado').toList() ??
         const <PlanLocalMiembro>[];
@@ -573,6 +579,81 @@ class _LocalesPlanDashboardState extends State<LocalesPlanDashboard> {
     fontWeight: FontWeight.w600,
     color: ColoresLocales.textoSecundarioOnFondoClaro,
   );
+
+  Widget _bloqueArchivado(PlanLocalItem plan) {
+    final estado = plan.estado == 'cancelado'
+        ? 'cancelado'
+        : plan.estado == 'eliminado'
+        ? 'eliminado'
+        : 'finalizado';
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: ColoresLocales.superficie.withValues(alpha: 0.72),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: ColoresLocales.textoSecundarioOnFondoClaro.withValues(
+            alpha: 0.18,
+          ),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                CupertinoIcons.archivebox,
+                color: ColoresLocales.textoSecundarioOnFondoClaro,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Plan archivado',
+                  style: GoogleFonts.baloo2(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w900,
+                    color: ColoresLocales.textoOnFondoClaro,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Este plan está $estado. El chat, las solicitudes y las acciones del beneficio quedan cerradas.',
+            style: _muted,
+          ),
+          const SizedBox(height: 14),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: () => Navigator.of(
+                context,
+              ).pushNamedAndRemoveUntil('/planes', (route) => route.isFirst),
+              icon: const Icon(CupertinoIcons.square_grid_2x2),
+              label: Text(
+                'Volver al hub',
+                style: GoogleFonts.baloo2(fontWeight: FontWeight.w800),
+              ),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: ColoresLocales.acentoVioletaMarca,
+                side: BorderSide(
+                  color: ColoresLocales.acentoVioletaMarca.withValues(
+                    alpha: 0.45,
+                  ),
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -680,68 +761,71 @@ class _LocalesPlanDashboardState extends State<LocalesPlanDashboard> {
                 Text('Admin del plan: $_adminPlan', style: _body),
                 const SizedBox(height: 6),
                 Text(fechas, style: _muted),
-                if (plan.modoLista == 'manual' && plan.estaAbierto) ...[
-                  const SizedBox(height: 16),
-                  SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton.icon(
-                      onPressed: _abrirSolicitudes,
-                      icon: const Icon(CupertinoIcons.person_2),
-                      label: Text(
-                        'Aceptar solicitudes del plan',
-                        style: GoogleFonts.baloo2(fontWeight: FontWeight.w800),
-                      ),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: ColoresLocales.acentoVioletaMarca,
-                        side: BorderSide(
-                          color: ColoresLocales.acentoVioletaMarca.withValues(
-                            alpha: 0.55,
+                if (!plan.estaAbierto) ...[
+                  const SizedBox(height: 18),
+                  _bloqueArchivado(plan),
+                ] else ...[
+                  if (plan.modoLista == 'manual') ...[
+                    const SizedBox(height: 16),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: _abrirSolicitudes,
+                        icon: const Icon(CupertinoIcons.person_2),
+                        label: Text(
+                          'Aceptar solicitudes del plan',
+                          style: GoogleFonts.baloo2(
+                            fontWeight: FontWeight.w800,
                           ),
                         ),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: ColoresLocales.acentoVioletaMarca,
+                          side: BorderSide(
+                            color: ColoresLocales.acentoVioletaMarca.withValues(
+                              alpha: 0.55,
+                            ),
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 18),
+                  Divider(
+                    height: 1,
+                    thickness: 1,
+                    color: ColoresLocales.textoSecundarioOnFondoClaro
+                        .withValues(alpha: 0.22),
+                  ),
+                  const SizedBox(height: 18),
+                  ..._bloquePedido(plan),
+                  const SizedBox(height: 22),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 56,
+                    child: FilledButton(
+                      onPressed: !_accionando ? _abrirChat : null,
+                      style: FilledButton.styleFrom(
+                        backgroundColor: ColoresLocales.acentoVioletaMarca,
+                        disabledBackgroundColor: ColoresLocales
+                            .acentoVioletaMarca
+                            .withValues(alpha: 0.35),
+                        foregroundColor: Colors.white,
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14),
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                      ),
+                      child: Text(
+                        'Chat del plan',
+                        style: GoogleFonts.baloo2(
+                          fontSize: 17,
+                          fontWeight: FontWeight.w800,
                         ),
                       ),
                     ),
                   ),
-                ],
-                const SizedBox(height: 18),
-                Divider(
-                  height: 1,
-                  thickness: 1,
-                  color: ColoresLocales.textoSecundarioOnFondoClaro.withValues(
-                    alpha: 0.22,
-                  ),
-                ),
-                const SizedBox(height: 18),
-                ..._bloquePedido(plan),
-                const SizedBox(height: 22),
-                SizedBox(
-                  width: double.infinity,
-                  height: 56,
-                  child: FilledButton(
-                    onPressed: plan.estaAbierto && !_accionando
-                        ? _abrirChat
-                        : null,
-                    style: FilledButton.styleFrom(
-                      backgroundColor: ColoresLocales.acentoVioletaMarca,
-                      disabledBackgroundColor: ColoresLocales.acentoVioletaMarca
-                          .withValues(alpha: 0.35),
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                    ),
-                    child: Text(
-                      'Chat del plan',
-                      style: GoogleFonts.baloo2(
-                        fontSize: 17,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                  ),
-                ),
-                if (plan.estaAbierto) ...[
                   const SizedBox(height: 8),
                   Center(
                     child: TextButton(
@@ -816,7 +900,7 @@ class _LocalesPlanDashboardState extends State<LocalesPlanDashboard> {
                       ),
                     )
                   : Text(
-                      'Aceptar pedido',
+                      'Aceptar beneficio',
                       style: GoogleFonts.baloo2(
                         fontSize: 15,
                         fontWeight: FontWeight.w800,
@@ -843,7 +927,7 @@ class _LocalesPlanDashboardState extends State<LocalesPlanDashboard> {
                 ),
               ),
               child: Text(
-                'Ofrecer otra cosa',
+                'Proponer otro beneficio',
                 style: GoogleFonts.baloo2(
                   fontSize: 15,
                   fontWeight: FontWeight.w800,

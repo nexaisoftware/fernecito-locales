@@ -15,6 +15,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'config_push_web.dart';
 import 'navigator_key_locales.dart';
 import 'push_web_helper.dart';
+import 'servicio_planes_locales.dart';
 
 class ServicioPush {
   ServicioPush._();
@@ -95,6 +96,12 @@ class ServicioPush {
       });
       return;
     }
+    final detalle = await ServicioPlanesLocales.instancia.detalle(idPlan);
+    if (detalle != null && !detalle.plan.estaAbierto) {
+      await navigator.pushNamed('/planes');
+      return;
+    }
+
     await navigator.pushNamed(
       '/planes/detalle',
       arguments: <String, dynamic>{

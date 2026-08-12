@@ -36,6 +36,7 @@ class PlanLocalItem {
     this.pedidoVotos = 0,
     this.personasAceptadas = 0,
     this.contactoAnfitrion,
+    this.contactoTitulo,
     this.contactoModo = 'contactar',
     this.ingresoAbierto = true,
   });
@@ -67,6 +68,7 @@ class PlanLocalItem {
   final int pedidoVotos;
   final int personasAceptadas;
   final String? contactoAnfitrion;
+  final String? contactoTitulo;
   final String contactoModo;
   final bool ingresoAbierto;
 
@@ -125,6 +127,11 @@ class PlanLocalItem {
     int? n(dynamic v) =>
         v is num ? v.toInt() : int.tryParse(v?.toString() ?? '');
 
+    final beneficioEstadoRaw = m['beneficio_estado']?.toString() ?? 'ninguno';
+    final beneficioEstado = beneficioEstadoRaw == 'rechazado'
+        ? 'ninguno'
+        : beneficioEstadoRaw;
+
     return PlanLocalItem(
       id: m['id']?.toString() ?? '',
       titulo: m['titulo']?.toString() ?? '',
@@ -145,12 +152,13 @@ class PlanLocalItem {
       colorHex: m['color_hex']?.toString() ?? '#C084FC',
       estado: m['estado']?.toString() ?? 'abierto',
       beneficioLocal: m['beneficio_local']?.toString(),
-      beneficioEstado: m['beneficio_estado']?.toString() ?? 'ninguno',
+      beneficioEstado: beneficioEstado,
       beneficioContraoferta: m['beneficio_contraoferta']?.toString(),
       pedidoBeneficio: m['pedido_beneficio']?.toString(),
       pedidoVotos: n(m['pedido_votos']) ?? 0,
       personasAceptadas: n(m['personas_aceptadas']) ?? n(m['cupo_usados']) ?? 0,
       contactoAnfitrion: m['contacto_anfitrion']?.toString(),
+      contactoTitulo: m['contacto_titulo']?.toString(),
       contactoModo: m['contacto_modo']?.toString() == 'colaborar'
           ? 'colaborar'
           : 'contactar',
@@ -390,6 +398,7 @@ class ServicioPlanesLocales {
     String modoLista = 'auto',
     int? cupoMax,
     String? contactoAnfitrion,
+    String? contactoTitulo,
     String contactoModo = 'contactar',
     String? portadaPath,
     String colorHex = '#C084FC',
@@ -413,6 +422,7 @@ class ServicioPlanesLocales {
           'p_tipo_organizador': tipoOrganizador,
           'p_creador_tipo': 'local',
           'p_contacto_anfitrion': contactoAnfitrion,
+          'p_contacto_titulo': contactoTitulo,
           'p_contacto_modo': contactoModo == 'colaborar'
               ? 'colaborar'
               : 'contactar',
@@ -426,6 +436,48 @@ class ServicioPlanesLocales {
       return null;
     } catch (e) {
       debugPrint('⚠️ planes_crear local: $e');
+      rethrow;
+    }
+  }
+
+  Future<bool> actualizarBasico({
+    required String idPlan,
+    String? descripcion,
+    DateTime? fechaInicio,
+    DateTime? fechaFin,
+    int? cupoMax,
+    bool sinCupo = false,
+    bool? ingresoAbierto,
+    String? contactoAnfitrion,
+    String? contactoTitulo,
+    String? contactoModo,
+    bool limpiarContacto = false,
+  }) async {
+    try {
+      final res = await _c.rpc(
+        'planes_actualizar_basico',
+        params: {
+          'p_id_plan': idPlan,
+          'p_descripcion': descripcion,
+          'p_fecha_inicio': fechaInicio?.toUtc().toIso8601String(),
+          'p_fecha_fin': fechaFin?.toUtc().toIso8601String(),
+          'p_cupo_max': cupoMax,
+          'p_sin_cupo': sinCupo,
+          'p_ingreso_abierto': ingresoAbierto,
+          'p_contacto_anfitrion': contactoAnfitrion,
+          'p_contacto_titulo': contactoTitulo,
+          'p_contacto_modo': contactoModo,
+          'p_limpiar_contacto': limpiarContacto,
+        },
+      );
+      if (res is Map && res['ok'] == true) return true;
+      throw Exception(
+        res is Map
+            ? (res['error']?.toString() ?? 'respuesta_invalida')
+            : 'respuesta_invalida',
+      );
+    } catch (e) {
+      debugPrint('⚠️ planes_actualizar_basico local: $e');
       rethrow;
     }
   }
@@ -499,10 +551,14 @@ class ServicioPlanesLocales {
     if (msg.contains('accion_invalida')) {
       return 'Esa acción no está disponible para este plan.';
     }
-    if (msg.contains('plan_cerrado') ||
-        msg.contains('plan_finalizado') ||
-        msg.contains('plan_inexistente')) {
-      return 'Este plan ya no está disponible.';
+    if (msg.contains('plan_finalizado')) {
+      return 'Este plan ya está finalizado y quedó archivado.';
+    }
+    if (msg.contains('plan_cerrado')) {
+      return 'Este plan está cerrado y ya no permite acciones.';
+    }
+    if (msg.contains('plan_inexistente')) {
+      return 'No encontramos ese plan.';
     }
     if (msg.contains('estado_invalido') || msg.contains('estado_invalida')) {
       return 'El estado del plan no permite esta acción.';
@@ -575,6 +631,27 @@ class ServicioPlanesLocales {
               debugPrint('⚠️ realtime mensaje plan: $e');
             }
           },
+        )
+        .subscribe();
+    return canal;
+  }
+
+  RealtimeChannel suscribirCambiosPlan(
+    String idPlan,
+    void Function() onCambio,
+  ) {
+    final canal = _c.channel('planes_estado_local_$idPlan');
+    canal
+        .onPostgresChanges(
+          event: PostgresChangeEvent.update,
+          schema: 'public',
+          table: 'planes',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'id',
+            value: idPlan,
+          ),
+          callback: (_) => onCambio(),
         )
         .subscribe();
     return canal;

@@ -46,9 +46,11 @@ class _LocalesChatPlanState extends State<LocalesChatPlan> {
   List<PlanLocalMensaje> _mensajes = const [];
   List<PlanLocalMiembro> _miembros = const [];
   final Map<String, String> _nombresAutores = {};
+  late PlanLocalItem _plan;
   bool _cargando = true;
   bool _enviando = false;
   RealtimeChannel? _canal;
+  RealtimeChannel? _canalPlan;
 
   String? _queryMencion;
   int? _inicioMencion;
@@ -56,16 +58,18 @@ class _LocalesChatPlanState extends State<LocalesChatPlan> {
   String? get _miUid => _srv.miUid;
 
   String get _nombreVenue {
-    final n = widget.plan.nombreLocal?.trim();
+    final n = _plan.nombreLocal?.trim();
     if (n != null && n.isNotEmpty) return n;
     return 'Local';
   }
 
   String get _handleLocal => handleMencionLocal(_nombreVenue);
+  bool get _planAbierto => _plan.estaAbierto;
 
   @override
   void initState() {
     super.initState();
+    _plan = widget.plan;
     _miembros = widget.miembros
         .where((m) => m.estado == 'aceptado')
         .toList(growable: false);
@@ -74,27 +78,10 @@ class _LocalesChatPlanState extends State<LocalesChatPlan> {
     }
     _ctrl.addListener(_onTextoCambio);
     _cargar();
-    if (widget.plan.estaAbierto) {
-      _canal = _srv.suscribirMensajes(widget.plan.id, (m) {
-        if (!mounted) return;
-        if (_mensajes.any((x) => x.id == m.id)) return;
-        setState(() {
-          if (m.idAutorLocal == _miUid || m.idAutor == _miUid) {
-            final i = _mensajes.indexWhere(
-              (x) => x.id < 0 && x.cuerpo == m.cuerpo,
-            );
-            if (i >= 0) {
-              final copia = [..._mensajes];
-              copia[i] = m;
-              _mensajes = copia;
-              _resolverNombre(m);
-              return;
-            }
-          }
-          _mensajes = [..._mensajes, m];
-        });
-        _resolverNombre(m);
-        _bajar();
+    _suscribirMensajesSiAbierto();
+    if (_plan.estaAbierto) {
+      _canalPlan = _srv.suscribirCambiosPlan(_plan.id, () {
+        if (mounted) unawaited(_cargar());
       });
     }
   }
@@ -104,23 +91,61 @@ class _LocalesChatPlanState extends State<LocalesChatPlan> {
     _ctrl.removeListener(_onTextoCambio);
     final canal = _canal;
     if (canal != null) unawaited(_srv.cerrarCanal(canal));
+    final canalPlan = _canalPlan;
+    if (canalPlan != null) unawaited(_srv.cerrarCanal(canalPlan));
     _ctrl.dispose();
     _scroll.dispose();
     _focus.dispose();
     super.dispose();
   }
 
+  void _suscribirMensajesSiAbierto() {
+    if (_canal != null || !_plan.estaAbierto) return;
+    _canal = _srv.suscribirMensajes(_plan.id, (m) {
+      if (!mounted || !_planAbierto) return;
+      if (_mensajes.any((x) => x.id == m.id)) return;
+      setState(() {
+        if (m.idAutorLocal == _miUid || m.idAutor == _miUid) {
+          final i = _mensajes.indexWhere(
+            (x) => x.id < 0 && x.cuerpo == m.cuerpo,
+          );
+          if (i >= 0) {
+            final copia = [..._mensajes];
+            copia[i] = m;
+            _mensajes = copia;
+            _resolverNombre(m);
+            return;
+          }
+        }
+        _mensajes = [..._mensajes, m];
+      });
+      _resolverNombre(m);
+      _bajar();
+    });
+  }
+
+  void _cerrarRealtimeArchivado() {
+    final canal = _canal;
+    _canal = null;
+    if (canal != null) unawaited(_srv.cerrarCanal(canal));
+    final canalPlan = _canalPlan;
+    _canalPlan = null;
+    if (canalPlan != null) unawaited(_srv.cerrarCanal(canalPlan));
+  }
+
   Future<void> _cargar() async {
     try {
-      final mensajesF = _srv.historial(widget.plan.id);
-      final detalleF = _srv.detalle(widget.plan.id);
+      final idPlan = _plan.id;
+      final mensajesF = _srv.historial(idPlan);
+      final detalleF = _srv.detalle(idPlan);
       final mensajes = await mensajesF;
       final detalle = await detalleF;
-      await _srv.marcarLeido(widget.plan.id);
+      await _srv.marcarLeido(idPlan);
       if (!mounted) return;
       setState(() {
         _mensajes = mensajes;
         if (detalle != null) {
+          _plan = detalle.plan;
           _miembros = detalle.miembros
               .where((m) => m.estado == 'aceptado')
               .toList(growable: false);
@@ -132,10 +157,10 @@ class _LocalesChatPlanState extends State<LocalesChatPlan> {
         }
         _cargando = false;
       });
-      if (detalle != null && !detalle.plan.estaAbierto) {
-        final canal = _canal;
-        _canal = null;
-        if (canal != null) unawaited(_srv.cerrarCanal(canal));
+      if (!_plan.estaAbierto) {
+        _cerrarRealtimeArchivado();
+      } else {
+        _suscribirMensajesSiAbierto();
       }
       for (final m in mensajes) {
         unawaited(_resolverNombre(m));
@@ -283,7 +308,7 @@ class _LocalesChatPlanState extends State<LocalesChatPlan> {
 
   Future<void> _enviar() async {
     final texto = _ctrl.text.trim();
-    if (texto.isEmpty || _enviando) return;
+    if (texto.isEmpty || _enviando || !_planAbierto) return;
     _ctrl.clear();
     setState(() {
       _queryMencion = null;
@@ -305,7 +330,7 @@ class _LocalesChatPlanState extends State<LocalesChatPlan> {
     });
     _bajar();
     try {
-      final idReal = await _srv.enviarMensaje(widget.plan.id, texto);
+      final idReal = await _srv.enviarMensaje(_plan.id, texto);
       if (!mounted) return;
       setState(() {
         final copia = [..._mensajes];
@@ -385,7 +410,7 @@ class _LocalesChatPlanState extends State<LocalesChatPlan> {
               ),
             ),
             Text(
-              widget.plan.titulo,
+              _plan.titulo,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: GoogleFonts.baloo2(
@@ -408,7 +433,9 @@ class _LocalesChatPlanState extends State<LocalesChatPlan> {
                 borderRadius: BorderRadius.circular(16),
               ),
               child: Text(
-                'Chat del plan · el admin y el local aparecen destacados. Usá @ para mencionar.',
+                _planAbierto
+                    ? 'Chat del plan · el admin y el local aparecen destacados. Usá @ para mencionar.'
+                    : 'Este plan está archivado.',
                 textAlign: TextAlign.center,
                 style: GoogleFonts.baloo2(
                   fontSize: 12.5,
@@ -453,7 +480,7 @@ class _LocalesChatPlanState extends State<LocalesChatPlan> {
                     },
                   ),
           ),
-          if (candidatos.isNotEmpty)
+          if (_planAbierto && candidatos.isNotEmpty)
             Material(
               color: ColoresLocales.superficie,
               elevation: 2,
@@ -504,53 +531,72 @@ class _LocalesChatPlanState extends State<LocalesChatPlan> {
             ),
           SafeArea(
             top: false,
-            child: Container(
-              padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
-              color: ColoresLocales.superficie,
-              child: Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _ctrl,
-                      focusNode: _focus,
-                      minLines: 1,
-                      maxLines: 4,
-                      textInputAction: TextInputAction.send,
-                      onSubmitted: (_) => _enviar(),
+            child: _planAbierto
+                ? Container(
+                    padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
+                    color: ColoresLocales.superficie,
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: _ctrl,
+                            focusNode: _focus,
+                            minLines: 1,
+                            maxLines: 4,
+                            textInputAction: TextInputAction.send,
+                            onSubmitted: (_) => _enviar(),
+                            style: GoogleFonts.baloo2(
+                              fontWeight: FontWeight.w600,
+                              color: ColoresLocales.textoOnFondoClaro,
+                            ),
+                            decoration: InputDecoration(
+                              hintText: 'Escribí… Usá @ para mencionar',
+                              hintStyle: GoogleFonts.baloo2(
+                                color:
+                                    ColoresLocales.textoSecundarioOnFondoClaro,
+                              ),
+                              filled: true,
+                              fillColor: ColoresLocales.superficieElevada,
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(16),
+                                borderSide: BorderSide.none,
+                              ),
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 14,
+                                vertical: 10,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        IconButton.filled(
+                          onPressed: _enviando ? null : _enviar,
+                          style: IconButton.styleFrom(
+                            backgroundColor: ColoresLocales.acentoVioletaMarca,
+                            foregroundColor: Colors.white,
+                          ),
+                          icon: const Icon(
+                            CupertinoIcons.paperplane_fill,
+                            size: 18,
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                : Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
+                    color: ColoresLocales.superficie,
+                    child: Text(
+                      'Este plan está archivado',
+                      textAlign: TextAlign.center,
                       style: GoogleFonts.baloo2(
-                        fontWeight: FontWeight.w600,
-                        color: ColoresLocales.textoOnFondoClaro,
-                      ),
-                      decoration: InputDecoration(
-                        hintText: 'Escribí… Usá @ para mencionar',
-                        hintStyle: GoogleFonts.baloo2(
-                          color: ColoresLocales.textoSecundarioOnFondoClaro,
-                        ),
-                        filled: true,
-                        fillColor: ColoresLocales.superficieElevada,
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(16),
-                          borderSide: BorderSide.none,
-                        ),
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 10,
-                        ),
+                        fontSize: 14,
+                        fontWeight: FontWeight.w800,
+                        color: ColoresLocales.textoSecundarioOnFondoClaro,
                       ),
                     ),
                   ),
-                  const SizedBox(width: 8),
-                  IconButton.filled(
-                    onPressed: _enviando ? null : _enviar,
-                    style: IconButton.styleFrom(
-                      backgroundColor: ColoresLocales.acentoVioletaMarca,
-                      foregroundColor: Colors.white,
-                    ),
-                    icon: const Icon(CupertinoIcons.paperplane_fill, size: 18),
-                  ),
-                ],
-              ),
-            ),
           ),
         ],
       ),
@@ -699,81 +745,92 @@ class _BurbujaLocal extends StatelessWidget {
 
     return Align(
       alignment: esMio ? Alignment.centerRight : Alignment.centerLeft,
-      child: Container(
-        constraints: BoxConstraints(
-          maxWidth: MediaQuery.sizeOf(context).width * 0.78,
+      child: ClipRRect(
+        borderRadius: BorderRadius.only(
+          topLeft: const Radius.circular(16),
+          topRight: const Radius.circular(16),
+          bottomLeft: Radius.circular(esMio ? 16 : 7),
+          bottomRight: Radius.circular(esMio ? 7 : 16),
         ),
-        margin: const EdgeInsets.only(bottom: 8),
-        padding: const EdgeInsets.fromLTRB(12, 9, 12, 10),
-        decoration: BoxDecoration(
-          color: local
-              ? const Color(0xFF14B8A6).withValues(alpha: 0.14)
-              : esMio
-              ? ColoresLocales.acentoVioletaMarca
-              : ColoresLocales.superficie,
-          borderRadius: BorderRadius.only(
-            topLeft: const Radius.circular(18),
-            topRight: const Radius.circular(18),
-            bottomLeft: Radius.circular(esMio ? 18 : 6),
-            bottomRight: Radius.circular(esMio ? 6 : 18),
+        clipBehavior: Clip.antiAlias,
+        child: Container(
+          constraints: BoxConstraints(
+            maxWidth: MediaQuery.sizeOf(context).width * 0.78,
           ),
-          border: local
-              ? Border.all(
-                  color: const Color(0xFF14B8A6).withValues(alpha: 0.35),
-                )
-              : (colorAutor != null
-                    ? Border.all(color: colorAutor.withValues(alpha: 0.35))
-                    : null),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (nombreAutor != null)
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Flexible(
-                    child: Text(
-                      nombreAutor!,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.baloo2(
-                        fontSize: 11.5,
-                        fontWeight: FontWeight.w900,
-                        color: local
-                            ? const Color(0xFF0F766E)
-                            : esMio
-                            ? Colors.white.withValues(alpha: 0.85)
-                            : (colorAutor ??
-                                  ColoresLocales.textoSecundarioOnFondoClaro),
+          margin: const EdgeInsets.only(bottom: 8),
+          padding: const EdgeInsets.fromLTRB(12, 9, 12, 10),
+          decoration: BoxDecoration(
+            color: local
+                ? const Color(0xFF14B8A6).withValues(alpha: 0.14)
+                : esMio
+                ? ColoresLocales.acentoVioletaMarca
+                : ColoresLocales.superficie,
+            borderRadius: BorderRadius.only(
+              topLeft: const Radius.circular(16),
+              topRight: const Radius.circular(16),
+              bottomLeft: Radius.circular(esMio ? 16 : 7),
+              bottomRight: Radius.circular(esMio ? 7 : 16),
+            ),
+            border: local
+                ? Border.all(
+                    color: const Color(0xFF14B8A6).withValues(alpha: 0.35),
+                  )
+                : (colorAutor != null
+                      ? Border.all(color: colorAutor.withValues(alpha: 0.35))
+                      : null),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (nombreAutor != null)
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Flexible(
+                      child: Text(
+                        nombreAutor!,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.baloo2(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w900,
+                          color: local
+                              ? const Color(0xFF0F766E)
+                              : esMio
+                              ? Colors.white.withValues(alpha: 0.85)
+                              : (colorAutor ??
+                                    ColoresLocales.textoSecundarioOnFondoClaro),
+                        ),
                       ),
                     ),
-                  ),
-                  if (local || admin) ...[
-                    const SizedBox(width: 6),
-                    _BadgeChat(
-                      texto: local ? 'LOCAL' : 'ADMIN',
-                      color: local
-                          ? const Color(0xFF0D9488)
-                          : (colorAutor ?? ColoresLocales.acentoVioleta),
-                    ),
+                    if (local || admin) ...[
+                      const SizedBox(width: 6),
+                      _BadgeChat(
+                        texto: local ? 'LOCAL' : 'ADMIN',
+                        color: local
+                            ? const Color(0xFF0D9488)
+                            : (colorAutor ?? ColoresLocales.acentoVioleta),
+                      ),
+                    ],
                   ],
-                ],
+                ),
+              if (nombreAutor != null) const SizedBox(height: 3),
+              _TextoConMenciones(
+                texto: m.cuerpo,
+                colorMencion: esMio
+                    ? Colors.white
+                    : ColoresLocales.acentoVioletaMarca,
+                style: GoogleFonts.baloo2(
+                  fontSize: 14.5,
+                  height: 1.18,
+                  fontWeight: FontWeight.w700,
+                  color: esMio
+                      ? Colors.white
+                      : ColoresLocales.textoOnFondoClaro,
+                ),
               ),
-            if (nombreAutor != null) const SizedBox(height: 3),
-            _TextoConMenciones(
-              texto: m.cuerpo,
-              colorMencion: esMio
-                  ? Colors.white
-                  : ColoresLocales.acentoVioletaMarca,
-              style: GoogleFonts.baloo2(
-                fontSize: 14.5,
-                height: 1.18,
-                fontWeight: FontWeight.w700,
-                color: esMio ? Colors.white : ColoresLocales.textoOnFondoClaro,
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

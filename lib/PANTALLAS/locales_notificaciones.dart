@@ -8,6 +8,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../core/constants.dart';
 import '../widgets/tema_locales_scope.dart';
 import '../core/servicio_notificaciones_locales.dart';
+import '../core/servicio_planes_locales.dart';
 import '../core/servicio_push.dart';
 import '../core/navegacion_locales.dart';
 import '../models/notificacion.dart';
@@ -92,11 +93,12 @@ class _LocalesNotificacionesState extends State<LocalesNotificaciones> {
     // Optimista: actualizamos UI primero
     setState(() {
       final idx = _notifs.indexWhere((x) => x.id == n.id);
-      if (idx >= 0)
+      if (idx >= 0) {
         _notifs[idx] = n.copyWith(
           leida: true,
           fechaLectura: DateTime.now().toUtc(),
         );
+      }
     });
     _servicio.sincronizarDesdeLista(_notifs);
     final ok = await _servicio.marcarLeida(n.id);
@@ -120,10 +122,20 @@ class _LocalesNotificacionesState extends State<LocalesNotificaciones> {
     await _servicio.marcarTodasLeidas();
   }
 
-  void _navegar(Notificacion n) {
+  Future<void> _navegar(Notificacion n) async {
     _marcarLeida(n);
-    final destino = _destinoNotificacion(n);
+    var destino = _destinoNotificacion(n);
     if (destino.ruta.isEmpty) return;
+    if (destino.ruta == '/planes/detalle') {
+      final idPlan = _idPlanDesdeArgumentos(destino.argumentos);
+      if (idPlan.isNotEmpty) {
+        final detalle = await ServicioPlanesLocales.instancia.detalle(idPlan);
+        if (!mounted) return;
+        if (detalle != null && !detalle.plan.estaAbierto) {
+          destino = (ruta: '/planes', pestana: null, argumentos: null);
+        }
+      }
+    }
     try {
       NavegacionLocales.pushNamed(
         destino.ruta,
@@ -132,6 +144,14 @@ class _LocalesNotificacionesState extends State<LocalesNotificaciones> {
     } catch (e) {
       debugPrint('⚠️ pushNamed ${destino.ruta}: $e');
     }
+  }
+
+  String _idPlanDesdeArgumentos(Object? argumentos) {
+    if (argumentos is String) return argumentos.trim();
+    if (argumentos is Map && argumentos['id_plan'] != null) {
+      return argumentos['id_plan'].toString().trim();
+    }
+    return '';
   }
 
   /// Resuelve CTA de notificaciones legacy (/mi_cuenta, rutas typo) y pagos.
@@ -403,7 +423,7 @@ class _LocalesNotificacionesState extends State<LocalesNotificaciones> {
             Icon(
               CupertinoIcons.bell,
               size: 56,
-              color: ColoresLocales.acentoVioleta.withOpacity(0.35),
+              color: ColoresLocales.acentoVioleta.withValues(alpha: 0.35),
             ),
             SizedBox(height: 14),
             Text(
@@ -568,7 +588,7 @@ class _CardNotif extends StatelessWidget {
                           style: GoogleFonts.baloo2(
                             fontSize: 11,
                             color: ColoresLocales.textoSecundarioOnFondoClaro
-                                .withOpacity(0.6),
+                                .withValues(alpha: 0.6),
                           ),
                         ),
                         Spacer(),

@@ -45,6 +45,8 @@ class _LocalesCrearPlanState extends State<LocalesCrearPlan> {
   final _picker = ImagePicker();
   final _scroll = ScrollController();
   final _input = TextEditingController();
+  final _contactoTituloInput = TextEditingController(text: 'Contactar');
+  final _contactoValorInput = TextEditingController();
   final _focus = FocusNode();
 
   final List<_MensajePlan> _mensajes = <_MensajePlan>[];
@@ -58,6 +60,7 @@ class _LocalesCrearPlanState extends State<LocalesCrearPlan> {
   int? _edadMinima;
   bool _permiteSquads = true;
   String? _contacto;
+  String? _contactoTitulo;
   String _contactoModo = 'contactar';
   String _presetAsset = fondosPlanesPreset.first.asset;
   XFile? _imagen;
@@ -78,6 +81,8 @@ class _LocalesCrearPlanState extends State<LocalesCrearPlan> {
   void dispose() {
     _scroll.dispose();
     _input.dispose();
+    _contactoTituloInput.dispose();
+    _contactoValorInput.dispose();
     _focus.dispose();
     super.dispose();
   }
@@ -174,9 +179,8 @@ class _LocalesCrearPlanState extends State<LocalesCrearPlan> {
         _irA(_PasoPlan.descripcionPreview);
         break;
       case _PasoPlan.contacto:
-        _contacto = v;
-        _usuarioTexto(v);
-        await _mostrarResumen();
+        _contactoValorInput.text = v;
+        await _confirmarContacto();
         break;
       default:
         break;
@@ -186,9 +190,7 @@ class _LocalesCrearPlanState extends State<LocalesCrearPlan> {
   Future<void> _confirmarDescripcion() async {
     if (_procesando || _botEscribiendo) return;
     _usuarioTexto('Está bien');
-    await _bot([
-      'Ahora elegí un fondo o subí una portada 🎨',
-    ]);
+    await _bot(['Ahora elegí un fondo o subí una portada 🎨']);
     _irA(_PasoPlan.fondo);
   }
 
@@ -338,7 +340,44 @@ class _LocalesCrearPlanState extends State<LocalesCrearPlan> {
   Future<void> _saltearContacto() async {
     if (_procesando || _botEscribiendo) return;
     _contacto = null;
+    _contactoTitulo = null;
+    _contactoTituloInput.text = _contactoTituloSugerido;
+    _contactoValorInput.clear();
     _usuarioTexto('Sin contacto opcional');
+    await _mostrarResumen();
+  }
+
+  String get _contactoTituloSugerido =>
+      _contactoModo == 'colaborar' ? 'Colaborar' : 'Contactar';
+
+  void _cambiarContactoModo(String modo) {
+    setState(() {
+      _contactoModo = modo == 'colaborar' ? 'colaborar' : 'contactar';
+      final actual = _contactoTituloInput.text.trim();
+      if (actual.isEmpty || actual == 'Contactar' || actual == 'Colaborar') {
+        _contactoTituloInput.text = _contactoTituloSugerido;
+      }
+    });
+  }
+
+  Future<void> _confirmarContacto() async {
+    if (_procesando || _botEscribiendo) return;
+    final valor = _contactoValorInput.text.trim();
+    if (valor.length < 3) {
+      _toast('Agregá un dato de contacto o saltealo.');
+      return;
+    }
+    final titulo = _contactoTituloInput.text.trim();
+    _contactoTitulo = titulo.isEmpty ? _contactoTituloSugerido : titulo;
+    _contacto = valor;
+    _usuarioWidget(
+      _ChipRespuesta(
+        icono: _contactoModo == 'colaborar'
+            ? CupertinoIcons.link
+            : CupertinoIcons.chat_bubble_2,
+        texto: '${_contactoTitulo!}: $valor',
+      ),
+    );
     await _mostrarResumen();
   }
 
@@ -369,9 +408,7 @@ class _LocalesCrearPlanState extends State<LocalesCrearPlan> {
       _paso = _PasoPlan.guardando;
     });
     _usuarioTexto('Publicar plan');
-    await _bot([
-      'Publicando tu plan…',
-    ]);
+    await _bot(['Publicando tu plan…']);
     setState(() => _procesando = true);
     try {
       String? portada;
@@ -397,6 +434,7 @@ class _LocalesCrearPlanState extends State<LocalesCrearPlan> {
         cupoMax: _cupo,
         tipoOrganizador: 'local',
         contactoAnfitrion: _contacto,
+        contactoTitulo: _contactoTitulo,
         contactoModo: _contactoModo,
         portadaPath: portada,
         colorHex: '#111111',
@@ -613,7 +651,12 @@ class _LocalesCrearPlanState extends State<LocalesCrearPlan> {
                         fit: StackFit.expand,
                         children: [
                           if (url != null)
-                            Image.network(url, fit: BoxFit.cover, errorBuilder: (_, _, _) => const ColoredBox(color: Color(0xFF252525)))
+                            Image.network(
+                              url,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, _, _) =>
+                                  const ColoredBox(color: Color(0xFF252525)),
+                            )
                           else
                             const ColoredBox(color: Color(0xFF252525)),
                           Container(
@@ -749,47 +792,13 @@ class _LocalesCrearPlanState extends State<LocalesCrearPlan> {
           ],
         );
       case _PasoPlan.contacto:
-        return Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: _OpcionBarraPlan(
-                    texto: 'Contactar',
-                    icono: CupertinoIcons.chat_bubble_2,
-                    primario: _contactoModo == 'contactar',
-                    onTap: () => setState(() => _contactoModo = 'contactar'),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: _OpcionBarraPlan(
-                    texto: 'Colaborar',
-                    icono: CupertinoIcons.link,
-                    primario: _contactoModo == 'colaborar',
-                    onTap: () => setState(() => _contactoModo = 'colaborar'),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            _InputTextoPlan(
-              controller: _input,
-              focus: _focus,
-              hint: _contactoModo == 'colaborar'
-                  ? 'ej: link o alias'
-                  : 'ej un whatsapp o instagram',
-              onSend: _onTexto,
-            ),
-            const SizedBox(height: 8),
-            _OpcionBarraPlan(
-              texto: 'Saltear contacto',
-              icono: CupertinoIcons.forward,
-              skip: true,
-              onTap: _saltearContacto,
-            ),
-          ],
+        return _ContactoPlanCard(
+          tituloController: _contactoTituloInput,
+          valorController: _contactoValorInput,
+          modo: _contactoModo,
+          onModo: _cambiarContactoModo,
+          onConfirmar: _confirmarContacto,
+          onSaltear: _saltearContacto,
         );
       case _PasoPlan.resumen:
         return Column(
@@ -806,6 +815,7 @@ class _LocalesCrearPlanState extends State<LocalesCrearPlan> {
               cupo: _cupo == null ? 'Sin cupo' : '${_cupo!} cupos',
               organizador: _nombreOrganizador,
               contacto: _contacto,
+              contactoTitulo: _contactoTitulo,
               contactoModo: _contactoModo,
             ),
             const SizedBox(height: 8),
@@ -849,10 +859,7 @@ class _HeaderPlan extends StatelessWidget {
             Container(
               width: 34,
               height: 34,
-              decoration: BoxDecoration(
-                color: _marca,
-                shape: BoxShape.circle,
-              ),
+              decoration: BoxDecoration(color: _marca, shape: BoxShape.circle),
               child: const Icon(
                 CupertinoIcons.sparkles,
                 color: Colors.white,
@@ -874,10 +881,7 @@ class _HeaderPlan extends StatelessWidget {
                   ),
                   Text(
                     'Plan para tu local, sin vueltas',
-                    style: GoogleFonts.baloo2(
-                      fontSize: 12,
-                      color: _textoSec,
-                    ),
+                    style: GoogleFonts.baloo2(fontSize: 12, color: _textoSec),
                   ),
                 ],
               ),
@@ -924,9 +928,7 @@ class _MensajePlan {
       margin: const EdgeInsets.symmetric(vertical: 4),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
-        color: esBot
-            ? Colors.white.withValues(alpha: 0.08)
-            : _marca,
+        color: esBot ? Colors.white.withValues(alpha: 0.08) : _marca,
         borderRadius: BorderRadius.only(
           topLeft: const Radius.circular(17),
           topRight: const Radius.circular(17),
@@ -1060,10 +1062,7 @@ class _InputDeshabilitadoPlan extends StatelessWidget {
         SizedBox(
           width: 16,
           height: 16,
-          child: CircularProgressIndicator(
-            strokeWidth: 2,
-            color: _marca,
-          ),
+          child: CircularProgressIndicator(strokeWidth: 2, color: _marca),
         ),
         const SizedBox(width: 10),
         Text(
@@ -1130,9 +1129,7 @@ class _InputTextoPlan extends StatelessWidget {
           placeholder: hint,
           maxLines: maxLines,
           style: const TextStyle(color: Colors.white),
-          placeholderStyle: TextStyle(
-            color: _textoSec.withValues(alpha: 0.72),
-          ),
+          placeholderStyle: TextStyle(color: _textoSec.withValues(alpha: 0.72)),
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           decoration: BoxDecoration(
             color: Colors.white.withValues(alpha: 0.07),
@@ -1154,6 +1151,143 @@ class _InputTextoPlan extends StatelessWidget {
         ),
       ),
     ],
+  );
+}
+
+class _ContactoPlanCard extends StatelessWidget {
+  const _ContactoPlanCard({
+    required this.tituloController,
+    required this.valorController,
+    required this.modo,
+    required this.onModo,
+    required this.onConfirmar,
+    required this.onSaltear,
+  });
+
+  final TextEditingController tituloController;
+  final TextEditingController valorController;
+  final String modo;
+  final ValueChanged<String> onModo;
+  final VoidCallback onConfirmar;
+  final VoidCallback onSaltear;
+
+  @override
+  Widget build(BuildContext context) {
+    final colaborar = modo == 'colaborar';
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.07),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: _ChoicePlan(
+                  texto: 'Contactar',
+                  selected: !colaborar,
+                  onTap: () => onModo('contactar'),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _ChoicePlan(
+                  texto: 'Colaborar',
+                  selected: colaborar,
+                  onTap: () => onModo('colaborar'),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(
+            'Título',
+            style: GoogleFonts.baloo2(
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+              color: _textoSec,
+            ),
+          ),
+          const SizedBox(height: 5),
+          _CampoContactoPlan(
+            controller: tituloController,
+            placeholder: colaborar ? 'Ej: Sumate como partner' : 'Ej: Contacto',
+            textInputAction: TextInputAction.next,
+            maxLength: 50,
+          ),
+          const SizedBox(height: 10),
+          Text(
+            'Dato visible',
+            style: GoogleFonts.baloo2(
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+              color: _textoSec,
+            ),
+          ),
+          const SizedBox(height: 5),
+          _CampoContactoPlan(
+            controller: valorController,
+            placeholder: colaborar
+                ? 'Ej: link, alias o mail'
+                : 'Ej: WhatsApp o Instagram',
+            onSubmitted: (_) => onConfirmar(),
+          ),
+          const SizedBox(height: 10),
+          _OpcionBarraPlan(
+            texto: 'Confirmar contacto',
+            icono: CupertinoIcons.checkmark_circle_fill,
+            primario: true,
+            onTap: onConfirmar,
+          ),
+          const SizedBox(height: 8),
+          _OpcionBarraPlan(
+            texto: 'Saltear contacto',
+            icono: CupertinoIcons.forward,
+            skip: true,
+            onTap: onSaltear,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CampoContactoPlan extends StatelessWidget {
+  const _CampoContactoPlan({
+    required this.controller,
+    required this.placeholder,
+    this.textInputAction,
+    this.onSubmitted,
+    this.maxLength = 80,
+  });
+
+  final TextEditingController controller;
+  final String placeholder;
+  final TextInputAction? textInputAction;
+  final ValueChanged<String>? onSubmitted;
+  final int maxLength;
+
+  @override
+  Widget build(BuildContext context) => CupertinoTextField(
+    controller: controller,
+    placeholder: placeholder,
+    maxLength: maxLength,
+    textInputAction: textInputAction,
+    onSubmitted: onSubmitted,
+    style: const TextStyle(color: Colors.white),
+    placeholderStyle: TextStyle(color: _textoSec.withValues(alpha: 0.74)),
+    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+    decoration: BoxDecoration(
+      color: Colors.black.withValues(alpha: 0.18),
+      borderRadius: BorderRadius.circular(14),
+      border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+    ),
   );
 }
 
@@ -1259,9 +1393,7 @@ class _ChoicePlan extends StatelessWidget {
     child: Container(
       padding: const EdgeInsets.symmetric(vertical: 11),
       decoration: BoxDecoration(
-        color: selected
-            ? _marca
-            : Colors.white.withValues(alpha: 0.08),
+        color: selected ? _marca : Colors.white.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(16),
       ),
       child: Text(
@@ -1343,6 +1475,7 @@ class _ResumenPlanCard extends StatelessWidget {
     required this.cupo,
     required this.organizador,
     this.contacto,
+    this.contactoTitulo,
     this.contactoModo = 'contactar',
   });
 
@@ -1355,62 +1488,64 @@ class _ResumenPlanCard extends StatelessWidget {
   final String cupo;
   final String organizador;
   final String? contacto;
+  final String? contactoTitulo;
   final String contactoModo;
 
   @override
-  Widget build(BuildContext context) => Container(
-    width: double.infinity,
-    padding: const EdgeInsets.all(13),
-    decoration: BoxDecoration(
-      color: Colors.white.withValues(alpha: 0.08),
-      borderRadius: BorderRadius.circular(18),
-    ),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          titulo,
-          style: GoogleFonts.baloo2(
-            fontSize: 18,
-            height: 1,
-            fontWeight: FontWeight.w900,
-            color: Colors.white,
+  Widget build(BuildContext context) {
+    final contactoValor = (contacto ?? '').trim();
+    final tituloContacto =
+        (contactoTitulo ??
+                (contactoModo == 'colaborar' ? 'Colaborar' : 'Contactar'))
+            .trim();
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(13),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            titulo,
+            style: GoogleFonts.baloo2(
+              fontSize: 18,
+              height: 1,
+              fontWeight: FontWeight.w900,
+              color: Colors.white,
+            ),
           ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          descripcion,
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-          style: GoogleFonts.baloo2(
-            fontSize: 12.5,
-            color: _textoSec,
+          const SizedBox(height: 4),
+          Text(
+            descripcion,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: GoogleFonts.baloo2(fontSize: 12.5, color: _textoSec),
           ),
-        ),
-        const SizedBox(height: 9),
-        Wrap(
-          spacing: 6,
-          runSpacing: 6,
-          children: [
-            _PillPlan('Organiza: $organizador'),
-            if (ciudad.trim().isEmpty)
-              _PillPlan(local)
-            else
-              _PillPlan('$local · $ciudad'),
-            _PillPlan(fecha),
-            _PillPlan(ingreso),
-            _PillPlan(cupo),
-            if ((contacto ?? '').trim().isNotEmpty)
-              _PillPlan(
-                contactoModo == 'colaborar'
-                    ? 'Colaborar: ${contacto!.trim()}'
-                    : 'Contactar: ${contacto!.trim()}',
-              ),
-          ],
-        ),
-      ],
-    ),
-  );
+          const SizedBox(height: 9),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              _PillPlan('Organiza: $organizador'),
+              if (ciudad.trim().isEmpty)
+                _PillPlan(local)
+              else
+                _PillPlan('$local · $ciudad'),
+              _PillPlan(fecha),
+              _PillPlan(ingreso),
+              _PillPlan(cupo),
+              if (contactoValor.isNotEmpty)
+                _PillPlan('$tituloContacto: $contactoValor'),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _PillPlan extends StatelessWidget {
