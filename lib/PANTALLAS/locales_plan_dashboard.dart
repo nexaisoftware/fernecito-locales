@@ -432,7 +432,7 @@ class _LocalesPlanDashboardState extends State<LocalesPlanDashboard> {
                   ),
                   const SizedBox(height: 18),
                   Text(
-                    'Solicitudes para entrar al plan',
+                    'Aceptar solicitudes del plan',
                     style: GoogleFonts.baloo2(
                       fontSize: 21,
                       fontWeight: FontWeight.w900,
@@ -441,8 +441,8 @@ class _LocalesPlanDashboardState extends State<LocalesPlanDashboard> {
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    'Revisá quién quiere sumarse. Aceptar lo agrega al plan; '
-                    'rechazar deja la solicitud afuera.',
+                    'Acá ves quién pidió sumarse. Aceptá para meterlos al grupo '
+                    'o rechazá si preferís dejarlos afuera.',
                     style: _muted,
                   ),
                   const SizedBox(height: 16),
@@ -688,7 +688,7 @@ class _LocalesPlanDashboardState extends State<LocalesPlanDashboard> {
                       onPressed: _abrirSolicitudes,
                       icon: const Icon(CupertinoIcons.person_2),
                       label: Text(
-                        'Solicitudes para entrar al plan',
+                        'Aceptar solicitudes del plan',
                         style: GoogleFonts.baloo2(fontWeight: FontWeight.w800),
                       ),
                       style: OutlinedButton.styleFrom(
@@ -769,7 +769,8 @@ class _LocalesPlanDashboardState extends State<LocalesPlanDashboard> {
         Text('Pedido pendiente de "$_nombreGrupo"', style: _body),
         const SizedBox(height: 10),
         Text(
-          'Todavía no respondiste. Podés aceptar el pedido u ofrecer otra cosa.',
+          'Todavía no está aceptado. Podés aceptar lo que piden, ofrecer otra '
+          'cosa una sola vez, o simplemente ignorarlo (queda sin beneficio).',
           style: _muted,
         ),
         const SizedBox(height: 10),
