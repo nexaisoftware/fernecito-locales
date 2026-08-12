@@ -33,6 +33,9 @@ enum PerfilImagenStorage {
   /// `flyers_eventos`.
   flyerEvento(maxLado: 1080, calidadJpg: 75, webpEnMovil: true),
 
+  /// Portadas de planes (`planes-portadas`).
+  portadaPlan(maxLado: 1080, calidadJpg: 76, webpEnMovil: true),
+
   /// Caché local de flyers (más chico).
   flyerCacheLocal(maxLado: 900, calidadJpg: 70, webpEnMovil: false);
 

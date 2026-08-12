@@ -46,6 +46,25 @@ class _LocalesPlanDashboardState extends State<LocalesPlanDashboard> {
         tipoOrganizador: 'usuario',
       );
 
+  String get _nombreGrupo =>
+      _plan.nombreSquad ??
+      (_plan.nombreOrganizador.trim().isEmpty
+          ? null
+          : _plan.nombreOrganizador) ??
+      'este grupo';
+
+  String get _adminPlan {
+    final miembros = _detalle?.miembros ?? const <PlanLocalMiembro>[];
+    for (final m in miembros) {
+      final rol = m.rol.toLowerCase();
+      if (rol == 'organizador' || rol == 'admin') {
+        return m.nombre;
+      }
+    }
+    final n = _plan.nombreOrganizador.trim();
+    return n.isEmpty ? '—' : n;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -164,7 +183,7 @@ class _LocalesPlanDashboardState extends State<LocalesPlanDashboard> {
       builder: (ctx) => AlertDialog(
         backgroundColor: ColoresLocales.superficie,
         title: Text(
-          '¿Aceptar pedido?',
+          '¿Aceptar propuesta?',
           style: GoogleFonts.baloo2(
             fontWeight: FontWeight.w800,
             color: ColoresLocales.textoOnFondoClaro,
@@ -210,7 +229,7 @@ class _LocalesPlanDashboardState extends State<LocalesPlanDashboard> {
 
   Future<void> _cambiar() async {
     final texto = await _pedirTexto(
-      titulo: 'Cambiar propuesta',
+      titulo: 'Proponer otro beneficio',
       hint: 'Qué ofrecés en su lugar',
       inicial: _plan.beneficioContraoferta ?? _plan.pedidoBeneficio,
     );
@@ -225,9 +244,61 @@ class _LocalesPlanDashboardState extends State<LocalesPlanDashboard> {
     );
   }
 
+  Future<void> _rechazarPlan() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: ColoresLocales.superficie,
+        title: Text(
+          '¿Rechazar plan?',
+          style: GoogleFonts.baloo2(
+            fontWeight: FontWeight.w800,
+            color: ColoresLocales.textoOnFondoClaro,
+          ),
+        ),
+        content: Text(
+          'Se cancela el plan y deja de aparecer como abierto. Esta acción no se puede deshacer.',
+          style: GoogleFonts.baloo2(
+            fontWeight: FontWeight.w600,
+            color: ColoresLocales.textoSecundarioOnFondoClaro,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(
+              'Volver',
+              style: GoogleFonts.baloo2(
+                fontWeight: FontWeight.w700,
+                color: ColoresLocales.textoSecundarioOnFondoClaro,
+              ),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(
+              'Rechazar',
+              style: GoogleFonts.baloo2(
+                fontWeight: FontWeight.w800,
+                color: Colors.red.shade600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    await _ejecutar(
+      () => _srv.cancelar(widget.idPlan),
+      okMsg: 'Plan rechazado.',
+      popOnOk: true,
+    );
+  }
+
   Future<void> _ejecutar(
     Future<bool> Function() fn, {
     required String okMsg,
+    bool popOnOk = false,
   }) async {
     if (_accionando) return;
     setState(() => _accionando = true);
@@ -254,6 +325,10 @@ class _LocalesPlanDashboardState extends State<LocalesPlanDashboard> {
         ),
       ),
     );
+    if (popOnOk) {
+      Navigator.of(context).maybePop(true);
+      return;
+    }
     await _cargar();
   }
 
@@ -269,14 +344,31 @@ class _LocalesPlanDashboardState extends State<LocalesPlanDashboard> {
     );
   }
 
+  TextStyle get _body => GoogleFonts.baloo2(
+        fontSize: 15,
+        height: 1.3,
+        fontWeight: FontWeight.w600,
+        color: ColoresLocales.textoOnFondoClaro,
+      );
+
+  TextStyle get _muted => GoogleFonts.baloo2(
+        fontSize: 14,
+        height: 1.3,
+        fontWeight: FontWeight.w600,
+        color: ColoresLocales.textoSecundarioOnFondoClaro,
+      );
+
   @override
   Widget build(BuildContext context) {
     TemaLocalesScope.of(context);
     final plan = _plan;
-    final miembros = _detalle?.miembros
-            .where((m) => m.estado == 'aceptado')
-            .toList() ??
-        const <PlanLocalMiembro>[];
+    final eyebrow = plan.tipoOrganizador == 'local'
+        ? 'Publicaste un plan en tu local'
+        : 'Crearon un plan en tu local';
+    final nPersonas = plan.personasAceptadas;
+    final fechas = plan.fechaFin == null
+        ? 'Inicio ${_fmtFecha(plan.fechaInicio)}'
+        : '${_fmtFecha(plan.fechaInicio)} → ${_fmtFecha(plan.fechaFin!)}';
 
     return Scaffold(
       backgroundColor: ColoresLocales.fondoClaro,
@@ -288,7 +380,7 @@ class _LocalesPlanDashboardState extends State<LocalesPlanDashboard> {
           onPressed: () => Navigator.of(context).maybePop(),
         ),
         title: Text(
-          'Panel del plan',
+          'Plan',
           style: GoogleFonts.baloo2(
             fontWeight: FontWeight.w800,
             color: ColoresLocales.tituloAcento,
@@ -337,245 +429,89 @@ class _LocalesPlanDashboardState extends State<LocalesPlanDashboard> {
                   ),
                 )
               : ListView(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 36),
+                  padding: const EdgeInsets.fromLTRB(22, 18, 22, 40),
                   children: [
-                    _Seccion(
-                      titulo: plan.titulo,
-                      hijo: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          if (plan.descripcion.trim().isNotEmpty)
-                            Text(
-                              plan.descripcion.trim(),
-                              style: GoogleFonts.baloo2(
-                                fontSize: 14,
-                                height: 1.25,
-                                fontWeight: FontWeight.w600,
-                                color:
-                                    ColoresLocales.textoSecundarioOnFondoClaro,
-                              ),
-                            ),
-                          const SizedBox(height: 12),
-                          _InfoRow(
-                            icon: CupertinoIcons.person_fill,
-                            label: 'Organiza',
-                            value: plan.nombreOrganizador,
-                          ),
-                          _InfoRow(
-                            icon: CupertinoIcons.calendar,
-                            label: 'Inicio',
-                            value: _fmtFecha(plan.fechaInicio),
-                          ),
-                          if (plan.fechaFin != null)
-                            _InfoRow(
-                              icon: CupertinoIcons.clock,
-                              label: 'Fin',
-                              value: _fmtFecha(plan.fechaFin!),
-                            ),
-                          _InfoRow(
-                            icon: CupertinoIcons.location_solid,
-                            label: 'Ciudad',
-                            value: [
-                              plan.ciudad,
-                              if (plan.provincia != null &&
-                                  plan.provincia!.trim().isNotEmpty)
-                                plan.provincia!,
-                            ].join(', '),
-                          ),
-                          _InfoRow(
-                            icon: CupertinoIcons.person_2_fill,
-                            label: 'Personas',
-                            value: plan.cupoMax != null
-                                ? '${plan.personasAceptadas}/${plan.cupoMax}'
-                                : '${plan.personasAceptadas}',
-                          ),
-                          _InfoRow(
-                            icon: CupertinoIcons.lock_fill,
-                            label: 'Ingreso',
-                            value: plan.modoLista == 'manual'
-                                ? 'Con aprobación'
-                                : 'Entrada libre',
-                          ),
-                        ],
+                    Text(
+                      eyebrow,
+                      style: GoogleFonts.baloo2(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: ColoresLocales.acentoVioletaMarca,
                       ),
                     ),
-                    const SizedBox(height: 14),
-                    _Seccion(
-                      titulo: 'Beneficio / pedido',
-                      hijo: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _EstadoBeneficio(plan: plan),
-                          const SizedBox(height: 12),
-                          if (plan.textoPedidoActivo != null) ...[
-                            Text(
-                              plan.textoPedidoActivo!,
-                              style: GoogleFonts.baloo2(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w800,
-                                color: ColoresLocales.textoOnFondoClaro,
-                              ),
-                            ),
-                            if (plan.pedidoVotos > 0) ...[
-                              const SizedBox(height: 6),
-                              Text(
-                                '${plan.pedidoVotos} del grupo lo pidieron',
-                                style: GoogleFonts.baloo2(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w600,
-                                  color: ColoresLocales
-                                      .textoSecundarioOnFondoClaro,
-                                ),
-                              ),
-                            ],
-                            const SizedBox(height: 14),
-                          ],
-                          if (plan.estaAbierto) ...[
-                            if (plan.sinPedido)
-                              _BotonAccion(
-                                texto: 'Proponer algo',
-                                icon: CupertinoIcons.gift_fill,
-                                color: ColoresLocales.acentoVioletaMarca,
-                                cargando: _accionando,
-                                onTap: _proponer,
-                              )
-                            else if (plan.hayPedidoPendiente) ...[
-                              _BotonAccion(
-                                texto: 'Aceptar pedido',
-                                icon: CupertinoIcons.checkmark_circle_fill,
-                                color: ColoresLocales.verdeFernet,
-                                cargando: _accionando,
-                                onTap: _aceptar,
-                              ),
-                              const SizedBox(height: 10),
-                              _BotonAccion(
-                                texto: 'Cambiar propuesta',
-                                icon: CupertinoIcons.pencil_circle_fill,
-                                color: ColoresLocales.acentoVioletaMarca,
-                                outlined: true,
-                                cargando: _accionando,
-                                onTap: _cambiar,
-                              ),
-                            ] else if (plan.beneficioAceptado) ...[
-                              _BotonAccion(
-                                texto: 'Cambiar beneficio',
-                                icon: CupertinoIcons.pencil_circle_fill,
-                                color: ColoresLocales.acentoVioletaMarca,
-                                outlined: true,
-                                cargando: _accionando,
-                                onTap: _proponer,
-                              ),
-                            ],
-                          ],
-                        ],
+                    const SizedBox(height: 6),
+                    Text(
+                      plan.titulo,
+                      style: GoogleFonts.baloo2(
+                        fontSize: 28,
+                        height: 1.05,
+                        fontWeight: FontWeight.w900,
+                        color: ColoresLocales.textoOnFondoClaro,
                       ),
                     ),
-                    const SizedBox(height: 14),
-                    _BotonAccion(
-                      texto: 'Abrir chat del plan',
-                      icon: CupertinoIcons.chat_bubble_2_fill,
-                      color: ColoresLocales.acentoVioletaMarca,
-                      grande: true,
-                      onTap: plan.estaAbierto ? _abrirChat : null,
+                    if (plan.descripcion.trim().isNotEmpty) ...[
+                      const SizedBox(height: 10),
+                      Text(plan.descripcion.trim(), style: _muted),
+                    ],
+                    const SizedBox(height: 16),
+                    Text(
+                      nPersonas == 1
+                          ? '1 persona sumada'
+                          : '$nPersonas personas sumadas',
+                      style: _body,
                     ),
-                    if (!plan.estaAbierto) ...[
-                      const SizedBox(height: 8),
-                      Text(
-                        'El plan ya no está abierto; el chat queda solo lectura desde la app de usuarios.',
-                        style: GoogleFonts.baloo2(
-                          fontSize: 12.5,
-                          fontWeight: FontWeight.w600,
-                          color: ColoresLocales.textoSecundarioOnFondoClaro,
+                    const SizedBox(height: 6),
+                    Text('Admin del plan: $_adminPlan', style: _body),
+                    const SizedBox(height: 6),
+                    Text(fechas, style: _muted),
+                    const SizedBox(height: 18),
+                    Divider(
+                      height: 1,
+                      thickness: 1,
+                      color: ColoresLocales.textoSecundarioOnFondoClaro
+                          .withValues(alpha: 0.22),
+                    ),
+                    const SizedBox(height: 18),
+                    ..._bloquePedido(plan),
+                    const SizedBox(height: 22),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 56,
+                      child: FilledButton(
+                        onPressed: plan.estaAbierto && !_accionando
+                            ? _abrirChat
+                            : null,
+                        style: FilledButton.styleFrom(
+                          backgroundColor: ColoresLocales.acentoVioletaMarca,
+                          disabledBackgroundColor: ColoresLocales
+                              .acentoVioletaMarca
+                              .withValues(alpha: 0.35),
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                        ),
+                        child: Text(
+                          'Chat del plan',
+                          style: GoogleFonts.baloo2(
+                            fontSize: 17,
+                            fontWeight: FontWeight.w800,
+                          ),
                         ),
                       ),
-                    ],
-                    const SizedBox(height: 14),
-                    _Seccion(
-                      titulo: 'Quién está adentro (${miembros.length})',
-                      hijo: miembros.isEmpty
-                          ? Text(
-                              'Todavía no hay personas aceptadas.',
-                              style: GoogleFonts.baloo2(
-                                fontWeight: FontWeight.w600,
-                                color:
-                                    ColoresLocales.textoSecundarioOnFondoClaro,
-                              ),
-                            )
-                          : Column(
-                              children: [
-                                for (final m in miembros.take(24))
-                                  Padding(
-                                    padding: const EdgeInsets.only(bottom: 10),
-                                    child: Row(
-                                      children: [
-                                        CircleAvatar(
-                                          radius: 18,
-                                          backgroundColor:
-                                              ColoresLocales.superficieElevada,
-                                          backgroundImage: m.fotoUrl != null
-                                              ? NetworkImage(m.fotoUrl!)
-                                              : null,
-                                          child: m.fotoUrl == null
-                                              ? Icon(
-                                                  CupertinoIcons.person_fill,
-                                                  size: 18,
-                                                  color: ColoresLocales
-                                                      .textoSecundarioOnFondoClaro,
-                                                )
-                                              : null,
-                                        ),
-                                        const SizedBox(width: 10),
-                                        Expanded(
-                                          child: Column(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: [
-                                              Text(
-                                                m.nombre,
-                                                maxLines: 1,
-                                                overflow: TextOverflow.ellipsis,
-                                                style: GoogleFonts.baloo2(
-                                                  fontWeight: FontWeight.w800,
-                                                  color: ColoresLocales
-                                                      .textoOnFondoClaro,
-                                                ),
-                                              ),
-                                              if (m.rol == 'organizador' ||
-                                                  (m.nombreSquad ?? '')
-                                                      .isNotEmpty)
-                                                Text(
-                                                  m.rol == 'organizador'
-                                                      ? 'Organizador'
-                                                      : m.nombreSquad!,
-                                                  style: GoogleFonts.baloo2(
-                                                    fontSize: 12,
-                                                    fontWeight: FontWeight.w600,
-                                                    color: ColoresLocales
-                                                        .textoSecundarioOnFondoClaro,
-                                                  ),
-                                                ),
-                                            ],
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                              ],
-                            ),
                     ),
-                    if (plan.contactoAnfitrion != null &&
-                        plan.contactoAnfitrion!.trim().isNotEmpty) ...[
-                      const SizedBox(height: 14),
-                      _Seccion(
-                        titulo: plan.contactoModo == 'colaborar'
-                            ? 'Contacto para colaborar'
-                            : 'Contacto del anfitrión',
-                        hijo: Text(
-                          plan.contactoAnfitrion!,
-                          style: GoogleFonts.baloo2(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w700,
-                            color: ColoresLocales.textoOnFondoClaro,
+                    if (plan.estaAbierto) ...[
+                      const SizedBox(height: 8),
+                      Center(
+                        child: TextButton(
+                          onPressed: _accionando ? null : _rechazarPlan,
+                          child: Text(
+                            'Rechazar plan',
+                            style: GoogleFonts.baloo2(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w800,
+                              color: Colors.red.shade600,
+                            ),
                           ),
                         ),
                       ),
@@ -584,194 +520,165 @@ class _LocalesPlanDashboardState extends State<LocalesPlanDashboard> {
                 ),
     );
   }
-}
 
-class _Seccion extends StatelessWidget {
-  const _Seccion({required this.titulo, required this.hijo});
-  final String titulo;
-  final Widget hijo;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
-      decoration: ColoresLocales.decoracionCard(sinBorde: true),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
+  List<Widget> _bloquePedido(PlanLocalItem plan) {
+    if (plan.hayPedidoPendiente) {
+      final texto = plan.textoPedidoActivo ?? '';
+      return [
+        Text(
+          'Las personas de "$_nombreGrupo" te pidieron:',
+          style: _body,
+        ),
+        const SizedBox(height: 10),
+        Text(
+          texto.isEmpty ? '—' : texto,
+          style: GoogleFonts.baloo2(
+            fontSize: 22,
+            height: 1.15,
+            fontWeight: FontWeight.w900,
+            color: ColoresLocales.acentoVioletaMarca,
+          ),
+        ),
+        if (plan.pedidoVotos > 0) ...[
+          const SizedBox(height: 8),
           Text(
-            titulo,
-            style: GoogleFonts.baloo2(
-              fontSize: 18,
-              fontWeight: FontWeight.w800,
-              color: ColoresLocales.tituloAcento,
-            ),
+            plan.pedidoVotos == 1
+                ? '1 persona del plan apoya el pedido'
+                : '${plan.pedidoVotos} personas del plan apoyan el pedido',
+            style: _muted,
           ),
-          const SizedBox(height: 10),
-          hijo,
         ],
-      ),
-    );
-  }
-}
-
-class _InfoRow extends StatelessWidget {
-  const _InfoRow({
-    required this.icon,
-    required this.label,
-    required this.value,
-  });
-  final IconData icon;
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    if (value.trim().isEmpty) return const SizedBox.shrink();
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(icon, size: 16, color: ColoresLocales.acentoVioleta),
-          const SizedBox(width: 8),
+        if (plan.estaAbierto) ...[
+          const SizedBox(height: 16),
           SizedBox(
-            width: 78,
-            child: Text(
-              label,
-              style: GoogleFonts.baloo2(
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
-                color: ColoresLocales.textoSecundarioOnFondoClaro,
+            width: double.infinity,
+            height: 50,
+            child: FilledButton(
+              onPressed: _accionando ? null : _aceptar,
+              style: FilledButton.styleFrom(
+                backgroundColor: ColoresLocales.verdeFernet,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
               ),
-            ),
-          ),
-          Expanded(
-            child: Text(
-              value,
-              style: GoogleFonts.baloo2(
-                fontSize: 14,
-                fontWeight: FontWeight.w700,
-                color: ColoresLocales.textoOnFondoClaro,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _EstadoBeneficio extends StatelessWidget {
-  const _EstadoBeneficio({required this.plan});
-  final PlanLocalItem plan;
-
-  @override
-  Widget build(BuildContext context) {
-    final (texto, color) = switch (plan.beneficioEstado) {
-      'pedido' => ('El grupo te pidió algo', ColoresLocales.acentoVioletaMarca),
-      'contraoferta' => (
-          'Hay una contraoferta tuya',
-          const Color(0xFFD97706),
-        ),
-      'aceptado' => ('Beneficio confirmado', ColoresLocales.verdeFernet),
-      'rechazado' => (
-          'Sin beneficio activo',
-          ColoresLocales.textoSecundarioOnFondoClaro,
-        ),
-      _ => (
-          'Todavía no hay pedido',
-          ColoresLocales.textoSecundarioOnFondoClaro,
-        ),
-    };
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Text(
-        texto,
-        style: GoogleFonts.baloo2(
-          fontSize: 13.5,
-          fontWeight: FontWeight.w800,
-          color: color,
-        ),
-      ),
-    );
-  }
-}
-
-class _BotonAccion extends StatelessWidget {
-  const _BotonAccion({
-    required this.texto,
-    required this.icon,
-    required this.color,
-    this.onTap,
-    this.cargando = false,
-    this.outlined = false,
-    this.grande = false,
-  });
-
-  final String texto;
-  final IconData icon;
-  final Color color;
-  final VoidCallback? onTap;
-  final bool cargando;
-  final bool outlined;
-  final bool grande;
-
-  @override
-  Widget build(BuildContext context) {
-    final enabled = onTap != null && !cargando;
-    return SizedBox(
-      width: double.infinity,
-      height: grande ? 58 : 50,
-      child: Material(
-        color: outlined ? Colors.transparent : color.withValues(alpha: enabled ? 1 : 0.45),
-        borderRadius: BorderRadius.circular(16),
-        child: InkWell(
-          onTap: enabled ? onTap : null,
-          borderRadius: BorderRadius.circular(16),
-          child: Ink(
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(16),
-              border: outlined
-                  ? Border.all(color: color.withValues(alpha: 0.55), width: 1.6)
-                  : null,
-              color: outlined ? color.withValues(alpha: 0.08) : null,
-            ),
-            child: Center(
-              child: cargando
+              child: _accionando
                   ? const SizedBox(
                       width: 22,
                       height: 22,
-                      child: CircularProgressIndicator(strokeWidth: 2.4),
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2.4,
+                        color: Colors.white,
+                      ),
                     )
-                  : Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          icon,
-                          color: outlined ? color : Colors.white,
-                          size: grande ? 22 : 20,
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          texto,
-                          style: GoogleFonts.baloo2(
-                            fontSize: grande ? 17 : 15,
-                            fontWeight: FontWeight.w800,
-                            color: outlined ? color : Colors.white,
-                          ),
-                        ),
-                      ],
+                  : Text(
+                      'Aceptar propuesta',
+                      style: GoogleFonts.baloo2(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w800,
+                      ),
                     ),
             ),
           ),
+          const SizedBox(height: 10),
+          SizedBox(
+            width: double.infinity,
+            height: 50,
+            child: OutlinedButton(
+              onPressed: _accionando ? null : _cambiar,
+              style: OutlinedButton.styleFrom(
+                foregroundColor: ColoresLocales.acentoVioletaMarca,
+                side: BorderSide(
+                  color: ColoresLocales.acentoVioletaMarca.withValues(
+                    alpha: 0.55,
+                  ),
+                  width: 1.6,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+              ),
+              child: Text(
+                'Proponer otro beneficio',
+                style: GoogleFonts.baloo2(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ];
+    }
+
+    if (plan.beneficioAceptado) {
+      final texto = plan.textoPedidoActivo ?? plan.beneficioLocal ?? '—';
+      return [
+        Text('Ya les confirmaste este beneficio:', style: _body),
+        const SizedBox(height: 10),
+        Text(
+          texto,
+          style: GoogleFonts.baloo2(
+            fontSize: 20,
+            height: 1.15,
+            fontWeight: FontWeight.w900,
+            color: ColoresLocales.verdeFernet,
+          ),
         ),
+        if (plan.estaAbierto) ...[
+          const SizedBox(height: 14),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton(
+              onPressed: _accionando ? null : _proponer,
+              child: Text(
+                'Cambiar beneficio',
+                style: GoogleFonts.baloo2(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w800,
+                  color: ColoresLocales.acentoVioletaMarca,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ];
+    }
+
+    return [
+      Text('Todavía no te pidieron nada', style: _body),
+      const SizedBox(height: 6),
+      Text(
+        'Cuando el grupo arme un pedido aparece acá. También podés ofrecerles algo vos.',
+        style: _muted,
       ),
-    );
+      if (plan.estaAbierto) ...[
+        const SizedBox(height: 14),
+        SizedBox(
+          width: double.infinity,
+          height: 50,
+          child: OutlinedButton(
+            onPressed: _accionando ? null : _proponer,
+            style: OutlinedButton.styleFrom(
+              foregroundColor: ColoresLocales.acentoVioletaMarca,
+              side: BorderSide(
+                color: ColoresLocales.acentoVioletaMarca.withValues(alpha: 0.55),
+                width: 1.6,
+              ),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+              ),
+            ),
+            child: Text(
+              'Proponer un beneficio',
+              style: GoogleFonts.baloo2(
+                fontSize: 15,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+        ),
+      ],
+    ];
   }
 }

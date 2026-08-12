@@ -6,6 +6,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'comprimir_imagen_storage.dart';
 import 'supabase_client.dart';
 
 class PlanLocalItem {
@@ -335,7 +336,7 @@ class ServicioPlanesLocales {
         params: {
           'p_id_plan': idPlan,
           'p_accion': accion,
-          if (contraoferta != null) 'p_contraoferta': contraoferta,
+          'p_contraoferta': ?contraoferta,
         },
       );
       return res is Map && res['ok'] == true;
@@ -343,6 +344,127 @@ class ServicioPlanesLocales {
       debugPrint('⚠️ planes_pedido_responder: $e');
       return false;
     }
+  }
+
+  Future<bool> cancelar(String idPlan) async {
+    try {
+      final res =
+          await _c.rpc('planes_cancelar', params: {'p_id_plan': idPlan});
+      return res is Map && res['ok'] == true;
+    } catch (e) {
+      debugPrint('⚠️ planes_cancelar: $e');
+      return false;
+    }
+  }
+
+  Future<String?> crear({
+    required String titulo,
+    required String descripcion,
+    required DateTime fechaInicio,
+    DateTime? fechaFin,
+    String modoLista = 'auto',
+    int? cupoMax,
+    String? contactoAnfitrion,
+    String contactoModo = 'contactar',
+    String? portadaPath,
+    String colorHex = '#C084FC',
+    bool permiteSquads = true,
+    int? edadMinima,
+    String tipoOrganizador = 'local',
+  }) async {
+    final uid = miUid;
+    if (uid == null) return null;
+    try {
+      final res = await _c.rpc(
+        'planes_crear',
+        params: {
+          'p_titulo': titulo,
+          'p_descripcion': descripcion,
+          'p_id_local': uid,
+          'p_fecha_inicio': fechaInicio.toUtc().toIso8601String(),
+          'p_fecha_fin': fechaFin?.toUtc().toIso8601String(),
+          'p_modo_lista': modoLista,
+          'p_cupo_max': cupoMax,
+          'p_tipo_organizador': tipoOrganizador,
+          'p_creador_tipo': 'local',
+          'p_contacto_anfitrion': contactoAnfitrion,
+          'p_contacto_modo':
+              contactoModo == 'colaborar' ? 'colaborar' : 'contactar',
+          'p_portada_path': portadaPath,
+          'p_color_hex': colorHex,
+          'p_permite_squads': permiteSquads,
+          'p_edad_minima': edadMinima,
+        },
+      );
+      if (res is Map && res['ok'] == true) return res['id']?.toString();
+      return null;
+    } catch (e) {
+      debugPrint('⚠️ planes_crear local: $e');
+      rethrow;
+    }
+  }
+
+  Future<String?> subirPortada({
+    required String idTemporal,
+    required Uint8List bytes,
+    String ext = 'jpg',
+  }) async {
+    final uid = miUid;
+    if (uid == null) return null;
+    try {
+      final path = '$uid/$idTemporal.jpg';
+      await _c.storage.from('planes-portadas').uploadBinary(
+            path,
+            bytes,
+            fileOptions: FileOptions(
+              upsert: true,
+              contentType: contentTypeDesdeExtension(
+                ext == 'webp' ? 'jpg' : ext,
+              ),
+            ),
+          );
+      return path;
+    } catch (e) {
+      debugPrint('⚠️ subirPortada plan local: $e');
+      return null;
+    }
+  }
+
+  String mensajeError(Object error, {String accion = 'procesar el plan'}) {
+    final msg = error.toString().toLowerCase();
+    if (msg.contains('no_auth') || msg.contains('jwt')) {
+      return 'Tu sesión expiró. Cerrá sesión y volvé a entrar.';
+    }
+    if (msg.contains('rate') || msg.contains('demasiad')) {
+      return 'Estás haciendo muchas acciones seguidas. Esperá un ratito y probá de nuevo.';
+    }
+    if (msg.contains('no_local')) {
+      return 'Solo el local dueño puede crear o gestionar este plan.';
+    }
+    if (msg.contains('titulo_invalido')) {
+      return 'El título tiene que tener entre 3 y 80 caracteres.';
+    }
+    if (msg.contains('descripcion_invalida')) {
+      return 'La descripción es demasiado larga o corta.';
+    }
+    if (msg.contains('fecha_fin_invalida')) {
+      return 'La fecha de fin no puede ser antes del inicio.';
+    }
+    if (msg.contains('fecha_fuera_ventana')) {
+      return 'La fecha del plan está fuera de la ventana permitida.';
+    }
+    if (msg.contains('local_inactivo') || msg.contains('local_inexistente')) {
+      return 'Tu local no está disponible para publicar planes.';
+    }
+    if (msg.contains('plan_cerrado') ||
+        msg.contains('plan_finalizado') ||
+        msg.contains('plan_inexistente')) {
+      return 'Este plan ya no está disponible.';
+    }
+    if (msg.contains('estado_invalido')) {
+      return 'El estado del plan no permite esta acción.';
+    }
+    return 'No se pudo $accion. Revisá conexión y probá de nuevo.';
   }
 
   Future<List<PlanLocalMensaje>> historial(String idPlan) async {

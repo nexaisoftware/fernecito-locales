@@ -11,4 +11,13 @@ class ServicioSupabase {
 
   SupabaseClient get cliente => Supabase.instance.client;
   User? get usuarioActual => cliente.auth.currentUser;
+
+  /// Portada de plan (`planes-portadas`). Path, asset o URL absoluta.
+  String? urlPortadaPlan(String? pathOrUrl) {
+    if (pathOrUrl == null || pathOrUrl.isEmpty) return null;
+    if (pathOrUrl.startsWith('assets/') || pathOrUrl.startsWith('http')) {
+      return pathOrUrl;
+    }
+    return cliente.storage.from('planes-portadas').getPublicUrl(pathOrUrl);
+  }
 }

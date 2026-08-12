@@ -22,6 +22,7 @@ import '../PANTALLAS/locales_notificaciones.dart';
 import '../PANTALLAS/locales_perfil.dart';
 import '../PANTALLAS/locales_perfil_clientes.dart';
 import '../PANTALLAS/locales_cambiar_contrasena.dart';
+import '../PANTALLAS/locales_crear_plan.dart';
 import '../PANTALLAS/locales_plan_dashboard.dart';
 import '../PANTALLAS/locales_planes.dart';
 import '../PANTALLAS/locales_soporte.dart';
@@ -92,6 +93,7 @@ Map<String, WidgetBuilder> rutasLocales() => {
       '/staff_mi_cuenta': (context) => const LocalesStaffMiCuenta(),
       '/metricas': (context) => const LocalesMetricas(),
       '/planes': (context) => const LocalesPlanes(),
+      '/planes/crear': (context) => const LocalesCrearPlan(),
       '/planes/detalle': (context) {
         final args = ModalRoute.of(context)?.settings.arguments;
         final id = args is String

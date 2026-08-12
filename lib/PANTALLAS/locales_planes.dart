@@ -7,6 +7,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../core/constants.dart';
 import '../core/servicio_planes_locales.dart';
 import '../widgets/tema_locales_scope.dart';
+import 'locales_crear_plan.dart';
 import 'locales_plan_dashboard.dart';
 
 class LocalesPlanes extends StatefulWidget {
@@ -72,6 +73,17 @@ class _LocalesPlanesState extends State<LocalesPlanes> {
     if (mounted) _cargar(silent: true);
   }
 
+  Future<void> _crearPlan() async {
+    final ok = await Navigator.of(context).push<bool>(
+      MaterialPageRoute<bool>(
+        fullscreenDialog: true,
+        settings: const RouteSettings(name: '/planes/crear'),
+        builder: (_) => const LocalesCrearPlan(),
+      ),
+    );
+    if (mounted && ok == true) _cargar(silent: true);
+  }
+
   @override
   Widget build(BuildContext context) {
     TemaLocalesScope.of(context);
@@ -91,6 +103,16 @@ class _LocalesPlanesState extends State<LocalesPlanes> {
             color: ColoresLocales.tituloAcento,
             fontSize: 22,
           ),
+        ),
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: _crearPlan,
+        backgroundColor: ColoresLocales.acentoVioletaMarca,
+        foregroundColor: Colors.white,
+        icon: const Icon(CupertinoIcons.add),
+        label: Text(
+          'Crear plan',
+          style: GoogleFonts.baloo2(fontWeight: FontWeight.w800),
         ),
       ),
       body: RefreshIndicator(
@@ -153,7 +175,7 @@ class _LocalesPlanesState extends State<LocalesPlanes> {
                           ),
                           const SizedBox(height: 14),
                           Text(
-                            'Todavía no sos parte de ningún plan',
+                            'Todavía no hay planes en tu local',
                             textAlign: TextAlign.center,
                             style: GoogleFonts.baloo2(
                               fontSize: 20,
@@ -163,13 +185,30 @@ class _LocalesPlanesState extends State<LocalesPlanes> {
                           ),
                           const SizedBox(height: 8),
                           Text(
-                            'Cuando un grupo arme un plan en tu local, aparece acá para que propongas algo, aceptes pedidos y chatees.',
+                            'Cuando un grupo arme uno, o creá el tuyo.',
                             textAlign: TextAlign.center,
                             style: GoogleFonts.baloo2(
                               fontSize: 14,
                               height: 1.25,
                               fontWeight: FontWeight.w500,
                               color: ColoresLocales.textoSecundarioOnFondoClaro,
+                            ),
+                          ),
+                          const SizedBox(height: 18),
+                          Center(
+                            child: FilledButton(
+                              onPressed: _crearPlan,
+                              style: FilledButton.styleFrom(
+                                backgroundColor:
+                                    ColoresLocales.acentoVioletaMarca,
+                                foregroundColor: Colors.white,
+                              ),
+                              child: Text(
+                                'Crear plan',
+                                style: GoogleFonts.baloo2(
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
                             ),
                           ),
                         ],
