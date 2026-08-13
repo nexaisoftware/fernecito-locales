@@ -162,9 +162,11 @@ class _SwitcherCuentasSheetState extends State<_SwitcherCuentasSheet> {
         await recargarAppTrasCambioCuenta();
         return;
       case ResultadoSalirCuenta.requiereRelogin:
-        final paraRelogin = await vault.primeraParaRelogin();
         final nav = Navigator.of(context, rootNavigator: true);
-        Navigator.of(context).pop();
+        final sheetNav = Navigator.of(context);
+        final paraRelogin = await vault.primeraParaRelogin();
+        if (!mounted) return;
+        sheetNav.pop();
         await Future<void>.delayed(Duration.zero);
         if (paraRelogin != null) {
           nav.push(
