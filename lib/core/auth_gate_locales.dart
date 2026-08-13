@@ -186,15 +186,36 @@ class _AuthGateLocalesState extends State<AuthGateLocales> {
     ServicioPush.instancia.olvidarLocal();
     _lastUserId = null;
     _currentRoute = null;
-    // Seguridad multi-cuenta: signOut = fin de sesión en este dispositivo.
-    // El switch (setSession) NO dispara signedOut, así que las otras cuentas
-    // siguen en el vault. Pero un logout real NO debe dejar refresh tokens
-    // reutilizables (dispositivo compartido / cerrar desde cuenta bloqueada).
-    unawaited(VaultSesionesLocales().vaciar());
-    _navigateTo(
-      ModoAppLocales.instancia.esStaff ? '/staff_login' : '/login',
-      forzar: true,
-    );
+    unawaited(_manejarSignedOutMultiCuenta());
+  }
+
+  Future<void> _manejarSignedOutMultiCuenta() async {
+    if (ModoAppLocales.instancia.esStaff) {
+      await VaultSesionesLocales().vaciar();
+      if (!mounted) return;
+      _navigateTo('/staff_login', forzar: true);
+      return;
+    }
+
+    final vault = VaultSesionesLocales();
+    final restantes = await vault.listar();
+    if (!mounted) return;
+
+    if (restantes.isEmpty) {
+      _navigateTo('/login', forzar: true);
+      return;
+    }
+
+    for (final c in restantes) {
+      final res = await vault.cambiarA(c.uid, preservarActiva: false);
+      if (res == ResultadoCambioCuenta.ok) {
+        await recargarAppTrasCambioCuenta();
+        return;
+      }
+    }
+
+    if (!mounted) return;
+    _navigateTo('/login', forzar: true);
   }
 
   void _handlePasswordRecovery() {

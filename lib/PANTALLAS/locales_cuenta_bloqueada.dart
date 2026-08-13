@@ -7,9 +7,11 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../core/constants.dart';
+import '../core/recarga_cuenta_locales.dart';
 import '../core/servicio_estado_cuenta_locales.dart';
 import '../core/tema_app_locales.dart';
-import '../core/constants.dart';
+import '../core/vault_sesiones_locales.dart';
 
 class LocalesCuentaBloqueada extends StatefulWidget {
   const LocalesCuentaBloqueada({super.key});
@@ -49,6 +51,15 @@ class _LocalesCuentaBloqueadaState extends State<LocalesCuentaBloqueada> {
 
   Future<void> _cerrarSesion() async {
     ServicioEstadoCuentaLocales.instancia.limpiar();
+    final vault = VaultSesionesLocales();
+    final uid = vault.uidActivo;
+    if (uid != null) {
+      final res = await vault.salirDe(uid);
+      if (res == ResultadoSalirCuenta.cambioAOtra) {
+        await recargarAppTrasCambioCuenta();
+        return;
+      }
+    }
     await Supabase.instance.client.auth.signOut();
     if (!mounted) return;
     Navigator.of(context).pushNamedAndRemoveUntil('/login', (_) => false);

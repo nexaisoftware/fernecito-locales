@@ -29,6 +29,7 @@ import '../widgets/badge_megusta_local.dart';
 import '../widgets/badge_plan_suscripcion.dart';
 import '../widgets/asistente_carta_sheet.dart';
 import 'locales_calificaciones.dart';
+import 'locales_login_interno.dart';
 
 class LocalesPerfil extends StatefulWidget {
   const LocalesPerfil({super.key});
@@ -1504,19 +1505,38 @@ class _LocalesPerfilState extends State<LocalesPerfil> {
   Future<void> _salirCuentaActual() async {
     final vault = VaultSesionesLocales();
     final actual = vault.uidActivo;
-    if (actual != null) await vault.quitar(actual);
+    if (actual == null) {
+      await Supabase.instance.client.auth.signOut();
+      return;
+    }
 
-    // Probar cuentas restantes hasta encontrar una con sesión viva.
-    for (final c in await vault.listar()) {
-      final res = await vault.cambiarA(c.uid);
-      if (res == ResultadoCambioCuenta.ok) {
-        // Clave: forzar splash + remount (si no, la UI queda con la cuenta vieja).
+    final res = await vault.salirDe(actual);
+    switch (res) {
+      case ResultadoSalirCuenta.cambioAOtra:
         await recargarAppTrasCambioCuenta();
         return;
-      }
+      case ResultadoSalirCuenta.requiereRelogin:
+        final paraRelogin = await vault.primeraParaRelogin();
+        if (!mounted) return;
+        if (paraRelogin != null) {
+          Navigator.of(context, rootNavigator: true).push(
+            MaterialPageRoute(
+              builder: (_) => LocalesLoginInterno(
+                emailSugerido: paraRelogin.email,
+                titulo: 'Reingresá a tu local',
+                subtitulo:
+                    'La sesión de ${paraRelogin.displayNombre} venció. Entrá una vez y queda guardada.',
+              ),
+            ),
+          );
+          return;
+        }
+        await Supabase.instance.client.auth.signOut();
+        return;
+      case ResultadoSalirCuenta.sinCuentas:
+        await Supabase.instance.client.auth.signOut();
+        return;
     }
-    // Sin otra cuenta usable → cierre normal (el AuthGate va al login).
-    await Supabase.instance.client.auth.signOut();
   }
 
   Future<void> _mostrarRecordatorioMaps() async {

@@ -9,9 +9,10 @@
 ///   (`auth.uid()`); un token de A nunca autoriza mutaciones sobre B.
 /// - El vault solo guarda refresh tokens (no passwords). `cambiarA` valida
 ///   `session.user.id == uid` tras `setSession`.
-/// - `signOut` (AuthGate) vacía el vault. El switch con `setSession` no.
+/// - Cerrar una cuenta (`salirDe`/`quitar`) no debe re-crearla vía
+///   `actualizarTokenActivo`. Logout total (staff / vault vacío) sí vacía.
 /// - En web, XSS same-origin puede leer localStorage (igual que la sesión
-///   Supabase). Mitigación: CSP, no inyectar HTML crudo, logout limpia vault.
+///   Supabase). Mitigación: CSP, no inyectar HTML crudo.
 ///
 /// Cada cuenta sigue siendo *ella misma* cuando está activa → no se toca nada
 /// del contrato `perfiles_locales.id = auth.uid()`, RLS, edges ni storage.
@@ -27,6 +28,12 @@ import '../models/cuenta_guardada.dart';
 import 'supabase_client.dart';
 
 enum ResultadoCambioCuenta { ok, yaActiva, noEncontrada, requiereRelogin, error }
+
+enum ResultadoSalirCuenta {
+  cambioAOtra,
+  sinCuentas,
+  requiereRelogin,
+}
 
 class VaultSesionesLocales {
   static final VaultSesionesLocales _instancia = VaultSesionesLocales._();
@@ -146,12 +153,8 @@ class VaultSesionesLocales {
     final refresh = session?.refreshToken;
     if (user == null || refresh == null || refresh.isEmpty) return;
     final existente = await buscar(user.id);
-    if (existente == null) {
-      // Aún no snapshoteada: guardarla mínima.
-      await guardarActual();
-      return;
-    }
-    if (existente.refreshToken == refresh) return; // sin cambios
+    if (existente == null) return; // NO re-crear si la sacamos del vault
+    if (existente.refreshToken == refresh) return;
     await _upsert(existente.copyWith(refreshToken: refresh));
   }
 
@@ -172,7 +175,10 @@ class VaultSesionesLocales {
   }
 
   /// Cambia a otra cuenta guardada reanudando su sesión (sin contraseña).
-  Future<ResultadoCambioCuenta> cambiarA(String uid) async {
+  Future<ResultadoCambioCuenta> cambiarA(
+    String uid, {
+    bool preservarActiva = true,
+  }) async {
     if (uid == uidActivo) return ResultadoCambioCuenta.yaActiva;
     final cuenta = await buscar(uid);
     if (cuenta == null) return ResultadoCambioCuenta.noEncontrada;
@@ -180,8 +186,9 @@ class VaultSesionesLocales {
       return ResultadoCambioCuenta.requiereRelogin;
     }
 
-    // Antes de irnos, re-guardamos el token (posiblemente rotado) de la activa.
-    await actualizarTokenActivo();
+    if (preservarActiva) {
+      await actualizarTokenActivo();
+    }
 
     try {
       final res = await _sb.auth.setSession(cuenta.refreshToken);
@@ -205,6 +212,35 @@ class VaultSesionesLocales {
       debugPrint('⚠️ vault.cambiarA: $e');
       return ResultadoCambioCuenta.error;
     }
+  }
+
+  /// Saca [uid] del vault. Si era la activa, intenta saltar a otra guardada.
+  Future<ResultadoSalirCuenta> salirDe(String uid) async {
+    await quitar(uid);
+
+    final restantes = await listar();
+    if (restantes.isEmpty) return ResultadoSalirCuenta.sinCuentas;
+
+    if (uidActivo != null && uidActivo != uid) {
+      return ResultadoSalirCuenta.cambioAOtra;
+    }
+
+    for (final c in restantes) {
+      final res = await cambiarA(c.uid, preservarActiva: false);
+      if (res == ResultadoCambioCuenta.ok) {
+        return ResultadoSalirCuenta.cambioAOtra;
+      }
+    }
+    return ResultadoSalirCuenta.requiereRelogin;
+  }
+
+  Future<CuentaGuardada?> primeraParaRelogin() async {
+    final cuentas = await listar();
+    if (cuentas.isEmpty) return null;
+    for (final c in cuentas) {
+      if (c.requiereRelogin) return c;
+    }
+    return cuentas.first;
   }
 
   /// Quita una cuenta del vault (no cierra su sesión en el server).

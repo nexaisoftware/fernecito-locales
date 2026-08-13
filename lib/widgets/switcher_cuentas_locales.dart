@@ -145,26 +145,47 @@ class _SwitcherCuentasSheetState extends State<_SwitcherCuentasSheet> {
   /// o vuelve al login. Si no es la activa, solo la saca del vault.
   Future<void> _cerrarCuenta(CuentaGuardada c, bool esActiva) async {
     final vault = VaultSesionesLocales();
-    await vault.quitar(c.uid);
 
     if (!esActiva) {
-      await _cargar(); // se queda en el sheet, refresca la lista
+      await vault.quitar(c.uid);
+      await _cargar();
       return;
     }
 
-    // Era la activa: buscar otra con sesión viva y saltar a ella.
     setState(() => _cambiando = true);
-    for (final r in await vault.listar()) {
-      final res = await vault.cambiarA(r.uid);
-      if (res == ResultadoCambioCuenta.ok) {
-        if (mounted) Navigator.of(context).pop();
+    final res = await vault.salirDe(c.uid);
+    if (!mounted) return;
+
+    switch (res) {
+      case ResultadoSalirCuenta.cambioAOtra:
+        Navigator.of(context).pop();
         await recargarAppTrasCambioCuenta();
         return;
-      }
+      case ResultadoSalirCuenta.requiereRelogin:
+        final paraRelogin = await vault.primeraParaRelogin();
+        final nav = Navigator.of(context, rootNavigator: true);
+        Navigator.of(context).pop();
+        await Future<void>.delayed(Duration.zero);
+        if (paraRelogin != null) {
+          nav.push(
+            MaterialPageRoute(
+              builder: (_) => LocalesLoginInterno(
+                emailSugerido: paraRelogin.email,
+                titulo: 'Reingresá a tu local',
+                subtitulo:
+                    'La sesión de ${paraRelogin.displayNombre} venció. Entrá una vez y queda guardada.',
+              ),
+            ),
+          );
+        } else {
+          await Supabase.instance.client.auth.signOut();
+        }
+        return;
+      case ResultadoSalirCuenta.sinCuentas:
+        Navigator.of(context).pop();
+        await Supabase.instance.client.auth.signOut();
+        return;
     }
-    // No quedó ninguna usable → cerrar sesión y volver al login.
-    if (mounted) Navigator.of(context).pop();
-    await Supabase.instance.client.auth.signOut();
   }
 
   @override

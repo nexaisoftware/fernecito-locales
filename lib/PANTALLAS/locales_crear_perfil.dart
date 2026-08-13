@@ -17,8 +17,10 @@ import '../core/supabase_client.dart';
 import '../widgets/onboarding_locales_ui.dart';
 import '../widgets/asistente_perfil_sheet.dart';
 import '../core/navigator_key_locales.dart';
+import '../core/recarga_cuenta_locales.dart';
 import '../core/servicio_edges_eventos.dart';
 import '../core/ubicaciones_data.dart';
+import '../core/vault_sesiones_locales.dart';
 import 'locales_home.dart';
 
 const String _assetLogo = ColoresLocales.assetLogoMarca;
@@ -737,6 +739,15 @@ class _LocalesCrearPerfilState extends State<LocalesCrearPerfil> {
   Future<void> _salirYCerrarSesion() async {
     if (_guardando) return;
     try {
+      final vault = VaultSesionesLocales();
+      final uid = vault.uidActivo;
+      if (uid != null) {
+        final res = await vault.salirDe(uid);
+        if (res == ResultadoSalirCuenta.cambioAOtra) {
+          await recargarAppTrasCambioCuenta();
+          return;
+        }
+      }
       await Supabase.instance.client.auth.signOut();
     } catch (e) {
       if (mounted) _mostrarError('No se pudo cerrar sesión: $e');

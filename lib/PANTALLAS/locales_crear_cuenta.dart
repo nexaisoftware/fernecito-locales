@@ -9,8 +9,10 @@ import '../core/auth_errors.dart';
 import '../core/auth_redirect_locales.dart';
 import '../core/colores_onboarding_locales.dart';
 import '../core/constants.dart';
-import 'locales_confirmar_email.dart';
+import '../core/recarga_cuenta_locales.dart';
 import '../core/supabase_client.dart';
+import '../core/vault_sesiones_locales.dart';
+import 'locales_confirmar_email.dart';
 
 const String _assetLogo = 'assets/imagenes/logo.png';
 
@@ -24,7 +26,12 @@ bool _esEmailValido(String? value) {
 }
 
 class LocalesCrearCuenta extends StatefulWidget {
-  const LocalesCrearCuenta({super.key});
+  const LocalesCrearCuenta({
+    super.key,
+    this.desdeMultiCuenta = false,
+  });
+
+  final bool desdeMultiCuenta;
 
   @override
   State<LocalesCrearCuenta> createState() => _LocalesCrearCuentaState();
@@ -49,8 +56,20 @@ class _LocalesCrearCuentaState extends State<LocalesCrearCuenta> {
     super.dispose();
   }
 
+  Future<void> _preservarSiMultiCuenta() async {
+    if (!widget.desdeMultiCuenta) return;
+    try {
+      final vault = VaultSesionesLocales();
+      final uid = vault.uidActivo;
+      if (uid == null) return;
+      if (await vault.buscar(uid) == null) return;
+      await vault.guardarActual();
+    } catch (_) {}
+  }
+
   Future<void> _crearCuentaGoogle() async {
     setState(() => _cargandoGoogle = true);
+    await _preservarSiMultiCuenta();
     try {
       await ServicioSupabase().cliente.auth.signInWithOAuth(
         OAuthProvider.google,
@@ -70,6 +89,7 @@ class _LocalesCrearCuentaState extends State<LocalesCrearCuenta> {
   Future<void> _crearCuenta() async {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _cargando = true);
+    await _preservarSiMultiCuenta();
     try {
       final supabase = ServicioSupabase();
       final email = _email.text.trim();
@@ -100,6 +120,15 @@ class _LocalesCrearCuentaState extends State<LocalesCrearCuenta> {
       }
       if (respuesta.user != null) {
         if (respuesta.session == null) {
+          if (widget.desdeMultiCuenta) {
+            if (!mounted) return;
+            await _mostrarExitoAsync(
+              'Te enviamos un email de confirmación a $email.\n\n'
+              'Cuando lo confirmes, volvé a "Agregar cuenta" e iniciá sesión.',
+            );
+            await _restaurarCuentaPreviaSiHaceFalta();
+            return;
+          }
           if (mounted) {
             Navigator.pushReplacementNamed(
               context,
@@ -107,10 +136,17 @@ class _LocalesCrearCuentaState extends State<LocalesCrearCuenta> {
               arguments: ConfirmarEmailArgs(email: email),
             );
           }
-        } else if (mounted) {
-          _mostrarExito(
-            '¡Cuenta creada! Ahora configurá el perfil de tu local.',
-          );
+        } else {
+          await VaultSesionesLocales().guardarActual();
+          if (widget.desdeMultiCuenta) {
+            await recargarAppTrasCambioCuenta();
+            return;
+          }
+          if (mounted) {
+            _mostrarExito(
+              '¡Cuenta creada! Ahora configurá el perfil de tu local.',
+            );
+          }
         }
       } else if (mounted) {
         _mostrarError('No se pudo crear la cuenta. Intentá de nuevo.');
@@ -143,7 +179,22 @@ class _LocalesCrearCuentaState extends State<LocalesCrearCuenta> {
     }
   }
 
+  Future<void> _restaurarCuentaPreviaSiHaceFalta() async {
+    final vault = VaultSesionesLocales();
+    if (vault.uidActivo != null) return;
+    for (final c in await vault.listar()) {
+      final res = await vault.cambiarA(c.uid, preservarActiva: false);
+      if (res == ResultadoCambioCuenta.ok) {
+        await recargarAppTrasCambioCuenta();
+        return;
+      }
+    }
+  }
+
   void _mostrarExito(String mensaje) =>
+      _mostrarDialogoAuth(titulo: '¡Listo!', mensaje: mensaje, esError: false);
+
+  Future<void> _mostrarExitoAsync(String mensaje) =>
       _mostrarDialogoAuth(titulo: '¡Listo!', mensaje: mensaje, esError: false);
 
   void _mostrarError(String mensaje) => _mostrarDialogoAuth(
@@ -151,12 +202,12 @@ class _LocalesCrearCuentaState extends State<LocalesCrearCuenta> {
     mensaje: mensaje,
   );
 
-  void _mostrarDialogoAuth({
+  Future<void> _mostrarDialogoAuth({
     required String titulo,
     required String mensaje,
     bool esError = true,
   }) {
-    showDialog(
+    return showDialog<void>(
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: ColoresOnboardingLocales.violetaOscuro,

@@ -18,6 +18,7 @@ import '../core/constants.dart';
 import '../core/recarga_cuenta_locales.dart';
 import '../core/supabase_client.dart';
 import '../core/vault_sesiones_locales.dart';
+import 'locales_crear_cuenta.dart';
 
 class LocalesLoginInterno extends StatefulWidget {
   const LocalesLoginInterno({
@@ -61,10 +62,25 @@ class _LocalesLoginInternoState extends State<LocalesLoginInterno> {
 
   /// Antes de cualquier login nuevo: guardar la sesión actual para no perderla
   /// (clave en web, donde el redirect de OAuth pisa la sesión).
+  /// Si la activa ya no está en el vault (la acabamos de cerrar), NO re-agregar.
   Future<void> _preservarActual() async {
     try {
-      await VaultSesionesLocales().guardarActual();
+      final vault = VaultSesionesLocales();
+      final uid = vault.uidActivo;
+      if (uid == null) return;
+      if (await vault.buscar(uid) == null) return;
+      await vault.guardarActual();
     } catch (_) {/* no bloquear el login por esto */}
+  }
+
+  Future<void> _irCrearCuenta() async {
+    await _preservarActual();
+    if (!mounted) return;
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => const LocalesCrearCuenta(desdeMultiCuenta: true),
+      ),
+    );
   }
 
   Future<void> _entrarGoogle() async {
@@ -297,6 +313,27 @@ class _LocalesLoginInternoState extends State<LocalesLoginInterno> {
                                 fontWeight: FontWeight.w700,
                                 color: ColoresLocales.violetaLogoMarca,
                               )),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      OutlinedButton(
+                        onPressed: ocupado ? null : _irCrearCuenta,
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: ColoresLocales.violetaLogoMarca,
+                          side: BorderSide(
+                            color: ColoresLocales.violetaLogoMarca.withValues(alpha: 0.35),
+                          ),
+                          minimumSize: const Size.fromHeight(48),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                        ),
+                        child: Text(
+                          'Crear cuenta de local',
+                          style: GoogleFonts.baloo2(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                          ),
                         ),
                       ),
                     ],

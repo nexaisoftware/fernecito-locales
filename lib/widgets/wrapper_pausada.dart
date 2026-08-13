@@ -7,6 +7,9 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../core/recarga_cuenta_locales.dart';
+import '../core/vault_sesiones_locales.dart';
+
 class WrapperPausada extends StatelessWidget {
   /// Si `false`, el wrapper es transparente y renderiza el child como si nada.
   final bool pausada;
@@ -141,6 +144,15 @@ class WrapperPausada extends StatelessWidget {
                 child: TextButton.icon(
                   onPressed: () async {
                     Navigator.of(ctx).pop();
+                    final vault = VaultSesionesLocales();
+                    final uid = vault.uidActivo;
+                    if (uid != null) {
+                      final res = await vault.salirDe(uid);
+                      if (res == ResultadoSalirCuenta.cambioAOtra) {
+                        await recargarAppTrasCambioCuenta();
+                        return;
+                      }
+                    }
                     await Supabase.instance.client.auth.signOut();
                   },
                   icon: const Icon(Icons.logout, size: 18, color: Colors.black54),
