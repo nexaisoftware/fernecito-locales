@@ -172,6 +172,9 @@ class _LocalesNotificacionesState extends State<LocalesNotificaciones> {
         .toString()
         .trim()
         .toLowerCase();
+    if (n.tipo == 'ranking_local_primero') {
+      return (ruta: '/home', pestana: null, argumentos: null);
+    }
     if (n.tipo == 'plan_mencion' && accion == 'chat') {
       if (idPlan.isNotEmpty) {
         return (

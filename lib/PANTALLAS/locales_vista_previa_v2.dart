@@ -50,6 +50,13 @@ class _LocalesVistaPreviaV2State extends State<LocalesVistaPreviaV2> {
     };
   }
 
+  int? _asInt(dynamic v) {
+    if (v == null) return null;
+    if (v is int) return v;
+    if (v is num) return v.toInt();
+    return int.tryParse(v.toString().trim());
+  }
+
   Future<List<_PromoMini>> _fetchPromos(String idEvento) async {
     final res = await ServicioSupabase().cliente
         .from('promociones')
@@ -240,6 +247,14 @@ class _LocalesVistaPreviaV2State extends State<LocalesVistaPreviaV2> {
     final tipoEvento = (widget.evento['tipo_evento'] as String?) ?? 'evento';
     final modoLista = widget.evento['modo_lista']?.toString();
     final urlCompra = (widget.evento['url_compra_entradas'] as String?) ?? '';
+    final cupoMax = _asInt(widget.evento['cupo_lista_max']);
+    final cupoUsados = _asInt(widget.evento['cupo_lista_usados']) ?? 0;
+    final cupoLimitado = cupoMax != null && cupoMax > 0;
+    final cuposLibres = cupoLimitado
+        ? (cupoMax - cupoUsados).clamp(0, cupoMax)
+        : null;
+    final esPaseLibre = !cupoLimitado && (modoLista ?? '').toLowerCase() == 'auto';
+    final edadMinima = _asInt(widget.evento['edad_minima']);
 
     final fechaInicio = _parseDate(widget.evento['fecha_inicio']);
     final fechaHora = _formatFecha(fechaInicio);
@@ -381,10 +396,13 @@ class _LocalesVistaPreviaV2State extends State<LocalesVistaPreviaV2> {
                         tipoEvento: tipoEvento,
                         modoLista: _modoListaLabel(modoLista),
                         urlCompra: urlCompra,
+                        edadMinima: edadMinima,
                       ),
                       const SizedBox(height: 16),
                       _TarjetaReservaYPromosLocales(
-                        cuposRestantes: 12,
+                        cupoLimitado: cupoLimitado,
+                        cuposLibres: cuposLibres,
+                        esPaseLibre: esPaseLibre,
                         urlCompra: urlCompra,
                         onReservaLista: _abrirBottomSheetReserva,
                         onVerPromos: _abrirBottomSheetPromos,
@@ -425,6 +443,7 @@ class _TarjetaInfoEventoLocales extends StatelessWidget {
   final String tipoEvento;
   final String modoLista;
   final String urlCompra;
+  final int? edadMinima;
 
   const _TarjetaInfoEventoLocales({
     required this.titulo,
@@ -433,6 +452,7 @@ class _TarjetaInfoEventoLocales extends StatelessWidget {
     required this.tipoEvento,
     required this.modoLista,
     required this.urlCompra,
+    this.edadMinima,
   });
 
   @override
@@ -501,6 +521,11 @@ class _TarjetaInfoEventoLocales extends StatelessWidget {
                 texto: 'Tipo: $tipoEvento',
               ),
               _ChipInfo(icon: CupertinoIcons.list_bullet, texto: modoLista),
+              if (edadMinima != null && edadMinima! > 0)
+                _ChipInfo(
+                  icon: CupertinoIcons.person_crop_circle_badge_exclam,
+                  texto: '+$edadMinima',
+                ),
               if (urlCompra.trim().isNotEmpty)
                 _ChipInfo(
                   icon: CupertinoIcons.ticket_fill,
@@ -515,14 +540,18 @@ class _TarjetaInfoEventoLocales extends StatelessWidget {
 }
 
 class _TarjetaReservaYPromosLocales extends StatelessWidget {
-  final int cuposRestantes;
+  final bool cupoLimitado;
+  final int? cuposLibres;
+  final bool esPaseLibre;
   final String urlCompra;
   final VoidCallback onReservaLista;
   final VoidCallback onVerPromos;
   final VoidCallback onObtenerEntrada;
 
   const _TarjetaReservaYPromosLocales({
-    required this.cuposRestantes,
+    required this.cupoLimitado,
+    this.cuposLibres,
+    required this.esPaseLibre,
     required this.urlCompra,
     required this.onReservaLista,
     required this.onVerPromos,
@@ -532,6 +561,7 @@ class _TarjetaReservaYPromosLocales extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     TemaLocalesScope.of(context);
+    final labelCta = esPaseLibre ? 'Asistiré' : 'Reservar lista';
     return Container(
       padding: EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -546,35 +576,71 @@ class _TarjetaReservaYPromosLocales extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Center(
-            child: Container(
-              padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: Colors.red.withOpacity(0.9),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    CupertinoIcons.flame_fill,
-                    size: 10,
-                    color: ColoresLocales.textoEnBoton,
-                  ),
-                  SizedBox(width: 4),
-                  Text(
-                    'Solo quedan $cuposRestantes',
-                    style: GoogleFonts.baloo2(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      color: ColoresLocales.chipInactivo,
+          if (cupoLimitado) ...[
+            Center(
+              child: Container(
+                padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.red.withOpacity(0.9),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      CupertinoIcons.flame_fill,
+                      size: 10,
+                      color: ColoresLocales.textoEnBoton,
                     ),
-                  ),
-                ],
+                    SizedBox(width: 4),
+                    Text(
+                      'Solo quedan ${cuposLibres ?? 0} 🔥',
+                      style: GoogleFonts.baloo2(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: ColoresLocales.chipInactivo,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
-          SizedBox(height: 16),
+            SizedBox(height: 16),
+          ],
+          if (esPaseLibre) ...[
+            Center(
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
+                decoration: BoxDecoration(
+                  color: ColoresLocales.acentoVioleta.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      CupertinoIcons.ticket_fill,
+                      size: 11,
+                      color: ColoresLocales.acentoVioleta,
+                    ),
+                    const SizedBox(width: 5),
+                    Text(
+                      'Pase libre · confirmá tu asistencia',
+                      style: GoogleFonts.baloo2(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: ColoresLocales.acentoVioleta,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+          ],
           CupertinoButton(
             padding: EdgeInsets.zero,
             onPressed: onReservaLista,
@@ -606,7 +672,7 @@ class _TarjetaReservaYPromosLocales extends StatelessWidget {
                     child: FittedBox(
                       fit: BoxFit.scaleDown,
                       child: Text(
-                        'Reserva lista ahora!',
+                        labelCta,
                         style: TextStyle(
                           fontSize: 15,
                           fontWeight: FontWeight.w800,

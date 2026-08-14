@@ -74,8 +74,24 @@ class ServicioPush {
   /// primer frame; sin navigator global no hay una ruta segura que empujar.
   Future<void> _navegarDesdePush(RemoteMessage message) async {
     final data = message.data;
-    final idPlan = data['id_plan']?.toString().trim() ?? '';
-    if (idPlan.isEmpty) return;
+    final tipo = (data['tipo'] ?? '').toString().trim();
+    final ruta = (data['ruta'] ?? data['cta_ruta'] ?? '').toString().trim();
+    final esPlan = tipo.startsWith('plan_') || ruta.contains('planes');
+    String dato(List<String> keys) {
+      for (final k in keys) {
+        final v = data[k]?.toString().trim() ?? '';
+        if (v.isNotEmpty) return v;
+      }
+      return '';
+    }
+
+    final idPlan = esPlan ? dato(['id_plan', 'ref', 'cta_id_ref']) : '';
+    if (!esPlan &&
+        tipo != 'ranking_local_primero' &&
+        ruta != '/home' &&
+        idPlan.isEmpty) {
+      return;
+    }
     final accion = (data['accion'] ?? data['cta'] ?? '')
         .toString()
         .trim()
@@ -84,7 +100,7 @@ class ServicioPush {
     if (navigator == null) {
       if (_reintentandoNavegacion) {
         debugPrint(
-          'ℹ️ Push de plan recibido antes de montar navigatorKeyLocales; '
+          'ℹ️ Push recibido antes de montar navigatorKeyLocales; '
           'se omite la navegación.',
         );
         return;
@@ -96,6 +112,11 @@ class ServicioPush {
       });
       return;
     }
+    if (tipo == 'ranking_local_primero' || (ruta == '/home' && !esPlan)) {
+      await navigator.pushNamed('/home');
+      return;
+    }
+    if (idPlan.isEmpty) return;
     final detalle = await ServicioPlanesLocales.instancia.detalle(idPlan);
     if (detalle != null && !detalle.plan.estaAbierto) {
       await navigator.pushNamed('/planes');

@@ -101,6 +101,13 @@ class Notificacion {
         return CupertinoIcons.person_3_fill;
       case 'xmark_circle_fill':
         return CupertinoIcons.xmark_circle_fill;
+      case 'chat':
+      case 'chat_bubble_text_fill':
+        return CupertinoIcons.chat_bubble_text_fill;
+      case 'calendar':
+        return CupertinoIcons.calendar;
+      case 'gift':
+        return CupertinoIcons.gift_fill;
       default:
         return CupertinoIcons.bell_fill;
     }

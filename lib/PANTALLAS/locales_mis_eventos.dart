@@ -70,7 +70,7 @@ class _LocalesMisEventosState extends State<LocalesMisEventos> {
       final dataActivos = await ServicioSupabase().cliente
           .from('eventos')
           .select(
-            'id_evento, id_local, titulo_evento, descripcion_evento, url_flyer, fecha_inicio, fecha_fin, fecha_fin_publicacion, fecha_fin_jerarquia, modo_lista, cupo_lista_max, cupo_lista_usados, jerarquia, tiene_promo, url_compra_entradas, estado_publicacion, metric_visitas, promociones(titulo_promocion), perfiles_locales!eventos_id_local_fkey(local_verificado)',
+            'id_evento, id_local, titulo_evento, descripcion_evento, url_flyer, fecha_inicio, fecha_fin, fecha_fin_publicacion, fecha_fin_jerarquia, modo_lista, cupo_lista_max, cupo_lista_usados, edad_minima, jerarquia, tiene_promo, url_compra_entradas, estado_publicacion, metric_visitas, promociones(titulo_promocion), perfiles_locales!eventos_id_local_fkey(local_verificado)',
           )
           .eq('id_local', uid)
           .or(
@@ -220,6 +220,7 @@ class _LocalesMisEventosState extends State<LocalesMisEventos> {
           modoLista: ev.modoLista,
           cupoListaMax: ev.cupoListaMax,
           cupoListaUsados: ev.cupoListaUsados,
+          edadMinima: ev.edadMinima,
           jerarquia: ev.jerarquia,
           tienePromo: ev.tienePromo,
           urlCompraEntradas: ev.urlCompraEntradas,
@@ -1348,6 +1349,7 @@ class _EventoMini {
   final String? modoLista;
   final int? cupoListaMax;
   final int cupoListaUsados;
+  final int? edadMinima;
   final String? jerarquia;
   final bool tienePromo;
   final String? urlCompraEntradas;
@@ -1368,6 +1370,7 @@ class _EventoMini {
     required this.modoLista,
     required this.cupoListaMax,
     required this.cupoListaUsados,
+    this.edadMinima,
     this.jerarquia,
     required this.tienePromo,
     required this.urlCompraEntradas,
@@ -1464,6 +1467,7 @@ class _EventoMini {
       modoLista: (m['modo_lista'] as String?),
       cupoListaMax: (m['cupo_lista_max'] as num?)?.toInt(),
       cupoListaUsados: (m['cupo_lista_usados'] as num?)?.toInt() ?? 0,
+      edadMinima: (m['edad_minima'] as num?)?.toInt(),
       jerarquia: (m['jerarquia'] as String?),
       tienePromo: (m['tiene_promo'] as bool?) ?? false,
       urlCompraEntradas: (m['url_compra_entradas'] as String?),
@@ -1486,6 +1490,7 @@ class _EventoMini {
     'modo_lista': modoLista,
     'cupo_lista_max': cupoListaMax,
     'cupo_lista_usados': cupoListaUsados,
+    'edad_minima': edadMinima,
     'jerarquia': jerarquia ?? 'gratis',
     'tiene_promo': tienePromo,
     'url_compra_entradas': urlCompraEntradas,
