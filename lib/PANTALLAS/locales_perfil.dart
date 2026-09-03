@@ -971,6 +971,7 @@ class _LocalesPerfilState extends State<LocalesPerfil> {
   HorariosLocal _horarios = {};
   bool _infoExpandida =
       true; // info del lugar desplegada por defecto (como app usuarios)
+  bool _esOrganizadorEventos = false;
   EstadoSuscripcionLocal? _estadoSuscripcion;
   final ImagePicker _picker = ImagePicker();
 
@@ -982,6 +983,7 @@ class _LocalesPerfilState extends State<LocalesPerfil> {
     'Pub',
     'Cafe',
     'Eventos',
+    'Organizador de eventos',
     'After',
   ];
 
@@ -1100,7 +1102,7 @@ class _LocalesPerfilState extends State<LocalesPerfil> {
             'nombre_local, direccion, foto_perfil_url, url_foto_banner, descripcion_local, '
             'url_maps, url_instagram, url_tiktok, url_website, telefono_whatsapp, whatsapp_label, '
             '$_selectFotosLocales, '
-            'calificacion_promedio, calificacion_cantidad, cantidad_megusta, local_verificado, plan_suscripcion, '
+            'calificacion_promedio, calificacion_cantidad, cantidad_megusta, local_verificado, es_organizador_eventos, plan_suscripcion, '
             'ciudad, provincia, rubro, horarios_json',
           )
           .eq('id', uid)
@@ -1154,6 +1156,8 @@ class _LocalesPerfilState extends State<LocalesPerfil> {
         _itemsCarta = itemsCarta;
         if (_calificacion != null && _calificacion! <= 0) _calificacion = null;
         _localVerificado = row?['local_verificado'] as bool? ?? false;
+        _esOrganizadorEventos =
+            row?['es_organizador_eventos'] as bool? ?? false;
         _ciudad = row?['ciudad'] as String?;
         _provincia = row?['provincia'] as String?;
         final rubroRaw = row?['rubro'];
@@ -1163,6 +1167,10 @@ class _LocalesPerfilState extends State<LocalesPerfil> {
                   .where((s) => s.trim().isNotEmpty)
                   .toList()
             : <String>[];
+        if (_esOrganizadorEventos &&
+            !_rubros.contains('Organizador de eventos')) {
+          _rubros = [..._rubros, 'Organizador de eventos'];
+        }
         _horarios = parseHorariosLocal(row?['horarios_json']);
         _estadoSuscripcion = estadoSuscripcion;
         _cargando = false;
@@ -2590,7 +2598,53 @@ class _LocalesPerfilState extends State<LocalesPerfil> {
     );
   }
 
+  Future<void> _setOrganizadorEventos(bool value) async {
+    final prev = _esOrganizadorEventos;
+    final uid = ServicioSupabase().usuarioActual?.id;
+    if (uid == null) return;
+
+    final newRubros = _rubros.toSet();
+    if (value) {
+      newRubros.add('Organizador de eventos');
+    } else {
+      newRubros.remove('Organizador de eventos');
+    }
+
+    setState(() {
+      _esOrganizadorEventos = value;
+      _rubros = newRubros.toList(growable: false);
+      if (value) {
+        _direccion = null;
+        _urlMaps = null;
+      }
+    });
+
+    try {
+      final perfil = <String, dynamic>{
+        'es_organizador_eventos': value,
+        'rubro': newRubros.toList(growable: false),
+        if (value) 'direccion': null,
+        if (value) 'url_maps': null,
+      };
+
+      await ServicioEdgesEventos().guardarPerfilLocal(
+        perfil: perfil,
+        modo: 'basico',
+      );
+      await _cargarPerfil();
+    } catch (e) {
+      if (!mounted) return;
+      _mostrarError('No se pudo guardar: $e');
+      await _cargarPerfil();
+      if (mounted) _esOrganizadorEventos = prev;
+    }
+  }
+
   void _editarDireccion() {
+    if (_esOrganizadorEventos) {
+      _mostrarError('Como organizador de eventos, no cargás dirección física.');
+      return;
+    }
     HapticFeedback.lightImpact();
     _showEditSheet(
       titulo: 'Editar dirección',
@@ -2714,9 +2768,10 @@ class _LocalesPerfilState extends State<LocalesPerfil> {
     final tipoPlanBanner = _tipoPlanBanner();
     final esPionero = _estadoSuscripcion?.esPionero ?? false;
     final ubiOk =
-        _ubicacionTextoComputed.isNotEmpty ||
-        (_direccion ?? '').trim().isNotEmpty ||
-        (_urlMaps ?? '').trim().isNotEmpty;
+        !_esOrganizadorEventos &&
+        (_ubicacionTextoComputed.isNotEmpty ||
+            (_direccion ?? '').trim().isNotEmpty ||
+            (_urlMaps ?? '').trim().isNotEmpty);
     final igOk = _urlInstagram?.trim().isNotEmpty == true;
     final ttOk = _urlTiktok?.trim().isNotEmpty == true;
     final webOk = _urlWebsite?.trim().isNotEmpty == true;
@@ -3014,7 +3069,16 @@ class _LocalesPerfilState extends State<LocalesPerfil> {
                       Positioned(
                         left: 14,
                         top: padding.top + 10,
-                        child: _AccionEditarBanner(onTap: _editarBanner),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _AccionEditarBanner(onTap: _editarBanner),
+                            if (_esOrganizadorEventos) ...[
+                              const SizedBox(height: 8),
+                              const _BadgeOrganizadorPerfil(),
+                            ],
+                          ],
+                        ),
                       ),
                       Positioned(
                         top: padding.top + 10,
@@ -3134,8 +3198,34 @@ class _LocalesPerfilState extends State<LocalesPerfil> {
                                 label: _labelWhatsappVisible(_whatsappLabel),
                                 onTap: _editarWhatsapp,
                               ),
-                              if (_ubicacionTextoComputed.isNotEmpty ||
-                                  (_direccion ?? '').trim().isNotEmpty) ...[
+                              const SizedBox(height: 12),
+                              Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      'No tengo lugar físico, soy organizador de eventos',
+                                      style: GoogleFonts.baloo2(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w800,
+                                        color: ColoresMiLocalPerfil
+                                            .textoSecundario,
+                                        height: 1.25,
+                                      ),
+                                    ),
+                                  ),
+                                  CupertinoSwitch(
+                                    value: _esOrganizadorEventos,
+                                    onChanged: (v) =>
+                                        _setOrganizadorEventos(v),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 12),
+                              if (!_esOrganizadorEventos &&
+                                  (_ubicacionTextoComputed.isNotEmpty ||
+                                      (_direccion ?? '').trim().isNotEmpty)) ...[
                                 const SizedBox(height: 12),
                                 Row(
                                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -3176,7 +3266,7 @@ class _LocalesPerfilState extends State<LocalesPerfil> {
                                     ),
                                   ],
                                 ),
-                              ] else ...[
+                              ] else if (!_esOrganizadorEventos) ...[
                                 const SizedBox(height: 12),
                                 Row(
                                   children: [
@@ -3200,6 +3290,19 @@ class _LocalesPerfilState extends State<LocalesPerfil> {
                                       sobreOscuro: false,
                                     ),
                                   ],
+                                ),
+                              ],
+                              if (_esOrganizadorEventos) ...[
+                                const SizedBox(height: 12),
+                                Text(
+                                  'Como organizador, tus planes pueden usar ubicación custom con link de Google Maps.',
+                                  style: GoogleFonts.baloo2(
+                                    fontSize: 12.6,
+                                    fontWeight: FontWeight.w700,
+                                    color:
+                                        ColoresMiLocalPerfil.textoSecundario,
+                                    height: 1.35,
+                                  ),
                                 ),
                               ],
                               const SizedBox(height: 10),
@@ -4828,6 +4931,37 @@ class _PantallaConfirmarEliminarCuentaState
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _BadgeOrganizadorPerfil extends StatelessWidget {
+  const _BadgeOrganizadorPerfil();
+
+  @override
+  Widget build(BuildContext context) {
+    final color = ColoresMiLocalPerfil.principalMarca;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.16),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(CupertinoIcons.calendar_badge_plus, size: 12, color: color),
+          const SizedBox(width: 5),
+          Text(
+            'Organizador',
+            style: GoogleFonts.baloo2(
+              fontSize: 11.5,
+              fontWeight: FontWeight.w800,
+              color: color,
+            ),
+          ),
+        ],
       ),
     );
   }

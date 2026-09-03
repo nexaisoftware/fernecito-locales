@@ -42,6 +42,7 @@ class DatosPerfilChat {
   String? urlInstagram;
   String? descripcion;
   Map<String, dynamic>? horariosJson;
+  bool esOrganizadorEventos = false;
 }
 
 /// Abre el chatbot. [onCrearPerfil] guarda por el mismo camino que el form y
@@ -72,6 +73,7 @@ enum _Paso {
   nombre,
   usernameSugerido,
   usernameManual,
+  tipoCuenta,
   ubicacion,
   direccion,
   horarios,
@@ -96,6 +98,7 @@ const _kRubros = <String>[
   'Pub',
   'Cafe',
   'Eventos',
+  'Organizador de eventos',
   'After',
 ];
 
@@ -156,7 +159,7 @@ class _AsistenteChatSheetState extends State<_AsistenteChatSheet> {
   bool _correccionHorarios = false;
 
   // Progreso (para la barra superior).
-  static const _totalPasos = 12;
+  static const _totalPasos = 13;
 
   @override
   void initState() {
@@ -319,8 +322,29 @@ class _AsistenteChatSheetState extends State<_AsistenteChatSheet> {
     _input.clear();
     _pushUsuario('@$u');
     await _bot([
-      '¡Perfecto, **@$u**! 🙌 Ahora elegí **provincia y ciudad** 👇',
+      '¡Perfecto, **@$u**! 🙌 ¿Tenés un **lugar físico** o sos **organizador de eventos** (sin dirección)?',
     ]);
+    _irA(_Paso.tipoCuenta);
+  }
+
+  Future<void> _elegirTipoCuenta({required bool organizador}) async {
+    _datos.esOrganizadorEventos = organizador;
+    if (organizador) {
+      _datos.direccion = '';
+      _datos.urlMaps = null;
+      _datos.rubros.add('Organizador de eventos');
+    } else {
+      _datos.rubros.remove('Organizador de eventos');
+    }
+    _pushUsuarioWidget(
+      _ChipInfo(
+        icon: organizador
+            ? CupertinoIcons.calendar
+            : CupertinoIcons.building_2_fill,
+        texto: organizador ? 'Organizador' : 'Local con lugar',
+      ),
+    );
+    await _bot(['Ahora elegí **provincia y ciudad** 👇']);
     _irA(_Paso.ubicacion);
   }
 
@@ -333,6 +357,14 @@ class _AsistenteChatSheetState extends State<_AsistenteChatSheet> {
         texto: '$ciudad, $provincia',
       ),
     );
+    if (_datos.esOrganizadorEventos) {
+      await _bot([
+        '¡Buenísimo! Estás en **$ciudad**, $provincia 📍',
+        'Como organizador no hace falta dirección. Al crear un evento te pedimos el lugar.',
+      ]);
+      await _irAPedirHorarios();
+      return;
+    }
     await _bot([
       '¡Buenísimo! Estás en **$ciudad**, $provincia 📍',
       '¿Cuál es tu **dirección**? (calle y número)',
@@ -352,16 +384,6 @@ class _AsistenteChatSheetState extends State<_AsistenteChatSheet> {
     await _bot([
       'Revisá el **link de Maps** de arriba para confirmar que la ubicación está bien 📍',
     ]);
-    await _irAPedirHorarios();
-  }
-
-  Future<void> _sinDireccionOrganizador() async {
-    _datos.direccion = 'Organizador de eventos (sin local fijo)';
-    _datos.urlMaps = _mapsUrlCiudad(_datos.ciudad, _datos.provincia);
-    _pushUsuarioWidget(
-      _ChipInfo(icon: CupertinoIcons.calendar, texto: 'Organizador de eventos'),
-    );
-    await _bot(['¡Entendido! 🎉 Seguimos sin dirección fija.']);
     await _irAPedirHorarios();
   }
 
@@ -500,6 +522,9 @@ class _AsistenteChatSheetState extends State<_AsistenteChatSheet> {
       _datos.rubros
         ..clear()
         ..addAll(rubros.where(_kRubros.contains));
+      if (_datos.esOrganizadorEventos) {
+        _datos.rubros.add('Organizador de eventos');
+      }
       _pushBotWidget(_DescripcionPreview(texto: desc));
       _irA(_Paso.descripcionPreview);
     } catch (e) {
@@ -638,11 +663,6 @@ class _AsistenteChatSheetState extends State<_AsistenteChatSheet> {
 
   String _mapsUrl(String direccion, String ciudad, String provincia) {
     final q = Uri.encodeComponent('$direccion, $ciudad, $provincia');
-    return 'https://www.google.com/maps/search/?api=1&query=$q';
-  }
-
-  String _mapsUrlCiudad(String ciudad, String provincia) {
-    final q = Uri.encodeComponent('$ciudad, $provincia, Argentina');
     return 'https://www.google.com/maps/search/?api=1&query=$q';
   }
 
@@ -831,28 +851,30 @@ class _AsistenteChatSheetState extends State<_AsistenteChatSheet> {
       case _Paso.usernameSugerido:
       case _Paso.usernameManual:
         return 2;
-      case _Paso.ubicacion:
+      case _Paso.tipoCuenta:
         return 3;
-      case _Paso.direccion:
+      case _Paso.ubicacion:
         return 4;
+      case _Paso.direccion:
+        return 5;
       case _Paso.horarios:
       case _Paso.horariosPreview:
-        return 5;
+        return 6;
       case _Paso.descripcion:
       case _Paso.descripcionPreview:
-        return 6;
-      case _Paso.rubros:
         return 7;
-      case _Paso.redes:
+      case _Paso.rubros:
         return 8;
-      case _Paso.avatar:
+      case _Paso.redes:
         return 9;
-      case _Paso.banner:
+      case _Paso.avatar:
         return 10;
-      case _Paso.fotosLocal:
+      case _Paso.banner:
         return 11;
-      default:
+      case _Paso.fotosLocal:
         return 12;
+      default:
+        return 13;
     }
   }
 
@@ -948,8 +970,9 @@ class _AsistenteChatSheetState extends State<_AsistenteChatSheet> {
               ),
               IconButton(
                 onPressed: () async {
-                  if (await _confirmarSalir() && mounted)
+                  if (await _confirmarSalir() && mounted) {
                     Navigator.of(context).pop();
+                  }
                 },
                 icon: const Icon(
                   CupertinoIcons.xmark,
@@ -993,6 +1016,20 @@ class _AsistenteChatSheetState extends State<_AsistenteChatSheet> {
         ]);
       case _Paso.usernameManual:
         return _inputUsernameManual();
+      case _Paso.tipoCuenta:
+        return _opciones([
+          _OpcionBtn(
+            'Tengo un local',
+            () => _elegirTipoCuenta(organizador: false),
+            primario: true,
+            icono: CupertinoIcons.building_2_fill,
+          ),
+          _OpcionBtn(
+            'Soy organizador',
+            () => _elegirTipoCuenta(organizador: true),
+            icono: CupertinoIcons.calendar,
+          ),
+        ]);
       case _Paso.ubicacion:
         return _OpcionBtn(
           'Elegir provincia y ciudad',
@@ -1004,10 +1041,6 @@ class _AsistenteChatSheetState extends State<_AsistenteChatSheet> {
         return _inputTexto(
           hint: 'Ej: Av. Colón 450',
           onSend: _onDireccion,
-          accionExtra: _OpcionBtn(
-            'No tengo dirección (organizador)',
-            _sinDireccionOrganizador,
-          ),
         );
       case _Paso.horarios:
         return _inputTexto(

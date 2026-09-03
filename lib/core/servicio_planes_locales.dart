@@ -159,12 +159,36 @@ class PlanLocalItem {
       personasAceptadas: n(m['personas_aceptadas']) ?? n(m['cupo_usados']) ?? 0,
       contactoAnfitrion: m['contacto_anfitrion']?.toString(),
       contactoTitulo: m['contacto_titulo']?.toString(),
-      contactoModo: m['contacto_modo']?.toString() == 'colaborar'
-          ? 'colaborar'
-          : 'contactar',
+      contactoModo: () {
+        final mdo = m['contacto_modo']?.toString().toLowerCase() ?? '';
+        if (mdo == 'vaquita' || mdo == 'colaborar') return 'vaquita';
+        return 'contactar';
+      }(),
       ingresoAbierto: m['ingreso_abierto'] != false,
     );
   }
+}
+
+class LocalDestinoParaPlan {
+  const LocalDestinoParaPlan({
+    required this.id,
+    required this.nombreLocal,
+    this.ciudad,
+    this.fotoPerfilUrl,
+  });
+
+  final String id;
+  final String nombreLocal;
+  final String? ciudad;
+  final String? fotoPerfilUrl;
+
+  factory LocalDestinoParaPlan.fromMap(Map<String, dynamic> m) =>
+      LocalDestinoParaPlan(
+        id: m['id']?.toString() ?? '',
+        nombreLocal: m['nombre_local']?.toString() ?? 'Local',
+        ciudad: m['ciudad']?.toString(),
+        fotoPerfilUrl: m['foto_perfil_url']?.toString(),
+      );
 }
 
 class PlanLocalMiembro {
@@ -258,6 +282,37 @@ class ServicioPlanesLocales {
 
   SupabaseClient get _c => ServicioSupabase().cliente;
   String? get miUid => _c.auth.currentUser?.id;
+
+  /// Busca locales activos para que un organizador pueda elegir “local adherido”.
+  /// Si [q] viene vacío, devuelve una grilla corta (prioriza verificados si existe la columna).
+  Future<List<LocalDestinoParaPlan>> buscarLocalesActivos({
+    String? q,
+    int limit = 8,
+  }) async {
+    try {
+      final query = (q ?? '').trim();
+      final base = _c
+          .from('perfiles_locales')
+          .select('id, nombre_local, ciudad, foto_perfil_url')
+          .eq('estado_cuenta', 'activa');
+
+      final res = query.isEmpty
+          ? await base
+              .order('local_verificado', ascending: false)
+              .limit(limit)
+          : await base.ilike('nombre_local', '%$query%').limit(limit);
+
+      final rows = res is List ? res : const <dynamic>[];
+      return rows
+          .whereType<Map>()
+          .map((e) => LocalDestinoParaPlan.fromMap(Map<String, dynamic>.from(e)))
+          .where((x) => x.id.isNotEmpty)
+          .toList(growable: false);
+    } catch (e) {
+      debugPrint('⚠️ buscarLocalesActivos: $e');
+      return const [];
+    }
+  }
 
   Future<({List<PlanLocalItem> items, bool hayMas, String? error})> hub({
     int limit = 30,
@@ -405,6 +460,10 @@ class ServicioPlanesLocales {
     bool permiteSquads = true,
     int? edadMinima,
     String tipoOrganizador = 'local',
+    String? idLocalDestino,
+    bool esUbicacionCustom = false,
+    String? ubicacionCustom,
+    String? urlMapsCustom,
   }) async {
     final uid = miUid;
     if (uid == null) return null;
@@ -414,7 +473,7 @@ class ServicioPlanesLocales {
         params: {
           'p_titulo': titulo,
           'p_descripcion': descripcion,
-          'p_id_local': uid,
+          'p_id_local': (idLocalDestino ?? uid),
           'p_fecha_inicio': fechaInicio.toUtc().toIso8601String(),
           'p_fecha_fin': fechaFin?.toUtc().toIso8601String(),
           'p_modo_lista': modoLista,
@@ -423,13 +482,15 @@ class ServicioPlanesLocales {
           'p_creador_tipo': 'local',
           'p_contacto_anfitrion': contactoAnfitrion,
           'p_contacto_titulo': contactoTitulo,
-          'p_contacto_modo': contactoModo == 'colaborar'
-              ? 'colaborar'
-              : 'contactar',
+          'p_contacto_modo': (contactoModo == 'vaquita' || contactoModo == 'colaborar') ? 'vaquita' : 'contactar',
           'p_portada_path': portadaPath,
           'p_color_hex': colorHex,
           'p_permite_squads': permiteSquads,
           'p_edad_minima': edadMinima,
+          'p_es_ubicacion_custom': esUbicacionCustom,
+          'p_ubicacion_custom':
+              esUbicacionCustom ? ubicacionCustom?.trim() : null,
+          'p_url_maps_custom': esUbicacionCustom ? urlMapsCustom?.trim() : null,
         },
       );
       if (res is Map && res['ok'] == true) return res['id']?.toString();

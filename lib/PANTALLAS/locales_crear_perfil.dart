@@ -63,9 +63,11 @@ class _LocalesCrearPerfilState extends State<LocalesCrearPerfil> {
     'Pub',
     'Cafe',
     'Eventos',
+    'Organizador de eventos',
     'After',
   ];
   final Set<String> _rubrosSeleccionados = <String>{};
+  bool _esOrganizadorEventos = false;
 
   static String get _provinciaDefault => UbicacionesData.provinciaPorDefecto;
   static List<String> get _ciudadesCordoba =>
@@ -183,13 +185,29 @@ class _LocalesCrearPerfilState extends State<LocalesCrearPerfil> {
     final username = _localUsername.text.trim();
     final direccion = _direccion.text.trim();
     final urlMaps = _urlMaps.text.trim();
-    return nombre.isNotEmpty &&
+
+    final baseValido = nombre.isNotEmpty &&
         username.length >= 3 &&
         _usernameDisponible == true &&
-        direccion.isNotEmpty &&
         _provincia.isNotEmpty &&
-        _ciudad.isNotEmpty &&
-        urlMaps.isNotEmpty;
+        _ciudad.isNotEmpty;
+
+    if (_esOrganizadorEventos) return baseValido;
+
+    return baseValido && direccion.isNotEmpty && urlMaps.isNotEmpty;
+  }
+
+  void _setTipoOrganizador(bool value) {
+    setState(() {
+      _esOrganizadorEventos = value;
+      if (value) {
+        _direccion.clear();
+        _urlMaps.clear();
+        _rubrosSeleccionados.add('Organizador de eventos');
+      } else {
+        _rubrosSeleccionados.remove('Organizador de eventos');
+      }
+    });
   }
 
   int get _cantidadFotosLocales => _fotosLocales.where((e) => e != null).length;
@@ -518,8 +536,9 @@ class _LocalesCrearPerfilState extends State<LocalesCrearPerfil> {
     }
 
     try {
-      final urlMaps = _normalizarUrlOpcional(_urlMaps.text);
-      if (urlMaps == null) {
+      final urlMaps =
+          _esOrganizadorEventos ? null : _normalizarUrlOpcional(_urlMaps.text);
+      if (!_esOrganizadorEventos && urlMaps == null) {
         return 'La URL de Google Maps no es válida.\n\n'
             'Tip: podés pegar sin https y la app lo completa automáticamente.';
       }
@@ -585,6 +604,7 @@ class _LocalesCrearPerfilState extends State<LocalesCrearPerfil> {
         perfil: {
           'nombre_local': _nombreLocal.text.trim(),
           'local_username': _localUsername.text.trim(),
+          'es_organizador_eventos': _esOrganizadorEventos,
           'direccion': _direccion.text.trim(),
           'provincia': _provincia,
           'ciudad': _ciudad,
@@ -629,6 +649,14 @@ class _LocalesCrearPerfilState extends State<LocalesCrearPerfil> {
     _rubrosSeleccionados
       ..clear()
       ..addAll(d.rubros);
+    _esOrganizadorEventos = d.esOrganizadorEventos;
+    if (_esOrganizadorEventos) {
+      _direccion.clear();
+      _urlMaps.clear();
+      _rubrosSeleccionados.add('Organizador de eventos');
+    } else {
+      _rubrosSeleccionados.remove('Organizador de eventos');
+    }
     _horariosJson = (d.horariosJson != null && d.horariosJson!.isNotEmpty)
         ? d.horariosJson
         : null;
@@ -870,16 +898,48 @@ class _LocalesCrearPerfilState extends State<LocalesCrearPerfil> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const OnbTituloSeccion(
+            OnbTituloSeccion(
               icono: CupertinoIcons.building_2_fill,
               titulo: 'Datos del local',
-              subtitulo:
-                  'Nombre, ubicación y link de Maps para que te encuentren.',
+              subtitulo: _esOrganizadorEventos
+                  ? 'Organizador: nombre, ciudad y listo. Sin dirección física.'
+                  : 'Nombre, ubicación y link de Maps para que te encuentren.',
             ),
             const SizedBox(height: 16),
+            Text(
+              '¿Qué tipo de cuenta es?',
+              style: GoogleFonts.baloo2(
+                fontSize: 14,
+                fontWeight: FontWeight.w800,
+                color: ColoresOnboardingLocales.texto,
+              ),
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(
+                  child: _ChipTipoCuentaLocal(
+                    label: 'Local con lugar',
+                    selected: !_esOrganizadorEventos,
+                    onTap: () => _setTipoOrganizador(false),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _ChipTipoCuentaLocal(
+                    label: 'Organizador',
+                    selected: _esOrganizadorEventos,
+                    onTap: () => _setTipoOrganizador(true),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
             OnbCampo(
               controller: _nombreLocal,
-              hint: 'Nombre del local o empresa',
+              hint: _esOrganizadorEventos
+                  ? 'Nombre de tu productora o marca'
+                  : 'Nombre del local o empresa',
               onChanged: (_) => setState(() {}),
             ),
             const SizedBox(height: 12),
@@ -914,12 +974,14 @@ class _LocalesCrearPerfilState extends State<LocalesCrearPerfil> {
               ],
             ),
             const SizedBox(height: 12),
-            OnbCampo(
-              controller: _direccion,
-              hint: 'Dirección física',
-              onChanged: (_) => setState(() {}),
-            ),
-            const SizedBox(height: 12),
+            if (!_esOrganizadorEventos) ...[
+              OnbCampo(
+                controller: _direccion,
+                hint: 'Dirección física',
+                onChanged: (_) => setState(() {}),
+              ),
+              const SizedBox(height: 12),
+            ],
             DropdownButtonFormField<String>(
               initialValue: _provincia,
               isExpanded: true,
@@ -952,25 +1014,38 @@ class _LocalesCrearPerfilState extends State<LocalesCrearPerfil> {
                   setState(() => _ciudad = v ?? _ciudadesCordoba.first),
             ),
             const SizedBox(height: 14),
-            Text(
-              'Google Maps',
-              style: GoogleFonts.baloo2(
-                fontSize: 14,
-                fontWeight: FontWeight.w700,
-                color: ColoresOnboardingLocales.texto,
+            if (!_esOrganizadorEventos) ...[
+              Text(
+                'Google Maps',
+                style: GoogleFonts.baloo2(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                  color: ColoresOnboardingLocales.texto,
+                ),
               ),
-            ),
-            const SizedBox(height: 8),
-            OnbCampo(
-              controller: _urlMaps,
-              hint: 'Pegá el link de tu local en Maps',
-              keyboardType: TextInputType.url,
-              suffix: IconButton(
-                tooltip: 'Pegar',
-                onPressed: () => _pegarTextoEnControlador(_urlMaps),
-                icon: const Icon(Icons.paste_rounded, color: Colors.white),
+              const SizedBox(height: 8),
+              OnbCampo(
+                controller: _urlMaps,
+                hint: 'Pegá el link de tu local en Maps',
+                keyboardType: TextInputType.url,
+                suffix: IconButton(
+                  tooltip: 'Pegar',
+                  onPressed: () => _pegarTextoEnControlador(_urlMaps),
+                  icon: const Icon(Icons.paste_rounded,
+                      color: Colors.white),
+                ),
               ),
-            ),
+            ] else ...[
+              Text(
+                'Como organizador no cargás dirección. Al crear un evento te pedimos el lugar.',
+                style: GoogleFonts.baloo2(
+                  fontSize: 12.8,
+                  fontWeight: FontWeight.w600,
+                  color: ColoresOnboardingLocales.textoSecundario,
+                  height: 1.35,
+                ),
+              ),
+            ],
           ],
         ),
       ),
@@ -1068,6 +1143,13 @@ class _LocalesCrearPerfilState extends State<LocalesCrearPerfil> {
                       _rubrosSeleccionados.remove(rubro);
                     } else {
                       _rubrosSeleccionados.add(rubro);
+                    }
+                    if (rubro == 'Organizador de eventos') {
+                      _esOrganizadorEventos = !selected;
+                      if (!selected) {
+                        _direccion.text = '';
+                        _urlMaps.text = '';
+                      }
                     }
                   }),
                 );
@@ -1399,6 +1481,50 @@ class _BotonAsistenteIa extends StatelessWidget {
                 ],
               ),
             ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ChipTipoCuentaLocal extends StatelessWidget {
+  const _ChipTipoCuentaLocal({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 11),
+        decoration: BoxDecoration(
+          color: selected
+              ? Colors.white.withValues(alpha: 0.18)
+              : Colors.white.withValues(alpha: 0.06),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: selected
+                ? Colors.white.withValues(alpha: 0.55)
+                : Colors.white.withValues(alpha: 0.12),
+          ),
+        ),
+        child: Text(
+          label,
+          textAlign: TextAlign.center,
+          style: GoogleFonts.baloo2(
+            fontSize: 13,
+            fontWeight: FontWeight.w800,
+            color: ColoresOnboardingLocales.texto,
+            height: 1.15,
           ),
         ),
       ),

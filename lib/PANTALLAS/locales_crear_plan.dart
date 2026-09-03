@@ -49,6 +49,14 @@ class _LocalesCrearPlanState extends State<LocalesCrearPlan> {
   final _contactoValorInput = TextEditingController();
   final _focus = FocusNode();
 
+  // Organizadores: elegir local adherido o ubicación custom.
+  bool _cargandoPerfil = true;
+  bool _esOrganizadorEventos = false;
+  bool _esUbicacionCustom = false;
+  String? _idLocalDestino;
+  final _ubicacionCustomCtrl = TextEditingController();
+  final _urlMapsCustomCtrl = TextEditingController();
+
   final List<_MensajePlan> _mensajes = <_MensajePlan>[];
 
   String _titulo = '';
@@ -75,6 +83,7 @@ class _LocalesCrearPlanState extends State<LocalesCrearPlan> {
   void initState() {
     super.initState();
     unawaited(_arrancar());
+    unawaited(_cargarPerfilOrganizador());
   }
 
   @override
@@ -84,7 +93,35 @@ class _LocalesCrearPlanState extends State<LocalesCrearPlan> {
     _contactoTituloInput.dispose();
     _contactoValorInput.dispose();
     _focus.dispose();
+    _ubicacionCustomCtrl.dispose();
+    _urlMapsCustomCtrl.dispose();
     super.dispose();
+  }
+
+  Future<void> _cargarPerfilOrganizador() async {
+    try {
+      final uid = _srv.miUid;
+      if (uid == null) return;
+
+      final res = await ServicioSupabase()
+          .cliente
+          .from('perfiles_locales')
+          .select('es_organizador_eventos')
+          .eq('id', uid)
+          .maybeSingle();
+
+      final esOrg = res?['es_organizador_eventos'] == true;
+      if (!mounted) return;
+      setState(() {
+        _esOrganizadorEventos = esOrg;
+        _esUbicacionCustom = esOrg;
+        _idLocalDestino = uid;
+        _cargandoPerfil = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _cargandoPerfil = false);
+    }
   }
 
   Future<void> _arrancar() async {
@@ -330,7 +367,7 @@ class _LocalesCrearPlanState extends State<LocalesCrearPlan> {
     );
     await _bot([
       'Último detalle opcional 📲',
-      'Elegí **contactar organizador** (WhatsApp/IG) o **colaborar** (link o alias).',
+      'Elegí **contactar organizador** (WhatsApp/IG) o **vaquita para el organizador** (alias o link).',
       'Solo una opción. Si no hace falta, saltealo.',
     ]);
     _irA(_PasoPlan.contacto);
@@ -348,13 +385,13 @@ class _LocalesCrearPlanState extends State<LocalesCrearPlan> {
   }
 
   String get _contactoTituloSugerido =>
-      _contactoModo == 'colaborar' ? 'Colaborar' : 'Contactar';
+      _contactoModo == 'vaquita' || _contactoModo == 'vaquita' ? 'Vaquita' : 'Contactar';
 
   void _cambiarContactoModo(String modo) {
     setState(() {
-      _contactoModo = modo == 'colaborar' ? 'colaborar' : 'contactar';
+      _contactoModo = (modo == 'vaquita' || modo == 'colaborar') ? 'vaquita' : 'contactar';
       final actual = _contactoTituloInput.text.trim();
-      if (actual.isEmpty || actual == 'Contactar' || actual == 'Colaborar') {
+      if (actual.isEmpty || actual == 'Contactar' || actual == 'Colaborar' || actual == 'Vaquita') {
         _contactoTituloInput.text = _contactoTituloSugerido;
       }
     });
@@ -372,7 +409,7 @@ class _LocalesCrearPlanState extends State<LocalesCrearPlan> {
     _contacto = valor;
     _usuarioWidget(
       _ChipRespuesta(
-        icono: _contactoModo == 'colaborar'
+        icono: _contactoModo == 'vaquita'
             ? CupertinoIcons.link
             : CupertinoIcons.chat_bubble_2,
         texto: '${_contactoTitulo!}: $valor',
@@ -398,9 +435,26 @@ class _LocalesCrearPlanState extends State<LocalesCrearPlan> {
       _toast('Tu sesión expiró. Volvé a entrar.');
       return;
     }
+    if (_cargandoPerfil) {
+      _toast('Un segundo… cargando tu perfil.');
+      return;
+    }
     if (_inicio.isAfter(DateTime.now().add(const Duration(days: 45)))) {
       _toast('Los planes duran 45 días. Crealo más cerca de la fecha.');
       return;
+    }
+    if (_esOrganizadorEventos) {
+      final ubic = _ubicacionCustomCtrl.text.trim();
+      final url = _urlMapsCustomCtrl.text.trim();
+      if (ubic.isEmpty || ubic.length < 3) {
+        _toast('Sumá dónde es el plan.');
+        return;
+      }
+      if (url.isEmpty ||
+          !RegExp(r'^https?://', caseSensitive: false).hasMatch(url)) {
+        _toast('Pegá un link de Google Maps válido.');
+        return;
+      }
     }
     setState(() {
       _guardando = true;
@@ -440,6 +494,14 @@ class _LocalesCrearPlanState extends State<LocalesCrearPlan> {
         colorHex: '#111111',
         permiteSquads: _permiteSquads,
         edadMinima: _edadMinima,
+        idLocalDestino: _idLocalDestino,
+        esUbicacionCustom: _esUbicacionCustom,
+        ubicacionCustom: _esUbicacionCustom
+            ? _ubicacionCustomCtrl.text.trim()
+            : null,
+        urlMapsCustom: _esUbicacionCustom
+            ? _urlMapsCustomCtrl.text.trim()
+            : null,
       );
       if (!mounted) return;
       if (id == null) {
@@ -783,6 +845,39 @@ class _LocalesCrearPlanState extends State<LocalesCrearPlan> {
               onTap: () => setState(() => _permiteSquads = !_permiteSquads),
             ),
             const SizedBox(height: 8),
+            if (_esOrganizadorEventos) ...[
+              CupertinoTextField(
+                controller: _ubicacionCustomCtrl,
+                placeholder: '¿Dónde es? (ej: descampado / sunset)',
+                style: const TextStyle(color: Colors.white),
+                placeholderStyle:
+                    const TextStyle(color: Color(0xFF9CA3AF)),
+                onChanged: (_) => setState(() {}),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.07),
+                  borderRadius: BorderRadius.circular(17),
+                ),
+              ),
+              const SizedBox(height: 10),
+              CupertinoTextField(
+                controller: _urlMapsCustomCtrl,
+                placeholder: 'Link de Google Maps',
+                style: const TextStyle(color: Colors.white),
+                placeholderStyle:
+                    const TextStyle(color: Color(0xFF9CA3AF)),
+                keyboardType: TextInputType.url,
+                onChanged: (_) => setState(() {}),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.07),
+                  borderRadius: BorderRadius.circular(17),
+                ),
+              ),
+              const SizedBox(height: 8),
+            ],
             _OpcionBarraPlan(
               texto: 'Confirmar unión',
               icono: CupertinoIcons.checkmark_circle_fill,
@@ -1173,7 +1268,7 @@ class _ContactoPlanCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colaborar = modo == 'colaborar';
+    final vaquita = modo == 'vaquita' || modo == 'colaborar';
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(12),
@@ -1191,16 +1286,16 @@ class _ContactoPlanCard extends StatelessWidget {
               Expanded(
                 child: _ChoicePlan(
                   texto: 'Contactar',
-                  selected: !colaborar,
+                  selected: !vaquita,
                   onTap: () => onModo('contactar'),
                 ),
               ),
               const SizedBox(width: 8),
               Expanded(
                 child: _ChoicePlan(
-                  texto: 'Colaborar',
-                  selected: colaborar,
-                  onTap: () => onModo('colaborar'),
+                  texto: 'Vaquita',
+                  selected: vaquita,
+                  onTap: () => onModo('vaquita'),
                 ),
               ),
             ],
@@ -1217,7 +1312,7 @@ class _ContactoPlanCard extends StatelessWidget {
           const SizedBox(height: 5),
           _CampoContactoPlan(
             controller: tituloController,
-            placeholder: colaborar ? 'Ej: Sumate como partner' : 'Ej: Contacto',
+            placeholder: vaquita ? 'alias o link' : 'Ej: Contacto',
             textInputAction: TextInputAction.next,
             maxLength: 50,
           ),
@@ -1233,7 +1328,7 @@ class _ContactoPlanCard extends StatelessWidget {
           const SizedBox(height: 5),
           _CampoContactoPlan(
             controller: valorController,
-            placeholder: colaborar
+            placeholder: vaquita
                 ? 'Ej: link, alias o mail'
                 : 'Ej: WhatsApp o Instagram',
             onSubmitted: (_) => onConfirmar(),
@@ -1496,7 +1591,7 @@ class _ResumenPlanCard extends StatelessWidget {
     final contactoValor = (contacto ?? '').trim();
     final tituloContacto =
         (contactoTitulo ??
-                (contactoModo == 'colaborar' ? 'Colaborar' : 'Contactar'))
+                ((contactoModo == 'vaquita' || contactoModo == 'colaborar') ? 'Vaquita' : 'Contactar'))
             .trim();
 
     return Container(

@@ -46,6 +46,7 @@ class _LocalesCrearEventoState extends State<LocalesCrearEvento> {
   bool _localVerificado = false;
   String? _nombreLocal;
   String? _ciudadLocal;
+  bool _esOrganizadorEventos = false;
 
   final _tituloEventoCtrl = TextEditingController();
   final _descripcionEventoCtrl = TextEditingController();
@@ -256,19 +257,34 @@ class _LocalesCrearEventoState extends State<LocalesCrearEvento> {
       return;
     }
     try {
-      final row = await ServicioSupabase().cliente
-          .from('perfiles_locales')
-          .select(
-            'id, local_verificado, direccion, url_maps, nombre_local, ciudad, provincia, cupos_recomendado, cupos_top_cartelera, cupos_top_ultra',
-          )
-          .eq('id', uid)
-          .maybeSingle();
+      Map<String, dynamic>? row;
+      try {
+        row = await ServicioSupabase().cliente
+            .from('perfiles_locales')
+            .select(
+              'id, local_verificado, direccion, url_maps, nombre_local, ciudad, provincia, cupos_recomendado, cupos_top_cartelera, cupos_top_ultra, es_organizador_eventos',
+            )
+            .eq('id', uid)
+            .maybeSingle();
+      } catch (_) {
+        row = await ServicioSupabase().cliente
+            .from('perfiles_locales')
+            .select(
+              'id, local_verificado, direccion, url_maps, nombre_local, ciudad, provincia, cupos_recomendado, cupos_top_cartelera, cupos_top_ultra',
+            )
+            .eq('id', uid)
+            .maybeSingle();
+      }
       if (!mounted) return;
+      final esOrg = row?['es_organizador_eventos'] == true;
       setState(() {
         _idLocal = uid;
         _localVerificado = row?['local_verificado'] as bool? ?? false;
         _nombreLocal = row?['nombre_local'] as String?;
         _ciudadLocal = row?['ciudad'] as String?;
+        _esOrganizadorEventos = esOrg;
+        _esEnLocal = !esOrg;
+        if (esOrg) _expandUbicacionExterna = true;
         _credRecomendados = (row?['cupos_recomendado'] as num?)?.toInt() ?? 0;
         _credTop = (row?['cupos_top_cartelera'] as num?)?.toInt() ?? 0;
         _credTopUltra = (row?['cupos_top_ultra'] as num?)?.toInt() ?? 0;
@@ -729,27 +745,27 @@ class _LocalesCrearEventoState extends State<LocalesCrearEvento> {
         _mostrarError('La fecha de fin debe ser posterior al inicio.');
         return false;
       }
-      if (!_esEnLocal) {
-        if (_direccionEventoCtrl.text.trim().isEmpty) {
-          _mostrarError('Completá la dirección del evento.');
-          setState(() => _expandUbicacionExterna = true);
-          return false;
-        }
-        if (_ciudadEventoCtrl.text.trim().isEmpty) {
-          _mostrarError('Completá la ciudad del evento.');
-          setState(() => _expandUbicacionExterna = true);
-          return false;
-        }
-        if (_provinciaEventoCtrl.text.trim().isEmpty) {
-          _mostrarError('Completá la provincia del evento.');
-          setState(() => _expandUbicacionExterna = true);
-          return false;
-        }
-        if (_urlMapsEventoCtrl.text.trim().isEmpty) {
-          _mostrarError('Completá la URL de Google Maps del evento.');
-          setState(() => _expandUbicacionExterna = true);
-          return false;
-        }
+    }
+    if (_esOrganizadorEventos || (!_esSimple && !_esEnLocal)) {
+      if (_direccionEventoCtrl.text.trim().isEmpty) {
+        _mostrarError('Completá la dirección del evento.');
+        setState(() => _expandUbicacionExterna = true);
+        return false;
+      }
+      if (_ciudadEventoCtrl.text.trim().isEmpty) {
+        _mostrarError('Completá la ciudad del evento.');
+        setState(() => _expandUbicacionExterna = true);
+        return false;
+      }
+      if (_provinciaEventoCtrl.text.trim().isEmpty) {
+        _mostrarError('Completá la provincia del evento.');
+        setState(() => _expandUbicacionExterna = true);
+        return false;
+      }
+      if (_urlMapsEventoCtrl.text.trim().isEmpty) {
+        _mostrarError('Completá la URL de Google Maps del evento.');
+        setState(() => _expandUbicacionExterna = true);
+        return false;
       }
     }
     // Cupo es opcional (null = sin límite). Si se ingresa, debe ser >= 1.
@@ -881,8 +897,10 @@ class _LocalesCrearEventoState extends State<LocalesCrearEvento> {
       'modo_lista': _esSimple ? 'auto' : _modoLista,
       'cupo_lista_max': _esSimple ? null : cupoLista, // null = sin límite
       'permite_squads': _esSimple ? false : _permiteSquads,
-      // --- Ubicación: en simple siempre en el local (ciudad del perfil) ---
-      'es_en_local': _esSimple ? true : _esEnLocal,
+      // --- Ubicación: organizador nunca "en mi local"; simple de local sí. ---
+      'es_en_local': _esOrganizadorEventos
+          ? false
+          : (_esSimple ? true : _esEnLocal),
       if (!_esEnLocal) 'direccion_evento': _direccionEventoCtrl.text.trim(),
       'ciudad_evento': _esEnLocal ? null : _ciudadEventoCtrl.text.trim(),
       'provincia_evento': _esEnLocal ? null : _provinciaEventoCtrl.text.trim(),
@@ -1097,6 +1115,7 @@ class _LocalesCrearEventoState extends State<LocalesCrearEvento> {
     await mostrarAsistenteEventoSheet(
       context,
       ciudadLocal: _ciudadLocal,
+      esOrganizador: _esOrganizadorEventos,
       flyerInicial: _flyerBytes ?? _flyerBytesComprimidos,
       onPublicar: (d) => _publicarDesdeAsistente(d),
       onIrHome: () =>
@@ -2315,6 +2334,9 @@ class _LocalesCrearEventoState extends State<LocalesCrearEvento> {
   }
 
   Widget _contenidoUbicacionEvento() {
+    if (_esOrganizadorEventos) {
+      return _camposUbicacionOtroLugar();
+    }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -2399,6 +2421,69 @@ class _LocalesCrearEventoState extends State<LocalesCrearEvento> {
                 : null,
           ),
         ],
+      ],
+    );
+  }
+
+  Widget _camposUbicacionOtroLugar() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          '¿Dónde es el evento?',
+          style: GoogleFonts.baloo2(
+            color: ColoresLocales.textoOnFondoClaro,
+            fontWeight: FontWeight.w800,
+            fontSize: 15,
+          ),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          'Como organizador no usamos la dirección de un local propio.',
+          style: GoogleFonts.baloo2(
+            color: ColoresLocales.textoSecundarioOnFondoClaro,
+            fontSize: 12.5,
+            height: 1.3,
+          ),
+        ),
+        const SizedBox(height: 10),
+        TextFormField(
+          controller: _direccionEventoCtrl,
+          onChanged: (_) => setState(() {}),
+          style: GoogleFonts.baloo2(color: ColoresLocales.textoOnFondoClaro),
+          decoration: _inputUnaLinea('Dirección del evento'),
+          validator: (v) => (v == null || v.trim().isEmpty)
+              ? 'Completá la dirección del evento'
+              : null,
+        ),
+        const SizedBox(height: 10),
+        _campoUbicacionConAutofiltro(
+          controller: _ciudadEventoCtrl,
+          label: 'Ciudad del evento',
+          opciones: _ciudadesCordobaEvento,
+          validator: (v) => (v == null || v.trim().isEmpty)
+              ? 'Completá la ciudad del evento'
+              : null,
+        ),
+        const SizedBox(height: 10),
+        _campoUbicacionConAutofiltro(
+          controller: _provinciaEventoCtrl,
+          label: 'Provincia',
+          opciones: _provinciasEvento,
+          validator: (v) => (v == null || v.trim().isEmpty)
+              ? 'Completá la provincia del evento'
+              : null,
+        ),
+        const SizedBox(height: 10),
+        TextFormField(
+          controller: _urlMapsEventoCtrl,
+          onChanged: (_) => setState(() {}),
+          style: GoogleFonts.baloo2(color: ColoresLocales.textoOnFondoClaro),
+          decoration: _inputUnaLinea('URL de Google Maps'),
+          validator: (v) => (v == null || v.trim().isEmpty)
+              ? 'Completá la URL de Google Maps'
+              : null,
+        ),
       ],
     );
   }
@@ -2716,7 +2801,7 @@ class _LocalesCrearEventoState extends State<LocalesCrearEvento> {
                         selected: _modoEvento == 'simple',
                         onTap: () => setState(() {
                           _modoEvento = 'simple';
-                          _esEnLocal = true;
+                          _esEnLocal = !_esOrganizadorEventos;
                           _fechaInicio = null;
                           _fechaFin = null;
                           _agregarPromos = false;
@@ -2905,15 +2990,18 @@ class _LocalesCrearEventoState extends State<LocalesCrearEvento> {
                   setState(() => _expandVentaEntradas = v),
               child: _contenidoVentaEntradas(),
             ),
-            _cardOpcionalColapsable(
-              pregunta: '¿Realizás el evento fuera de tu local?',
-              ayudaColapsada: 'Por defecto usamos la ubicación de tu perfil.',
-              expandido: _expandUbicacionExterna,
-              resumenActivo: _resumenUbicacionExterna,
-              onExpandidoChanged: (v) =>
-                  setState(() => _expandUbicacionExterna = v),
-              child: _contenidoUbicacionEvento(),
-            ),
+            if (_esOrganizadorEventos)
+              _card(child: _camposUbicacionOtroLugar())
+            else
+              _cardOpcionalColapsable(
+                pregunta: '¿Realizás el evento fuera de tu local?',
+                ayudaColapsada: 'Por defecto usamos la ubicación de tu perfil.',
+                expandido: _expandUbicacionExterna,
+                resumenActivo: _resumenUbicacionExterna,
+                onExpandidoChanged: (v) =>
+                    setState(() => _expandUbicacionExterna = v),
+                child: _contenidoUbicacionEvento(),
+              ),
             _cardOpcionalColapsable(
               pregunta: '¿Querés personalizar la lista de ingreso?',
               ayudaColapsada: '',
@@ -2934,6 +3022,8 @@ class _LocalesCrearEventoState extends State<LocalesCrearEvento> {
               child: _contenidoAdvertenciasExtras(),
             ),
           ],
+          if (_esSimple && _esOrganizadorEventos)
+            _card(child: _camposUbicacionOtroLugar()),
         ],
       ),
     );

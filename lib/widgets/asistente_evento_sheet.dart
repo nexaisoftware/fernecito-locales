@@ -85,6 +85,7 @@ const _kVioleta = Color(0xFF7C3AED); // acento marca fijo (contraste estable)
 Future<void> mostrarAsistenteEventoSheet(
   BuildContext context, {
   String? ciudadLocal,
+  bool esOrganizador = false,
   Uint8List? flyerInicial,
   required Future<({String? error, String? idEvento})> Function(DatosEventoChat)
       onPublicar,
@@ -100,6 +101,7 @@ Future<void> mostrarAsistenteEventoSheet(
     backgroundColor: Colors.transparent,
     builder: (_) => _AsistenteEventoSheet(
       ciudadLocal: ciudadLocal,
+      esOrganizador: esOrganizador,
       flyerInicial: flyerInicial,
       onPublicar: onPublicar,
       onIrHome: onIrHome,
@@ -139,6 +141,7 @@ enum _Paso {
 class _AsistenteEventoSheet extends StatefulWidget {
   const _AsistenteEventoSheet({
     required this.ciudadLocal,
+    required this.esOrganizador,
     required this.flyerInicial,
     required this.onPublicar,
     required this.onIrHome,
@@ -146,6 +149,7 @@ class _AsistenteEventoSheet extends StatefulWidget {
   });
 
   final String? ciudadLocal;
+  final bool esOrganizador;
   final Uint8List? flyerInicial;
   final Future<({String? error, String? idEvento})> Function(DatosEventoChat)
       onPublicar;
@@ -381,6 +385,14 @@ class _AsistenteEventoSheetState extends State<_AsistenteEventoSheet> {
   }
 
   Future<void> _preguntarUbicacion() async {
+    if (widget.esOrganizador) {
+      _datos.esEnLocal = false;
+      await _bot([
+        '¿Dónde es el evento? 📍 Como organizador, indicá el lugar.',
+      ]);
+      await _abrirSelectorUbicacion();
+      return;
+    }
     await _bot([
       '¿Dónde es el evento? 📍 Si es en tu local, pongo la misma dirección. '
           'Si es en otro lugar, indicámelo.',
@@ -1007,6 +1019,16 @@ class _AsistenteEventoSheetState extends State<_AsistenteEventoSheet> {
           }),
         ]);
       case _Paso.ubicacion:
+        if (widget.esOrganizador) {
+          return _opciones([
+            _OpcionBtn(
+              'Elegir el lugar',
+              _abrirSelectorUbicacion,
+              primario: true,
+              icono: CupertinoIcons.placemark,
+            ),
+          ]);
+        }
         return _opciones([
           _OpcionBtn(
             widget.ciudadLocal != null && widget.ciudadLocal!.trim().isNotEmpty

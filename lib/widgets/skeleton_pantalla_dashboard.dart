@@ -3,7 +3,6 @@ library;
 
 import 'package:flutter/material.dart';
 import '../core/constants.dart';
-import '../core/tema_app_locales.dart';
 import 'shimmer_skeleton.dart';
 
 class SkeletonPantallaDashboard extends StatelessWidget {
